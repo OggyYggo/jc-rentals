@@ -1,69 +1,112 @@
-import Image from "next/image";
+import Link from "next/link";
+import {
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  Bell,
+  CalendarDays,
+  CarFront,
+  Check,
+  ChevronDown,
+  CircleDollarSign,
+  FileText,
+  Gauge,
+  LayoutDashboard,
+  MapPin,
+  Plus,
+  Search,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+
+const bookings = [
+  { initials: "MR", name: "Miguel Reyes", car: "Toyota Vios · Self drive", dates: "Oct 21 – Oct 24", amount: "₱7,500", status: "Confirmed", color: "bg-[#e8efff] text-[#315ec8]" },
+  { initials: "AL", name: "Andrea Lim", car: "Honda City · With driver", dates: "Oct 22 – Oct 23", amount: "₱4,200", status: "Pending", color: "bg-[#fff1d9] text-[#9b6718]" },
+  { initials: "JC", name: "Joshua Cruz", car: "Toyota Innova · Self drive", dates: "Oct 24 – Oct 27", amount: "₱10,500", status: "Confirmed", color: "bg-[#e8efff] text-[#315ec8]" },
+];
+
+const fleet = [
+  { name: "Toyota Vios", plate: "ABC 1234", status: "On rent", color: "bg-[#e8efff] text-[#315ec8]", icon: "🚘" },
+  { name: "Honda City", plate: "XYZ 5678", status: "Available", color: "bg-[#e8efff] text-[#4967a8]", icon: "🚗" },
+  { name: "Toyota Innova", plate: "DEF 9012", status: "On rent", color: "bg-[#e8efff] text-[#315ec8]", icon: "🚙" },
+];
+
+function DashboardPreview() {
+  return (
+    <div className="dashboard-frame relative mx-auto w-full max-w-[1050px] rounded-[22px] border border-[#dce3de] bg-white p-2.5 shadow-[0_30px_90px_-34px_rgba(21,56,39,0.28)] sm:p-4">
+      <div className="flex min-h-[430px] overflow-hidden rounded-[15px] border border-[#edf0ed] bg-[#f8faf8]">
+        <aside className="hidden w-[190px] shrink-0 flex-col border-r border-[#edf0ed] bg-white p-4 md:flex">
+          <div className="mb-8 flex items-center gap-2.5 px-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#2457d6] text-white"><CarFront size={19} /></div>
+            <span className="text-[13px] font-bold tracking-tight text-[#1b2c22]">JC Rentals</span>
+          </div>
+          <p className="mb-2 px-2 text-[9px] font-semibold uppercase tracking-[.16em] text-[#9aa59e]">Workspace</p>
+          <div className="flex items-center gap-2.5 rounded-lg bg-[#eaf0ff] px-2.5 py-2 text-[11px] font-semibold text-[#2457d6]"><LayoutDashboard size={14} /> Overview</div>
+          <div className="mt-1 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] text-[#68756d]"><CalendarDays size={14} /> Bookings <span className="ml-auto rounded-full bg-[#eaf0ff] px-1.5 py-0.5 text-[9px] text-[#2457d6]">8</span></div>
+          <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] text-[#68756d]"><CarFront size={14} /> Vehicles</div>
+          <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] text-[#68756d]"><Users size={14} /> Customers</div>
+          <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[11px] text-[#68756d]"><FileText size={14} /> Documents</div>
+          <div className="mt-auto rounded-xl bg-[#f5f8f5] p-3"><div className="mb-1 text-[10px] font-semibold text-[#263a2e]">Need a hand?</div><p className="text-[9px] leading-relaxed text-[#7f8a82]">Our local support team is here to help.</p><span className="mt-2 inline-block text-[9px] font-semibold text-[#2457d6]">Contact support →</span></div>
+        </aside>
+        <div className="min-w-0 flex-1 p-4 sm:p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div><p className="text-[10px] text-[#89958c]">Tuesday, October 21, 2025</p><h3 className="mt-1 text-lg font-semibold tracking-tight text-[#213329]">Good morning, Juan <span>👋</span></h3></div>
+            <div className="flex items-center gap-2"><button aria-label="Search" className="hidden h-8 w-8 items-center justify-center rounded-lg border border-[#e8ede9] bg-white text-[#66746b] sm:flex"><Search size={14} /></button><button aria-label="Notifications" className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-[#e8ede9] bg-white text-[#66746b]"><Bell size={14} /><i className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#ed9b48]" /></button><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e6ede7] text-[10px] font-semibold text-[#4266a0]">JR</div></div>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {[
+              { label: "Total vehicles", value: "12", delta: "+2 this month", icon: CarFront },
+              { label: "Active bookings", value: "08", delta: "3 starting today", icon: CalendarDays },
+              { label: "Monthly revenue", value: "₱84,250", delta: "+12.8% vs last month", icon: CircleDollarSign },
+              { label: "Available now", value: "04", delta: "Ready to rent", icon: Gauge },
+            ].map(({ label, value, delta, icon: Icon }) => <div key={label} className="rounded-xl border border-[#e9eeea] bg-white p-3"><div className="flex items-center justify-between text-[9px] text-[#7a877e]"><span>{label}</span><Icon size={14} className="text-[#789181]" /></div><div className="mt-2 text-xl font-semibold tracking-tight text-[#263a2e]">{value}</div><div className="mt-1 text-[9px] text-[#3c6dd9]">{delta}</div></div>)}
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[1.55fr_1fr]">
+            <div className="overflow-hidden rounded-xl border border-[#e9eeea] bg-white">
+              <div className="flex items-center justify-between border-b border-[#eef1ee] px-3.5 py-3"><div><h4 className="text-[11px] font-semibold text-[#293b30]">Recent bookings</h4><p className="mt-0.5 text-[9px] text-[#8b968e]">Keep track of your latest reservations</p></div><span className="flex items-center gap-1 text-[9px] text-[#78847c]">This week <ChevronDown size={11} /></span></div>
+              <div className="divide-y divide-[#f0f2f0]">{bookings.map((booking) => <div key={booking.name} className="grid grid-cols-[1.25fr_1fr_auto] items-center gap-2 px-3.5 py-3"><div className="flex min-w-0 items-center gap-2"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f0f3f0] text-[8px] font-semibold text-[#627267]">{booking.initials}</div><div className="min-w-0"><p className="truncate text-[9px] font-semibold text-[#33443a]">{booking.name}</p><p className="truncate text-[8px] text-[#8c978f]">{booking.car}</p></div></div><div className="hidden text-[8px] text-[#77837a] sm:block">{booking.dates}</div><div className="text-right"><span className={`rounded-full px-1.5 py-1 text-[8px] font-medium ${booking.color}`}>{booking.status}</span><p className="mt-1 text-[9px] font-semibold text-[#34453a]">{booking.amount}</p></div></div>)}</div>
+              <div className="border-t border-[#eef1ee] px-3.5 py-2.5 text-[9px] font-semibold text-[#2457d6]">View all bookings <ArrowRight className="ml-1 inline" size={11} /></div>
+            </div>
+            <div className="rounded-xl border border-[#e9eeea] bg-white">
+              <div className="flex items-center justify-between border-b border-[#eef1ee] px-3.5 py-3"><div><h4 className="text-[11px] font-semibold text-[#293b30]">Fleet status</h4><p className="mt-0.5 text-[9px] text-[#8b968e]">Your vehicles at a glance</p></div><button aria-label="Add vehicle" className="flex h-6 w-6 items-center justify-center rounded-md bg-[#2457d6] text-white"><Plus size={13} /></button></div>
+              <div className="divide-y divide-[#f0f2f0]">{fleet.map((car) => <div key={car.name} className="flex items-center gap-2.5 px-3.5 py-3"><div className="flex h-8 w-9 items-center justify-center rounded-lg bg-[#f3f6f3] text-base">{car.icon}</div><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold text-[#34453a]">{car.name}</p><p className="text-[8px] text-[#8c978f]">{car.plate}</p></div><span className={`rounded-full px-1.5 py-1 text-[8px] font-medium ${car.color}`}>{car.status}</span></div>)}</div>
+              <div className="border-t border-[#eef1ee] px-3.5 py-2.5 text-[9px] font-semibold text-[#2457d6]">Manage fleet <ArrowRight className="ml-1 inline" size={11} /></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="overflow-hidden bg-[#fbfcfa] text-[#203329]">
+      <section className="hero-grid relative px-5 pb-16 pt-14 sm:px-8 sm:pt-20 lg:pb-24 lg:pt-24">
+        <div className="pointer-events-none absolute -right-36 -top-44 h-[560px] w-[560px] rounded-full bg-[#e8efff]/70 blur-3xl" />
+        <div className="relative mx-auto max-w-5xl text-center">
+          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-[#dce6ff] bg-white/80 px-3.5 py-1.5 text-[11px] font-medium text-[#315ba9] shadow-sm"><span className="h-1.5 w-1.5 rounded-full bg-[#5685f4]" /> Built for Filipino rental businesses</div>
+          <h1 className="mx-auto max-w-4xl text-[42px] font-semibold leading-[1.08] tracking-[-.045em] text-[#1d3326] sm:text-6xl lg:text-[72px]">Your entire rental business, <span className="text-[#2563eb]">moving as one.</span></h1>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-[#718078] sm:text-lg">Bookings, vehicles, customers, and payments in one clear workspace. Spend less time chasing details and more time growing your fleet.</p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/signup" className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#2457d6] px-6 text-sm font-semibold text-white shadow-[0_8px_18px_-8px_rgba(25,91,61,.65)] transition hover:bg-[#1d4ed8]">Start managing for free <ArrowRight size={16} /></Link><Link href="#features" className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-[#dce5dd] bg-white px-6 text-sm font-semibold text-[#34483a] transition hover:bg-[#f3f7f3]">Explore the platform</Link></div>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-[#7b887f]"><span className="flex items-center gap-1.5"><Check size={13} className="text-[#2563eb]" /> No credit card required</span><span className="flex items-center gap-1.5"><Check size={13} className="text-[#2563eb]" /> Setup in minutes</span><span className="flex items-center gap-1.5"><Check size={13} className="text-[#2563eb]" /> Made for local operators</span></div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        <div className="relative mx-auto mt-14 max-w-6xl sm:mt-20"><DashboardPreview /><div className="absolute -bottom-5 -left-3 hidden items-center gap-2 rounded-xl border border-[#e6ece7] bg-white px-3 py-2.5 shadow-lg sm:flex lg:-left-7"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#eaf0ff] text-[#2563eb]"><ArrowUpRight size={16} /></div><div><p className="text-[9px] text-[#859087]">Revenue this month</p><p className="text-xs font-semibold text-[#2d4335]">₱84,250 <span className="text-[9px] font-medium text-[#3c6dd9]">+12.8%</span></p></div></div><div className="absolute -right-3 top-12 hidden rounded-xl border border-[#e6ece7] bg-white px-3 py-2.5 shadow-lg sm:block lg:-right-7"><div className="flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#f0f5f1] text-[#3c7954]"><ShieldCheck size={14} /></span><div><p className="text-[9px] font-semibold text-[#34483a]">Everything in sync</p><p className="text-[8px] text-[#8a968d]">Bookings · Fleet · Customers</p></div></div></div></div>
+      </section>
+
+      <section className="border-y border-[#edf0ed] bg-white px-5 py-7 sm:px-8"><div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-5 sm:flex-row"><p className="text-center text-xs text-[#89948c] sm:text-left">The simpler way to run your rental operation</p><div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-xs font-semibold tracking-tight text-[#6b786f]"><span className="flex items-center gap-2"><CalendarDays size={15} className="text-[#3166d5]" /> Bookings</span><span className="flex items-center gap-2"><CarFront size={16} className="text-[#3166d5]" /> Fleet</span><span className="flex items-center gap-2"><Users size={15} className="text-[#3166d5]" /> Customers</span><span className="flex items-center gap-2"><FileText size={15} className="text-[#3166d5]" /> Documents</span></div></div></section>
+
+      <section id="features" className="px-5 py-20 sm:px-8 sm:py-28"><div className="mx-auto max-w-6xl"><div className="mb-12 flex flex-col justify-between gap-5 sm:mb-14 sm:flex-row sm:items-end"><div><p className="mb-3 text-[11px] font-semibold uppercase tracking-[.18em] text-[#3166d5]">One workspace. Less busywork.</p><h2 className="max-w-xl text-3xl font-semibold leading-tight tracking-[-.035em] text-[#21362a] sm:text-4xl">Everything you need to keep rentals running smoothly.</h2></div><p className="max-w-sm text-sm leading-6 text-[#78857c]">A calmer, more organized way to handle the moving parts of your rental business.</p></div><div className="grid gap-4 md:grid-cols-3">
+        <article className="feature-card rounded-2xl border border-[#e7ece7] bg-white p-6 sm:p-7"><div className="mb-10 flex h-10 w-10 items-center justify-center rounded-xl bg-[#eaf0ff] text-[#315ec8]"><CalendarDays size={19} /></div><h3 className="text-base font-semibold text-[#2b3e31]">Bookings without the back and forth</h3><p className="mt-2 text-sm leading-6 text-[#7c8880]">See upcoming rentals, confirm requests, and keep every reservation in one reliable calendar.</p><div className="mt-7 rounded-xl border border-[#edf1ed] bg-[#f8faf8] p-3"><div className="flex items-center justify-between text-[9px] text-[#87938a]"><span>Today · Oct 21</span><span>3 pickups</span></div><div className="mt-3 flex items-center gap-2 rounded-lg bg-white p-2.5 shadow-sm"><span className="h-7 w-1 rounded-full bg-[#7998ef]"/><div><p className="text-[9px] font-semibold text-[#33463a]">Miguel Reyes</p><p className="text-[8px] text-[#88948b]">Toyota Vios · 9:00 AM</p></div><span className="ml-auto rounded-full bg-[#e8efff] px-2 py-1 text-[8px] text-[#315ec8]">Pickup</span></div></div></article>
+        <article className="feature-card rounded-2xl border border-[#e7ece7] bg-white p-6 sm:p-7"><div className="mb-10 flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef1fb] text-[#5869a0]"><CarFront size={19} /></div><h3 className="text-base font-semibold text-[#2b3e31]">Know where every vehicle stands</h3><p className="mt-2 text-sm leading-6 text-[#7c8880]">Check availability, spot maintenance needs, and make the most of every car in your fleet.</p><div className="mt-7 space-y-2 rounded-xl border border-[#edf1ed] bg-[#f8faf8] p-3"><div className="flex items-center justify-between rounded-lg bg-white p-2.5 shadow-sm"><span className="text-base">🚘</span><div className="mr-auto ml-2"><p className="text-[9px] font-semibold text-[#33463a]">Toyota Vios</p><p className="text-[8px] text-[#88948b]">ABC 1234</p></div><span className="rounded-full bg-[#e8efff] px-2 py-1 text-[8px] text-[#315ec8]">Available</span></div><div className="flex items-center justify-between rounded-lg bg-white p-2.5 shadow-sm"><span className="text-base">🚙</span><div className="mr-auto ml-2"><p className="text-[9px] font-semibold text-[#33463a]">Toyota Innova</p><p className="text-[8px] text-[#88948b]">DEF 9012</p></div><span className="rounded-full bg-[#fff1d9] px-2 py-1 text-[8px] text-[#96681e]">On rent</span></div></div></article>
+        <article className="feature-card rounded-2xl border border-[#e7ece7] bg-white p-6 sm:p-7"><div className="mb-10 flex h-10 w-10 items-center justify-center rounded-xl bg-[#fbf0e4] text-[#a66c2b]"><Users size={19} /></div><h3 className="text-base font-semibold text-[#2b3e31]">A better experience for customers</h3><p className="mt-2 text-sm leading-6 text-[#7c8880]">Keep customer details and rental documents organized, ready when you need them.</p><div className="mt-7 rounded-xl border border-[#edf1ed] bg-[#f8faf8] p-3"><div className="flex items-center gap-2.5 rounded-lg bg-white p-3 shadow-sm"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f2eee7] text-[9px] font-semibold text-[#756349]">MR</div><div><p className="text-[9px] font-semibold text-[#33463a]">Miguel Reyes</p><p className="text-[8px] text-[#88948b]">Verified customer · 4 rentals</p></div><ShieldCheck className="ml-auto text-[#3166d5]" size={15} /></div><div className="mt-2 flex items-center justify-between px-1 text-[8px] text-[#7b887f]"><span className="flex items-center gap-1"><Check size={11} className="text-[#3c6dd9]" /> ID verified</span><span>Rental history <ArrowUpRight size={10} className="inline" /></span></div></div></article>
+      </div></div></section>
+
+      <section id="how-it-works" className="bg-[#f1f5f1] px-5 py-20 sm:px-8 sm:py-24"><div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[.9fr_1.1fr]"><div><p className="mb-3 text-[11px] font-semibold uppercase tracking-[.18em] text-[#3166d5]">Made for the way you work</p><h2 className="text-3xl font-semibold leading-tight tracking-[-.035em] text-[#21362a] sm:text-4xl">From first booking to keys returned.</h2><p className="mt-4 max-w-md text-sm leading-6 text-[#748178]">Get your team on the same page with a simple flow that keeps every rental on track.</p><div className="mt-8 space-y-5">{[{ n: "01", title: "Add your vehicles", text: "Build your digital fleet with vehicle details, rates, and availability." }, { n: "02", title: "Keep bookings organized", text: "Track every reservation and know exactly what is coming up." }, { n: "03", title: "Serve customers with confidence", text: "Find customer information and documents right when you need them." }].map((step) => <div key={step.n} className="flex gap-4"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#d8e2fb] bg-white text-[10px] font-semibold text-[#3166d5]">{step.n}</span><div><h3 className="text-sm font-semibold text-[#34483a]">{step.title}</h3><p className="mt-1 text-xs leading-5 text-[#7c8980]">{step.text}</p></div></div>)}</div></div><div className="relative rounded-2xl border border-[#e1e8e1] bg-white p-5 shadow-[0_22px_60px_-36px_rgba(38,69,48,.25)] sm:p-7"><div className="mb-5 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-[#2b3e31]">October overview</h3><p className="mt-1 text-[10px] text-[#8b968e]">Your business at a glance</p></div><button className="flex items-center gap-1 rounded-lg border border-[#e9eeea] px-2.5 py-1.5 text-[9px] text-[#6e7b72]">This month <ChevronDown size={11} /></button></div><div className="grid grid-cols-3 gap-2"><div className="rounded-xl bg-[#f7f9f7] p-3"><p className="text-[9px] text-[#839087]">Bookings</p><p className="mt-1 text-xl font-semibold text-[#2c4033]">46</p><p className="mt-1 text-[8px] text-[#3166d5]">↑ 8.2%</p></div><div className="rounded-xl bg-[#f7f9f7] p-3"><p className="text-[9px] text-[#839087]">Revenue</p><p className="mt-1 text-xl font-semibold text-[#2c4033]">₱84k</p><p className="mt-1 text-[8px] text-[#3166d5]">↑ 12.8%</p></div><div className="rounded-xl bg-[#f7f9f7] p-3"><p className="text-[9px] text-[#839087]">Utilization</p><p className="mt-1 text-xl font-semibold text-[#2c4033]">78%</p><p className="mt-1 text-[8px] text-[#3166d5]">↑ 4.3%</p></div></div><div className="mt-6 flex h-32 items-end gap-2 border-b border-l border-[#edf1ed] px-3 pb-0 pt-4 sm:h-40 sm:gap-3">{[34, 48, 42, 65, 54, 72, 59, 83, 68, 91, 76, 100].map((height, i) => <div key={i} className="relative flex-1 rounded-t-[4px] bg-[#dce6ff]" style={{ height: `${height}%` }}><div className="absolute inset-x-0 bottom-0 rounded-t-[4px] bg-[#6489ef]" style={{ height: `${Math.max(28, height - 24)}%` }} /></div>)}</div><div className="mt-2 flex justify-between pl-3 text-[8px] text-[#9aa49c]"><span>Oct 1</span><span>Oct 7</span><span>Oct 14</span><span>Oct 21</span><span>Oct 31</span></div><div className="mt-5 flex items-center gap-2 rounded-lg bg-[#f5f8f5] p-3"><MapPin size={14} className="text-[#3166d5]" /><p className="text-[9px] text-[#68766d]">Built for independent rental operators across the Philippines.</p><ArrowDownRight className="ml-auto text-[#809187]" size={14} /></div></div></div></section>
+
+      <section className="px-5 py-20 sm:px-8 sm:py-28"><div className="relative mx-auto max-w-6xl overflow-hidden rounded-[24px] bg-[#1e40af] px-6 py-12 text-center sm:px-12 sm:py-16"><div className="pointer-events-none absolute -right-20 -top-40 h-96 w-96 rounded-full border border-white/10"/><div className="pointer-events-none absolute -right-8 -top-28 h-72 w-72 rounded-full border border-white/10"/><p className="relative mb-4 text-[11px] font-semibold uppercase tracking-[.18em] text-[#bdcef7]">Take control of your fleet</p><h2 className="relative mx-auto max-w-2xl text-3xl font-semibold leading-tight tracking-[-.035em] text-white sm:text-5xl">Less admin. More time to grow.</h2><p className="relative mx-auto mt-4 max-w-lg text-sm leading-6 text-[#d3defa]">Bring your rental operation together and make every day a little easier.</p><Link href="/signup" className="relative mt-8 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-[#2457d6] transition hover:bg-[#edf5ef]">Get started today <ArrowRight size={15} /></Link><p className="relative mt-3 text-[10px] text-[#c5d3fa]">Free to get started · No credit card required</p></div></section>
+
+      <footer className="border-t border-[#e9ede9] bg-white px-5 py-10 sm:px-8"><div className="mx-auto flex max-w-6xl flex-col justify-between gap-7 sm:flex-row sm:items-center"><div><Link href="/" className="flex items-center gap-2 text-sm font-semibold text-[#283c30]"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#2457d6] text-white"><CarFront size={16} /></span> JC Rentals</Link><p className="mt-2 text-xs text-[#849087]">A clearer way to run your rental business.</p></div><div className="flex flex-wrap gap-x-6 gap-y-3 text-xs text-[#738077]"><Link href="#features" className="hover:text-[#2457d6]">Features</Link><Link href="/contact" className="hover:text-[#2457d6]">Contact</Link><Link href="/terms" className="hover:text-[#2457d6]">Terms</Link><Link href="/privacy" className="hover:text-[#2457d6]">Privacy</Link></div><p className="text-[10px] text-[#9aa49c]">© 2026 JC Rentals</p></div></footer>
+    </main>
   );
 }
