@@ -8,6 +8,8 @@ type EarningsBooking = {
   car: { brand: string; model: string } | null;
 };
 
+export const instant = false;
+
 export default async function OwnerEarningsPage() {
   const { supabase, owner } = await getOwnerContext();
   const { data, error } = await supabase.from("bookings").select("id, reference, created_at, start_date, total_price, commission_amount, owner_earnings, status, payment, car:cars(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false });

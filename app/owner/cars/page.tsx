@@ -2,6 +2,8 @@ import { PageHeading } from "@/components/owner/ui";
 import { CarManager, type OwnerCar } from "@/components/owner/car-manager";
 import { getOwnerContext } from "@/lib/owner-context";
 
+export const instant = false;
+
 export default async function OwnerCarsPage({ searchParams }: PageProps<"/owner/cars">) {
   const [{ supabase, owner }, params] = await Promise.all([getOwnerContext(), searchParams]);
   const { data, error } = await supabase.from("cars").select("id, brand, model, year, plate_number, car_type, transmission, fuel_type, seats, description, is_active, allows_self_drive, allows_with_driver, car_rates(id, mode, daily_rate, deposit_amount, included_hours, overtime_per_hour, notes), car_photos(id, path, sort_order)").eq("owner_id", owner.id).order("created_at", { ascending: false });

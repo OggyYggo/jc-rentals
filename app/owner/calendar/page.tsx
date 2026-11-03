@@ -2,6 +2,8 @@ import { CalendarManager, type CalendarBlock, type CalendarBooking, type Calenda
 import { PageHeading } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
 
+export const instant = false;
+
 export default async function OwnerCalendarPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data: cars, error: carsError }, { data: bookings, error: bookingsError }, { data: blocks, error: blocksError }, { data: contacts, error: contactsError }] = await Promise.all([

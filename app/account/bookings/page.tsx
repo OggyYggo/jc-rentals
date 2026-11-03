@@ -5,6 +5,8 @@ import { SupabaseSetupNotice } from "@/components/customer/setup-notice";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
+export const instant = false;
+
 export default async function CustomerBookingsPage() {
   if (!isSupabaseConfigured()) return <SupabaseSetupNotice />;
   await connection();

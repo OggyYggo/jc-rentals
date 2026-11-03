@@ -15,6 +15,8 @@ type BookingRow = {
   car: { brand: string; model: string } | null;
 };
 
+export const instant = false;
+
 export default async function OwnerOverviewPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data: cars }, { data: bookings }, { data: contacts }] = await Promise.all([

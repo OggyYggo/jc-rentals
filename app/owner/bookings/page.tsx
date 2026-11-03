@@ -3,6 +3,8 @@ import { BookingWorkflow, type OwnerBooking } from "@/components/owner/booking-w
 import { PageHeading } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
 
+export const instant = false;
+
 export default async function OwnerBookingsPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data, error }, { data: contacts, error: contactsError }] = await Promise.all([
