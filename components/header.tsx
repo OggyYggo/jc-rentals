@@ -13,7 +13,7 @@ export function Header() {
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2457d6] text-white shadow-sm"><CarFront size={20} /></span>
-          <span className="text-[15px] font-semibold tracking-tight text-[#23372a]">JC Rentals</span>
+          <span className="text-[15px] font-semibold tracking-tight text-[#23372a]">Kuyog Bohol</span>
         </Link>
         <nav className="hidden items-center gap-8 text-[12px] font-medium text-[#67766b] md:flex">
           <Link href="#features" className="transition-colors hover:text-[#2457d6]">Features</Link>

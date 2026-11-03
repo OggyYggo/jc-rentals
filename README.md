@@ -1,4 +1,4 @@
-# JC Rentals
+# Kuyog Bohol
 
 Customer booking portal built with Next.js and Supabase.
 

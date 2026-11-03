@@ -109,7 +109,7 @@ export function AuthForm({ mode, configured }: { mode: "login" | "signup"; confi
 
   return (
     <div className="w-full max-w-[420px] rounded-2xl border border-[#e5eaf1] bg-white p-6 shadow-[0_24px_70px_-38px_rgba(28,59,119,.28)] sm:p-8">
-      <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#26364e]"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2457d6] text-white"><CarFront size={20} /></span> JC Rentals</Link>
+      <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#26364e]"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2457d6] text-white"><CarFront size={20} /></span> Kuyog Bohol</Link>
       <h1 className="text-2xl font-semibold tracking-tight text-[#203149]">{isSignup ? "Create your account" : "Welcome back"}</h1>
       <p className="mt-2 text-sm leading-6 text-[#718096]">{isSignup ? "Keep your bookings and rental details together." : "Sign in to manage your rentals and profile."}</p>
 
@@ -130,7 +130,7 @@ export function AuthForm({ mode, configured }: { mode: "login" | "signup"; confi
         <button type="submit" disabled={!configured || busy} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
       </form>
       {showResendConfirmation && <button type="button" onClick={resendConfirmation} disabled={!configured || busy || !email.trim()} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] hover:bg-[#edf2ff] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Resend confirmation email</button>}
-      <p className="mt-6 text-center text-xs text-[#7d8998]">{isSignup ? "Already have an account?" : "New to JC Rentals?"} <Link href={isSignup ? "/login" : "/signup"} className="font-semibold text-[#2457d6] hover:underline">{isSignup ? "Sign in" : "Create an account"}</Link></p>
+      <p className="mt-6 text-center text-xs text-[#7d8998]">{isSignup ? "Already have an account?" : "New to Kuyog Bohol?"} <Link href={isSignup ? "/login" : "/signup"} className="font-semibold text-[#2457d6] hover:underline">{isSignup ? "Sign in" : "Create an account"}</Link></p>
     </div>
   );
 }
