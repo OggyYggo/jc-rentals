@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRight, CarFront } from "lucide-react";
 
 export function Header() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/owner") || pathname.startsWith("/admin")) return null;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#e9ede9]/90 bg-[#fbfcfa]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between px-5 sm:px-8">
@@ -16,6 +22,12 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <Link
+            href="/account/bookings"
+            className="hidden text-[12px] font-medium text-[#536459] transition-colors hover:text-[#2457d6] lg:block"
+          >
+            My bookings
+          </Link>
           <Link
             href="/login"
             className="text-[12px] font-medium text-[#536459] transition-colors hover:text-[#2457d6]"
