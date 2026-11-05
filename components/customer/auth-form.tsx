@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { CarFront, LoaderCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export function AuthForm({ mode, configured }: { mode: "login" | "signup"; configured: boolean }) {
+export function AuthForm({ mode, configured, next = "/account/bookings" }: { mode: "login" | "signup"; configured: boolean; next?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +46,7 @@ export function AuthForm({ mode, configured }: { mode: "login" | "signup"; confi
         const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
       }
-      let destination = "/account/bookings";
+      let destination = !isSignup && next.startsWith("/") && !next.startsWith("//") ? next : "/account/bookings";
       if (!isSignup) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -98,7 +98,7 @@ export function AuthForm({ mode, configured }: { mode: "login" | "signup"; confi
       const supabase = createClient();
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=/account/bookings` },
+        options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
       });
       if (authError) throw authError;
     } catch (authError) {

@@ -151,3 +151,97 @@
   border-color: #d2dcf4;
   box-shadow: 0 14px 34px -24px rgb(33 72 165 / 24%);
 }
+
+/* Public booking theme. Scoped so owner and admin workspaces keep their palette. */
+.theme-public {
+  --background: #ffffff;
+  --foreground: #0f2342;
+  --card: #ffffff;
+  --card-foreground: #0f2342;
+  --popover: #ffffff;
+  --popover-foreground: #0f2342;
+  --primary: #0b63ce;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf4ff;
+  --secondary-foreground: #0a3d91;
+  --muted: #eaf4ff;
+  --muted-foreground: #51657f;
+  --accent: #eaf4ff;
+  --accent-foreground: #0a3d91;
+  --destructive: #d64545;
+  --border: #d6e6f7;
+  --input: #d6e6f7;
+  --ring: #2e9bf0;
+  --radius: 1rem;
+  --deep-sea: #0a3d91;
+  --mist: #eaf4ff;
+  --foam: #f5faff;
+  color-scheme: light;
+}
+
+.dark .theme-public {
+  --background: #0b1a2e;
+  --foreground: #eaf4ff;
+  --card: #12263f;
+  --card-foreground: #eaf4ff;
+  --popover: #12263f;
+  --popover-foreground: #eaf4ff;
+  --primary: #5ab0ff;
+  --primary-foreground: #0b1a2e;
+  --secondary: #1a3556;
+  --secondary-foreground: #eaf4ff;
+  --muted: #16304e;
+  --muted-foreground: #a9bcd3;
+  --accent: #1a3556;
+  --accent-foreground: #eaf4ff;
+  --border: #25446b;
+  --input: #25446b;
+  --ring: #5ab0ff;
+  color-scheme: dark;
+}
+
+.dark .theme-public[class*="bg-white"],
+.dark .theme-public[class*="bg-[#FFFFFF"] { background-color: var(--background) !important; color: var(--foreground); }
+.dark .theme-public[class*="text-[#0F2342"] { color: var(--foreground) !important; }
+.dark .theme-public [class*="bg-white"],
+.dark .theme-public [class*="bg-[#FFFFFF"] { background-color: var(--card) !important; }
+.dark .theme-public [class*="bg-[#EAF4FF"],
+.dark .theme-public [class*="bg-[#F5FAFF"] { background-color: var(--muted) !important; }
+.dark .theme-public [class*="text-[#0F2342"],
+.dark .theme-public [class*="text-[#0A3D91"] { color: var(--foreground) !important; }
+.dark .theme-public [class*="text-[#51657F"] { color: var(--muted-foreground) !important; }
+.dark .theme-public [class*="border-[#D6E6F7"],
+.dark .theme-public [class*="border-[#B7D6F4"] { border-color: var(--border) !important; }
+.dark header.theme-public { background-color: rgb(11 26 46 / 92%); border-color: var(--border); }
+
+.public-hero-art { overflow: hidden; background: linear-gradient(165deg, #80c8ff 0%, #2e9bf0 46%, #0b63ce 100%); }
+.hero-sun { position: absolute; width: min(28vw, 320px); aspect-ratio: 1; border-radius: 9999px; right: 16%; top: 8%; background: radial-gradient(circle, #fff 0%, #eaf4ff 50%, #cfe6fb 70%, transparent 72%); opacity: .86; }
+.hero-island { position: absolute; right: -4%; width: 78%; border-radius: 50% 50% 0 0 / 90% 90% 0 0; }
+.hero-island-back { height: 43%; bottom: 18%; right: 20%; background: linear-gradient(180deg, #cfe6fb 0%, #9bcdf4 100%); transform: rotate(-4deg); }
+.hero-island-front { height: 35%; bottom: 12%; right: -10%; background: linear-gradient(180deg, #eaf4ff 0%, #b7d6f4 100%); transform: rotate(3deg); }
+.hero-water { position: absolute; inset: auto 0 0; height: 27%; background: linear-gradient(180deg, rgb(11 99 206 / 12%), #0a3d91); }
+.public-card, .trip-tile { transition: transform 220ms ease, box-shadow 220ms ease; }
+.public-card:hover { transform: translateY(-3px); box-shadow: 0 18px 36px -26px rgb(10 61 145 / 38%); }
+.trip-tile-art { transition: transform 500ms ease; }
+.trip-tile:hover .trip-tile-art { transform: scale(1.05); }
+.trip-tile-shape { background: linear-gradient(180deg, rgb(15 35 66 / 10%) 0%, rgb(15 35 66 / 20%) 30%, rgb(15 35 66 / 88%) 100%); }
+.trip-hills .trip-tile-art { background: radial-gradient(ellipse at 70% 55%, #9bcdf4 0 10%, transparent 11%), radial-gradient(ellipse at 42% 68%, #cfe6fb 0 19%, transparent 20%), linear-gradient(160deg, #2e9bf0, #0a3d91); }
+.trip-sea .trip-tile-art { background: radial-gradient(ellipse at 65% 52%, #cfe6fb 0 13%, transparent 14%), linear-gradient(165deg, #80c8ff 0%, #2e9bf0 48%, #0a3d91 100%); }
+.trip-island .trip-tile-art { background: radial-gradient(ellipse at 65% 58%, #eaf4ff 0 9%, transparent 10%), radial-gradient(ellipse at 30% 66%, #9bcdf4 0 18%, transparent 19%), linear-gradient(150deg, #2e9bf0, #0a3d91); }
+.trip-sky .trip-tile-art { background: radial-gradient(ellipse at 70% 40%, #eaf4ff 0 10%, transparent 11%), linear-gradient(160deg, #80c8ff, #0b63ce 65%, #0a3d91); }
+.public-footer a:hover { color: #ffffff; text-decoration: underline; text-underline-offset: 4px; }
+.theme-public :focus-visible { outline: 3px solid #2e9bf0; outline-offset: 3px; }
+@media (max-width: 767px) {
+  .mobile-filters[open] { position: fixed; inset: 0; z-index: 60; padding: 0; border: 0; background: transparent; pointer-events: none; }
+  .mobile-filters[open]::before { position: fixed; inset: 0; z-index: -1; background: rgb(15 35 66 / 45%); content: ""; pointer-events: auto; }
+  .mobile-filters[open] > summary { position: fixed; top: 1rem; right: 1rem; z-index: 62; min-height: 44px; border-radius: 9999px; background: #ffffff; padding: .5rem 1rem; box-shadow: 0 8px 24px rgb(15 35 66 / 20%); pointer-events: auto; }
+  .mobile-filters[open] > div { position: fixed; inset: auto 0 0; z-index: 61; max-height: 78vh; overflow-y: auto; border-radius: 1.5rem 1.5rem 0 0; background: #ffffff; padding: 1.5rem 1.25rem 2rem; box-shadow: 0 -12px 40px rgb(15 35 66 / 18%); pointer-events: auto; }
+}
+@media (max-width: 767px) {
+  .dark .mobile-filters[open] > summary,
+  .dark .mobile-filters[open] > div { background: #12263f; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-card, .trip-tile-art { transition: none; }
+  .public-card:hover, .trip-tile:hover .trip-tile-art { transform: none; }
+}
