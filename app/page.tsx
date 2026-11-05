@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { CarFront, ShieldCheck, Wallet, FileText, MapPin, Users, CircleDollarSign, Mountain, Waves, Sailboat, Plane, ArrowRight, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/shared";
 import { SearchForm } from "@/components/customer/search-form";
 import { CarTile } from "@/components/customer/car-tile";
 import { HillsDivider } from "@/components/brand/hills-divider";
@@ -21,14 +23,7 @@ const faq = [
   ["Where do I pick up?", "Pickup details are shown on the car page and confirmed after booking."],
 ];
 
-export default async function Home() {
-  let cars: any[] = [];
-  try {
-    const db = await createClient();
-    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
-    cars = data ?? [];
-  } catch {}
-
+export default function Home() {
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
     <section className="public-hero relative flex min-h-[60vh] flex-col justify-center px-5 pb-24 pt-16 sm:px-8 md:min-h-[70vh] md:pb-32">
       <div aria-hidden="true" className="public-hero-art absolute inset-0"><div className="hero-sun"/><div className="hero-island hero-island-back"/><div className="hero-island hero-island-front"/><div className="hero-water"/></div>
@@ -41,7 +36,7 @@ export default async function Home() {
 
     <section id="popular-trips" className="bg-[#EAF4FF] px-5 py-16 sm:px-8 md:py-20"><div className="mx-auto max-w-6xl"><p className="mb-2 text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Get around Bohol</p><div className="flex flex-wrap items-end justify-between gap-4"><h2 className="text-3xl font-semibold tracking-tight text-[#0F2342] md:text-4xl">Popular trips with a driver</h2><Link href="/cars?mode=with_driver" className="text-sm font-semibold text-[#0B63CE]">Browse cars <ArrowRight size={15} className="ml-1 inline"/></Link></div><div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{trips.map(({title,desc,Icon,art})=><Link key={title} href="/cars?mode=with_driver" className={`trip-tile ${art} group relative flex min-h-[260px] flex-col justify-end overflow-hidden rounded-2xl p-5 text-white`}><div className="trip-tile-art absolute inset-0"/><div className="trip-tile-shape absolute inset-0"/><Icon className="relative mb-auto mt-2 h-9 w-9 text-white/90" strokeWidth={1.5}/><h3 className="relative text-lg font-semibold">{title}</h3><p className="relative mt-1 text-sm leading-5 text-white/85">{desc}</p><span className="relative mt-4 inline-flex items-center gap-1 text-xs font-semibold">Find a car with driver <ArrowRight size={14}/></span></Link>)}</div></div></section>
 
-    <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-20"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-semibold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="shrink-0 text-sm font-semibold text-[#0B63CE]">View all cars <ArrowRight size={15} className="ml-1 inline"/></Link></div>{cars.length ? <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{cars.map((car)=><CarTile key={car.id} car={car}/>)}</div> : <div className="mt-8 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/for-owners" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">List your car</Link></div>}</div></section>
+    <Suspense fallback={<FeaturedCarsFallback/>}><FeaturedCars/></Suspense>
 
     <section id="how-it-works" className="bg-[#EAF4FF] px-5 py-16 sm:px-8 md:py-20"><div className="mx-auto max-w-6xl"><p className="mb-2 text-center text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">A few simple steps</p><h2 className="text-center text-3xl font-semibold text-[#0F2342] md:text-4xl">How it works</h2><div className="mt-10 grid gap-7 sm:grid-cols-3">{[["01","Choose your car","Pick dates, Self-drive or With driver, and a car."],["02","Pay a small deposit","Scan the QR and upload your proof of payment."],["03","Pick up and go","Meet the owner or driver, pay the balance, and enjoy Bohol."]].map(([n,title,desc])=><div className="rounded-2xl border border-[#D6E6F7] bg-white p-6" key={n}><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0B63CE] text-xs font-semibold text-white">{n}</span><h3 className="mt-5 font-semibold text-[#0F2342]">{title}</h3><p className="mt-2 text-sm leading-6 text-[#51657F]">{desc}</p></div>)}</div></div></section>
 
@@ -53,4 +48,19 @@ export default async function Home() {
 
     <footer className="public-footer relative overflow-hidden bg-[#0A3D91] px-5 pb-9 pt-20 text-white sm:px-8"><HillsDivider className="absolute inset-x-0 top-0 h-12 w-full -rotate-180 md:h-16" back="#2E9BF0" front="#0A3D91"/><div className="relative mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5"><Link href="/" className="flex items-center gap-2 font-semibold"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#0A3D91]"><CarFront size={19}/></span>Kuyog Bohol</Link><div className="flex flex-wrap gap-x-5 gap-y-3 text-xs text-white/85"><Link href="/cars">Cars</Link><Link href="/#how-it-works">How it works</Link><Link href="/for-owners">List your car</Link><Link href="/contact">Contact</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div><p className="w-full border-t border-white/20 pt-5 text-xs text-white/80">Car rental in Bohol. Self-drive or with a local driver.</p></div></footer>
   </main>;
+}
+
+async function FeaturedCars() {
+  let cars: any[] = [];
+  if (isSupabaseConfigured()) {
+    const db = await createClient();
+    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
+    cars = data ?? [];
+  }
+
+  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-20"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-semibold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="shrink-0 text-sm font-semibold text-[#0B63CE]">View all cars <ArrowRight size={15} className="ml-1 inline"/></Link></div>{cars.length ? <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{cars.map(car=><CarTile key={car.id} car={car}/>)}</div> : <div className="mt-8 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/for-owners" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">List your car</Link></div>}</div></section>;
+}
+
+function FeaturedCarsFallback() {
+  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-20"><div className="mx-auto max-w-6xl"><div><p className="mb-2 text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-semibold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><div className="mt-8 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center text-sm text-[#51657F]">Loading cars…</div></div></section>;
 }
