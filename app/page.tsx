@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+import heroBackground from "@/img/bg.jpg";
 import { Suspense } from "react";
 import { CarFront, ShieldCheck, Wallet, FileText, MapPin, Users, CircleDollarSign, Mountain, Waves, Sailboat, Plane, ArrowRight, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -26,7 +28,7 @@ const faq = [
 export default function Home() {
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
     <section className="public-hero relative flex min-h-[60vh] flex-col justify-center px-5 pb-24 pt-16 sm:px-8 md:min-h-[70vh] md:pb-32">
-      <div aria-hidden="true" className="public-hero-art absolute inset-0"><div className="hero-sun"/><div className="hero-island hero-island-back"/><div className="hero-island hero-island-front"/><div className="hero-water"/></div>
+      <Image src={heroBackground} alt="The Chocolate Hills in Bohol" fill priority sizes="100vw" className="object-cover object-center"/><div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#0F2342]/70 via-[#0F2342]/40 to-[#0F2342]/65"/>
       <div className="relative z-10 mx-auto w-full max-w-6xl text-center text-white"><span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-[#0F2342]/25 px-4 py-2 text-xs font-semibold backdrop-blur-sm"><MapPin size={14}/> Car rental in Bohol</span><h1 className="mx-auto mt-6 max-w-4xl text-4xl font-semibold leading-[1.08] tracking-tight md:text-6xl">Explore Bohol your way.</h1><p className="mx-auto mt-5 max-w-xl text-base leading-7 text-white/90 md:text-lg">Drive yourself or ride with a local driver. Book in minutes.</p><div className="mt-7 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs font-medium text-white/90"><span className="flex items-center gap-2"><Check size={15}/> Local owners</span><span className="flex items-center gap-2"><Check size={15}/> Clear prices</span><span className="flex items-center gap-2"><Check size={15}/> Easy online booking</span></div></div>
       <SearchForm />
       <HillsDivider className="pointer-events-none absolute inset-x-0 -bottom-px z-10 h-16 w-full md:h-28" back="#CFE6FB" front="#FFFFFF" />
