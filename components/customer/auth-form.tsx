@@ -27,9 +27,10 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
 
     try {
       const supabase = createClient();
+      const normalizedEmail = email.trim();
       if (isSignup) {
         const { data, error: authError } = await supabase.auth.signUp({
-          email,
+          email: normalizedEmail,
           password,
           options: {
             data: { full_name: fullName.trim() },
@@ -43,7 +44,7 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
           return;
         }
       } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (authError) throw authError;
       }
       let destination = !isSignup && next.startsWith("/") && !next.startsWith("//") ? next : "/account/bookings";

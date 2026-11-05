@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { ProfileEditor } from "@/components/customer/profile-editor";
 import { SupabaseSetupNotice } from "@/components/customer/setup-notice";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ export const instant = false;
 
 export default async function CustomerProfilePage() {
   if (!isSupabaseConfigured()) return <SupabaseSetupNotice />;
+  await connection();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");

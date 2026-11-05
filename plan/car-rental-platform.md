@@ -111,6 +111,8 @@ deposit     = deposit_amount      (self-drive only, held separately, not part of
 
 Run in the Supabase SQL editor. Adjust names as needed.
 
+> For this repository, apply the numbered files in `supabase/migrations/` in order. This schema block is a reference for a brand-new database; do not rerun it on a database that already has the app migrations, because its bare `CREATE TYPE` statements are not rerunnable (for example, `user_role` already exists).
+
 ```sql
 create extension if not exists btree_gist;
 
@@ -276,6 +278,8 @@ create index on bookings (car_id, start_date, end_date);
 
 Enable RLS on every table. Summary of policies:
 
+> This repository applies the policies through `supabase/migrations/202611050004_security_rls.sql`. Public availability uses narrow database views; do not grant anonymous access directly to bookings, blocked-date reasons, driver phone numbers, internal schedules, or promo-code rows.
+
 | Table | Public | Customer | Owner | Admin |
 |---|---|---|---|---|
 | `cars`, `car_photos`, `car_rates` | read active | read | write own | all |
@@ -376,7 +380,7 @@ export async function POST(req: Request) {
 
 Use the same pattern for license/ID uploads, but target the private `customer-docs` bucket at quality 90 and serve with short-lived signed URLs (`createSignedUrl`).
 
-Install: `npm i sharp`. In `next.config.ts`, allow your Supabase host in `images.remotePatterns`.
+This repository includes `sharp` and uses authenticated server routes for car photos and customer documents. In `next.config.ts`, allow your Supabase host in `images.remotePatterns`.
 
 ---
 

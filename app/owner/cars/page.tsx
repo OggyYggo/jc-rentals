@@ -6,13 +6,13 @@ export const instant = false;
 
 export default async function OwnerCarsPage({ searchParams }: PageProps<"/owner/cars">) {
   const [{ supabase, owner }, params] = await Promise.all([getOwnerContext(), searchParams]);
-  const { data, error } = await supabase.from("cars").select("id, brand, model, year, plate_number, car_type, transmission, fuel_type, seats, description, is_active, allows_self_drive, allows_with_driver, car_rates(id, mode, daily_rate, deposit_amount, included_hours, overtime_per_hour, notes), car_photos(id, path, sort_order)").eq("owner_id", owner.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("cars").select("id, brand, model, year, plate_number, car_type, transmission, fuel_type, seats, description, is_active, allows_self_drive, allows_with_driver, car_rates(id, mode, daily_rate, deposit_amount, included_hours, overtime_per_hour, notes, fuel_policy, mileage_limit, minimum_age, license_required, fuel_included, driver_meals_included, accommodation_included, coverage_area), car_photos(id, path, thumb_path, sort_order)").eq("owner_id", owner.id).order("created_at", { ascending: false });
   if (error) throw new Error("Could not load your vehicle list.");
   const cars = (data ?? []).map((car) => ({
     ...car,
     car_photos: (car.car_photos ?? []).map((photo) => ({
       ...photo,
-      publicUrl: supabase.storage.from("car-photos").getPublicUrl(photo.path).data.publicUrl,
+      publicUrl: supabase.storage.from("car-photos").getPublicUrl(photo.thumb_path ?? photo.path).data.publicUrl,
     })),
   }));
 

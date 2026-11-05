@@ -21,8 +21,8 @@ export type OwnerCar = {
   is_active: boolean;
   allows_self_drive: boolean;
   allows_with_driver: boolean;
-  car_rates: { id: string; mode: "self_drive" | "with_driver"; daily_rate: number; deposit_amount: number; included_hours: number | null; overtime_per_hour: number | null; notes: string | null }[];
-  car_photos: { id: string; path: string; sort_order: number; publicUrl: string }[];
+  car_rates: { id: string; mode: "self_drive" | "with_driver"; daily_rate: number; deposit_amount: number; included_hours: number | null; overtime_per_hour: number | null; notes: string | null; fuel_policy: string | null; mileage_limit: string | null; minimum_age: number | null; license_required: boolean; fuel_included: boolean; driver_meals_included: boolean; accommodation_included: boolean; coverage_area: string | null }[];
+  car_photos: { id: string; path: string; thumb_path: string | null; sort_order: number; publicUrl: string }[];
 };
 
 type CarForm = {
@@ -30,14 +30,16 @@ type CarForm = {
   transmission: string; fuel_type: string; seats: string; description: string;
   is_active: boolean; self_drive: boolean; with_driver: boolean;
   self_rate: string; deposit: string; driver_rate: string; included_hours: string; overtime: string;
+  fuel_policy: string; mileage_limit: string; minimum_age: string; fuel_included: boolean;
+  driver_meals_included: boolean; accommodation_included: boolean; coverage_area: string;
 };
 
-const blankForm: CarForm = { brand: "", model: "", year: "", plate_number: "", car_type: "Sedan", transmission: "Automatic", fuel_type: "Gasoline", seats: "5", description: "", is_active: true, self_drive: true, with_driver: false, self_rate: "", deposit: "", driver_rate: "", included_hours: "10", overtime: "" };
+const blankForm: CarForm = { brand: "", model: "", year: "", plate_number: "", car_type: "Sedan", transmission: "Automatic", fuel_type: "Gasoline", seats: "5", description: "", is_active: true, self_drive: true, with_driver: false, self_rate: "", deposit: "", driver_rate: "", included_hours: "10", overtime: "", fuel_policy: "Full-to-full", mileage_limit: "", minimum_age: "21", fuel_included: false, driver_meals_included: false, accommodation_included: false, coverage_area: "" };
 
 function formFromCar(car: OwnerCar): CarForm {
   const self = car.car_rates.find((rate) => rate.mode === "self_drive");
   const driver = car.car_rates.find((rate) => rate.mode === "with_driver");
-  return { brand: car.brand, model: car.model, year: car.year?.toString() ?? "", plate_number: car.plate_number ?? "", car_type: car.car_type ?? "Sedan", transmission: car.transmission ?? "Automatic", fuel_type: car.fuel_type ?? "Gasoline", seats: car.seats?.toString() ?? "5", description: car.description ?? "", is_active: car.is_active, self_drive: car.allows_self_drive, with_driver: car.allows_with_driver, self_rate: self?.daily_rate?.toString() ?? "", deposit: self?.deposit_amount?.toString() ?? "", driver_rate: driver?.daily_rate?.toString() ?? "", included_hours: driver?.included_hours?.toString() ?? "10", overtime: driver?.overtime_per_hour?.toString() ?? "" };
+  return { brand: car.brand, model: car.model, year: car.year?.toString() ?? "", plate_number: car.plate_number ?? "", car_type: car.car_type ?? "Sedan", transmission: car.transmission ?? "Automatic", fuel_type: car.fuel_type ?? "Gasoline", seats: car.seats?.toString() ?? "5", description: car.description ?? "", is_active: car.is_active, self_drive: car.allows_self_drive, with_driver: car.allows_with_driver, self_rate: self?.daily_rate?.toString() ?? "", deposit: self?.deposit_amount?.toString() ?? "", driver_rate: driver?.daily_rate?.toString() ?? "", included_hours: driver?.included_hours?.toString() ?? "10", overtime: driver?.overtime_per_hour?.toString() ?? "", fuel_policy: self?.fuel_policy ?? "Full-to-full", mileage_limit: self?.mileage_limit ?? "", minimum_age: self?.minimum_age?.toString() ?? "21", fuel_included: driver?.fuel_included ?? false, driver_meals_included: driver?.driver_meals_included ?? false, accommodation_included: driver?.accommodation_included ?? false, coverage_area: driver?.coverage_area ?? "" };
 }
 
 export function CarManager({ cars, ownerId, initialOpen = false }: { cars: OwnerCar[]; ownerId: string; initialOpen?: boolean }) {
@@ -76,22 +78,21 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
       }
       if (!carId) throw new Error("Could not save the vehicle record.");
 
-      const rates: Array<{ car_id: string; mode: "self_drive" | "with_driver"; daily_rate: number; deposit_amount?: number; included_hours?: number; overtime_per_hour?: number }> = [];
-      if (form.self_drive) rates.push({ car_id: carId, mode: "self_drive", daily_rate: Number(form.self_rate), deposit_amount: Number(form.deposit || 0) });
-      if (form.with_driver) rates.push({ car_id: carId, mode: "with_driver", daily_rate: Number(form.driver_rate), included_hours: Number(form.included_hours || 10), overtime_per_hour: Number(form.overtime || 0) });
+      const rates: Array<Record<string, unknown>> = [];
+      if (form.self_drive) rates.push({ car_id: carId, mode: "self_drive", daily_rate: Number(form.self_rate), deposit_amount: Number(form.deposit || 0), fuel_policy: form.fuel_policy.trim() || null, mileage_limit: form.mileage_limit.trim() || null, minimum_age: form.minimum_age ? Number(form.minimum_age) : null, license_required: true });
+      if (form.with_driver) rates.push({ car_id: carId, mode: "with_driver", daily_rate: Number(form.driver_rate), included_hours: Number(form.included_hours || 10), overtime_per_hour: Number(form.overtime || 0), fuel_included: form.fuel_included, driver_meals_included: form.driver_meals_included, accommodation_included: form.accommodation_included, coverage_area: form.coverage_area.trim() || null, license_required: false });
       if (rates.length) {
         const { error: rateError } = await supabase.from("car_rates").upsert(rates, { onConflict: "car_id,mode" });
         if (rateError) throw rateError;
       }
 
-      for (let index = 0; index < photos.length; index++) {
-        const file = photos[index];
-        const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
-        const path = `${ownerId}/${carId}/${crypto.randomUUID()}.${extension}`;
-        const { error: uploadError } = await supabase.storage.from("car-photos").upload(path, file, { contentType: file.type, cacheControl: "3600" });
-        if (uploadError) throw uploadError;
-        const { error: photoError } = await supabase.from("car_photos").insert({ car_id: carId, path, sort_order: (editing?.car_photos.length ?? 0) + index });
-        if (photoError) throw photoError;
+      for (const file of photos) {
+        const uploadForm = new FormData();
+        uploadForm.append("carId", carId);
+        uploadForm.append("file", file, file.name);
+        const response = await fetch("/api/owner/car-photos", { method: "POST", body: uploadForm });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "The photo could not be uploaded.");
       }
 
       setIsOpen(false); setPhotos([]); router.refresh();
@@ -118,7 +119,8 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
       const supabase = createClient();
       const { error: rowError } = await supabase.from("car_photos").delete().eq("id", photo.id);
       if (rowError) throw rowError;
-      const { error: fileError } = await supabase.storage.from("car-photos").remove([photo.path]);
+      const paths = [photo.path, photo.thumb_path].filter((path): path is string => !!path);
+      const { error: fileError } = await supabase.storage.from("car-photos").remove(paths);
       if (fileError) throw fileError;
       setEditing({ ...editing, car_photos: editing.car_photos.filter((item) => item.id !== photo.id) });
       router.refresh();
@@ -136,8 +138,8 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
       </div>
       <Field label="Description"><textarea value={form.description} onChange={(event) => update("description", event.target.value)} rows={2} placeholder="A few details customers should know..." className="w-full resize-y rounded-lg border border-[#dfe5ec] px-3 py-2 text-xs outline-none focus:border-[#94a9e9]"/></Field>
       <div><h3 className="mb-2 text-xs font-semibold text-[#45556c]">Rental modes and pricing</h3><div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-[#e5eaf1] p-3.5"><Toggle checked={form.self_drive} onChange={(value) => update("self_drive", value)} label="Self drive"/><div className={`mt-3 grid grid-cols-2 gap-3 ${form.self_drive ? "" : "opacity-50"}`}><Field label="Daily rate (₱)"><input type="number" min="0" disabled={!form.self_drive} value={form.self_rate} onChange={(event) => update("self_rate", event.target.value)} className={inputClass}/></Field><Field label="Security deposit (₱)"><input type="number" min="0" disabled={!form.self_drive} value={form.deposit} onChange={(event) => update("deposit", event.target.value)} className={inputClass}/></Field></div></div>
-        <div className="rounded-xl border border-[#e5eaf1] p-3.5"><Toggle checked={form.with_driver} onChange={(value) => update("with_driver", value)} label="With driver"/><div className={`mt-3 grid grid-cols-3 gap-2 ${form.with_driver ? "" : "opacity-50"}`}><Field label="Daily rate (₱)"><input type="number" min="0" disabled={!form.with_driver} value={form.driver_rate} onChange={(event) => update("driver_rate", event.target.value)} className={inputClass}/></Field><Field label="Hours included"><input type="number" min="1" disabled={!form.with_driver} value={form.included_hours} onChange={(event) => update("included_hours", event.target.value)} className={inputClass}/></Field><Field label="Overtime / hr"><input type="number" min="0" disabled={!form.with_driver} value={form.overtime} onChange={(event) => update("overtime", event.target.value)} className={inputClass}/></Field></div></div>
+        <div className="rounded-xl border border-[#e5eaf1] p-3.5"><Toggle checked={form.self_drive} onChange={(value) => update("self_drive", value)} label="Self drive"/><div className={`mt-3 grid grid-cols-2 gap-3 ${form.self_drive ? "" : "opacity-50"}`}><Field label="Daily rate (₱)"><input type="number" min="0" disabled={!form.self_drive} value={form.self_rate} onChange={(event) => update("self_rate", event.target.value)} className={inputClass}/></Field><Field label="Refundable security deposit (₱)"><input type="number" min="0" disabled={!form.self_drive} value={form.deposit} onChange={(event) => update("deposit", event.target.value)} className={inputClass}/></Field><Field label="Fuel policy"><input disabled={!form.self_drive} value={form.fuel_policy} onChange={(event) => update("fuel_policy", event.target.value)} placeholder="Full-to-full" className={inputClass}/></Field><Field label="Mileage limit"><input disabled={!form.self_drive} value={form.mileage_limit} onChange={(event) => update("mileage_limit", event.target.value)} placeholder="e.g. 200 km/day" className={inputClass}/></Field><Field label="Minimum driver age"><input type="number" min="18" disabled={!form.self_drive} value={form.minimum_age} onChange={(event) => update("minimum_age", event.target.value)} className={inputClass}/></Field><p className="flex items-center gap-2 text-[10px] text-[#69788e]"><input type="checkbox" checked disabled className="accent-[#2457d6]"/>Valid license required</p></div></div>
+        <div className="rounded-xl border border-[#e5eaf1] p-3.5"><Toggle checked={form.with_driver} onChange={(value) => update("with_driver", value)} label="With driver"/><div className={`mt-3 grid grid-cols-2 gap-2 ${form.with_driver ? "" : "opacity-50"}`}><Field label="Daily rate (₱)"><input type="number" min="0" disabled={!form.with_driver} value={form.driver_rate} onChange={(event) => update("driver_rate", event.target.value)} className={inputClass}/></Field><Field label="Hours included"><input type="number" min="1" disabled={!form.with_driver} value={form.included_hours} onChange={(event) => update("included_hours", event.target.value)} className={inputClass}/></Field><Field label="Overtime / hr (₱)"><input type="number" min="0" disabled={!form.with_driver} value={form.overtime} onChange={(event) => update("overtime", event.target.value)} className={inputClass}/></Field><Field label="Coverage area"><input disabled={!form.with_driver} value={form.coverage_area} onChange={(event) => update("coverage_area", event.target.value)} placeholder="e.g. Bohol Island" className={inputClass}/></Field>{[["fuel_included", "Fuel included"], ["driver_meals_included", "Driver meals included"], ["accommodation_included", "Accommodation included"]].map(([key, label]) => <label key={key} className="flex items-center gap-2 text-[10px] text-[#69788e]"><input type="checkbox" disabled={!form.with_driver} checked={form[key as "fuel_included" | "driver_meals_included" | "accommodation_included"]} onChange={(event) => update(key as "fuel_included" | "driver_meals_included" | "accommodation_included", event.target.checked)} className="accent-[#2457d6]"/>{label}</label>)}</div><p className="mt-2 text-[9px] text-[#8995a6]">No driver license is needed for this rental mode.</p></div>
       </div></div>
       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><Field label="Vehicle photos"><label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-dashed border-[#d5ddea] px-3 text-xs text-[#68778c] hover:bg-[#f8faff]"><ImagePlus size={15} className="text-[#6a83cc]"/>Choose JPG, PNG or WebP photos<input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotos(Array.from(event.target.files ?? []))} className="sr-only"/></label><p className="mt-1 text-[9px] text-[#97a1af]">{photos.length ? `${photos.length} new photo${photos.length === 1 ? "" : "s"} selected` : "Up to 10 MB per photo"}</p>{editing?.car_photos?.length ? <div className="mt-2 flex flex-wrap gap-2">{editing.car_photos.map((photo) => <div key={photo.id} className="relative h-14 w-16 overflow-hidden rounded-md border border-[#e5eaf1]"><img src={photo.publicUrl} alt="Vehicle" className="h-full w-full object-cover"/><button type="button" disabled={busy} onClick={() => removePhoto(photo)} aria-label="Remove vehicle photo" className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded bg-[#19283c]/70 text-white"><X size={11}/></button></div>)}</div> : null}</Field><label className="flex items-center gap-2 pb-2 text-xs text-[#526178]"><input type="checkbox" checked={form.is_active} onChange={(event) => update("is_active", event.target.checked)} className="accent-[#2457d6]"/>Show vehicle as active</label></div>
       {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}<div className="flex justify-end gap-2 border-t border-[#edf0f4] pt-4"><button type="button" onClick={() => setIsOpen(false)} className="h-9 rounded-lg border border-[#e1e7ef] px-3 text-xs font-medium text-[#68778c]">Cancel</button><button disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white disabled:opacity-60">{busy && <LoaderCircle size={14} className="animate-spin"/>}{editing ? "Save changes" : "Add vehicle"}</button></div></form>

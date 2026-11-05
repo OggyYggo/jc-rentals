@@ -50,6 +50,11 @@ Create a Supabase project and run the migrations **in order** in the SQL Editor:
 1. `supabase/migrations/202611030001_customer_portal.sql`
 2. `supabase/migrations/202611030002_owner_dashboard.sql`
 3. `supabase/migrations/202611030003_admin_panel.sql`
+4. `supabase/migrations/202611050001_phase3.sql`
+5. `supabase/migrations/202611050002_pricing_rules.sql`
+6. `supabase/migrations/202611050003_database_schema.sql`
+7. `supabase/migrations/202611050004_security_rls.sql`
+8. `supabase/migrations/202611050005_booking_flow.sql`
 
 They create customer, owner, and admin data; booking and calendar rules; private document policies; and platform settings. On a database that already has platform tables, the migrations add missing fields and policies.
 
@@ -92,10 +97,13 @@ Then visit `/signup`.
 
 ## Feature notes
 
-- **Documents** — profile uploads accept PDF, JPG, PNG, or WebP up to 10 MB, stored in the private `customer-docs` bucket with per-customer Storage RLS policies. The app never creates public document URLs; admin views use short-lived signed links.
+- **Documents and images** — customer documents accept PDF, JPG, PNG, or WebP up to 10 MB, are processed by authenticated server routes, and are stored in the private `customer-docs` bucket with per-customer Storage RLS policies. Images are orientation-corrected and converted to WebP; PDFs are preserved. The app never creates public document URLs; admin views use short-lived signed links. Owner car photos are converted server-side into full and thumbnail WebP files in the public `car-photos` bucket.
 - **Cancellations** — customers can cancel only their own pending or confirmed bookings before the rental start date. Ownership and status are enforced in Postgres.
 - **Owner dashboard** (`/owner`) — vehicle details and photos (public `car-photos` bucket), self-drive and with-driver rates, bookings, multi-vehicle calendar with database-checked manual date blocks, booking status transitions, payment records, and gross/commission/net earnings.
 - **Admin panel** (`/admin`) — owner access and commission rates, vehicle availability, customer verification, booking review, monthly per-owner commission reports with CSV download, and default commission/policy text.
+- **Phase 3 data foundation** — driver profiles and date schedules, owner or platform promo codes with duration thresholds and usage limits, multiple owner pickup locations with delivery fees, completed-booking reviews, and booking-level snapshots for selected driver, promotion, location, discount, and delivery fee. The existing admin overview provides core booking and revenue analytics.
+- **Pricing rules** — one rate per car and rental mode. Owners can set self-drive fuel, mileage, minimum-age, license, and refundable deposit terms, plus with-driver included hours, overtime, fuel/meals/accommodation coverage, and area. Booking requests save pickup location and required itinerary notes for with-driver rentals; self-drive requests require a license document. Prices shown in the browser are estimates; a database trigger calculates the final rate, total, deposit, commission, and owner earnings server-side from saved rates.
+- **Booking flow** — requests validate dates and availability on the server, with a database exclusion constraint as the final overlap check. Self-drive requires license and ID documents with verification pending or approved; with-driver requires pickup location, time, and itinerary. Owners see pending request counts, can approve or reject, then record pickup, return, completion, and payment.
 
 ## Project structure
 

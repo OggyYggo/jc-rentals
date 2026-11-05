@@ -5,8 +5,9 @@ import { getOwnerContext } from "@/lib/owner-context";
 export const instant = false;
 
 async function OwnerLayoutContent({ children }: { children: ReactNode }) {
-  const { user, owner } = await getOwnerContext();
-  return <OwnerShell email={user.email ?? "Owner"} businessName={owner.business_name}>{children}</OwnerShell>;
+  const { user, owner, supabase } = await getOwnerContext();
+  const { count } = await supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("status", "pending");
+  return <OwnerShell email={user.email ?? "Owner"} businessName={owner.business_name} pendingBookings={count ?? 0}>{children}</OwnerShell>;
 }
 
 function OwnerLoading() {

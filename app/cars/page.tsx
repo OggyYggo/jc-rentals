@@ -26,7 +26,7 @@ export default async function CarsPage({ searchParams }: Props) {
   let cars: any[] = [];
   try {
     const db = await createClient();
-    let query = db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false });
+    let query = db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false });
     if (q.type) query = query.eq("car_type", q.type);
     if (q.seats) query = query.gte("seats", Number(q.seats));
     if (q.transmission) query = query.eq("transmission", q.transmission);
@@ -35,8 +35,8 @@ export default async function CarsPage({ searchParams }: Props) {
     if (q.start && q.end && cars.length) {
       const ids = cars.map(car => car.id);
       const [{data:blocks},{data:bookings}] = await Promise.all([
-        db.from("car_blocked_dates").select("car_id").in("car_id",ids).lte("start_date",q.end).gte("end_date",q.start),
-        db.from("bookings").select("car_id").in("car_id",ids).in("status",["pending","confirmed","picked_up"]).lte("start_date",q.end).gte("end_date",q.start),
+        db.from("public_car_blocked_dates").select("car_id").in("car_id",ids).lte("start_date",q.end).gte("end_date",q.start),
+        db.from("public_car_booking_dates").select("car_id").in("car_id",ids).lte("start_date",q.end).gte("end_date",q.start),
       ]);
       const unavailable = new Set([...(blocks??[]),...(bookings??[])].map(item=>item.car_id));
       cars = cars.filter(car=>!unavailable.has(car.id));

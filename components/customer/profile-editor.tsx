@@ -40,25 +40,20 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
         if (file.size > MAX_FILE_SIZE) throw new Error(`${label}: the file must be 10 MB or smaller.`);
       }
 
-      const supabase = createClient();
-      const uploadedPaths: { license_path?: string; id_path?: string } = {};
       for (const [kind, file] of [["license", licenseFile], ["id", idFile]] as const) {
         if (!file) continue;
-        const path = `${userId}/${kind}/current`;
-        const { error: uploadError } = await supabase.storage.from("customer-docs").upload(path, file, {
-          upsert: true,
-          contentType: file.type,
-          cacheControl: "0",
-        });
-        if (uploadError) throw uploadError;
-        if (kind === "license") uploadedPaths.license_path = path;
-        else uploadedPaths.id_path = path;
+        const form = new FormData();
+        form.append("kind", kind);
+        form.append("file", file, file.name);
+        const response = await fetch("/api/account/documents", { method: "POST", body: form });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error ?? "The document could not be uploaded.");
       }
 
+      const supabase = createClient();
       const { data: updated, error: profileError } = await supabase.from("profiles").update({
         full_name: name.trim(),
         phone: phoneNumber.trim() || null,
-        ...uploadedPaths,
       }).eq("id", userId).select("id").single();
       if (profileError) throw profileError;
       if (!updated) throw new Error("Your profile could not be found. Please sign out and sign in again.");

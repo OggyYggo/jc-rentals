@@ -8,7 +8,7 @@ export const instant = false;
 export default async function OwnerBookingsPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data, error }, { data: contacts, error: contactsError }] = await Promise.all([
-    supabase.from("bookings").select("id, reference, start_date, end_date, total_price, commission_amount, owner_earnings, status, payment, mode, created_at, car:cars(id, brand, model, plate_number)").eq("owner_id", owner.id).order("created_at", { ascending: false }),
+    supabase.from("bookings").select("id, reference, start_date, end_date, pickup_time, pickup_location, itinerary_notes, total_price, commission_amount, owner_earnings, status, payment, mode, created_at, car:cars(id, brand, model, plate_number)").eq("owner_id", owner.id).order("created_at", { ascending: false }),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
   ]);
   if (error || contactsError) throw new Error("Could not load bookings for this rental business.");

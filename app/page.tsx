@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import heroBackground from "@/img/bg.jpg";
 import { Suspense } from "react";
+import { io } from "next/cache";
 import { CarFront, ShieldCheck, Wallet, FileText, MapPin, Users, CircleDollarSign, Mountain, Waves, Sailboat, Plane, ArrowRight, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
@@ -55,8 +56,9 @@ export default function Home() {
 async function FeaturedCars() {
   let cars: any[] = [];
   if (isSupabaseConfigured()) {
+    await io();
     const db = await createClient();
-    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
+    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
     cars = data ?? [];
   }
 
