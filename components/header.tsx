@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, CarFront, Menu } from "lucide-react";
+import type { MouseEvent } from "react";
+import { ArrowRight, CarFront, Menu, X } from "lucide-react";
 
 export function Header() {
   const pathname = usePathname();
@@ -44,11 +45,26 @@ export function Header() {
             Sign up <ArrowRight size={13} />
           </Link>
         </div>
-        <details className="group absolute right-5 top-4 z-50 md:hidden">
-          <summary className="flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-lg border border-[#e4eae4] bg-white text-[#51657F]"><Menu size={18}/></summary>
-          <nav className="grid gap-1 text-sm text-[#0F2342]"><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/cars">Cars</Link><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#popular-trips">Popular trips</Link><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#how-it-works">How it works</Link><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/for-owners">List your car</Link><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/contact">Contact</Link><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/account/bookings">My bookings</Link><Link className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/login">Log in</Link><Link className="mt-1 rounded-full bg-[#0B63CE] px-3 py-2.5 text-center font-semibold text-white" href="/signup">Sign up</Link></nav>
+        <details className="group relative md:hidden">
+          <summary aria-label="Toggle navigation" className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-[#D6E6F7] bg-white text-[#0B3F78] shadow-sm outline-none transition hover:bg-[#EAF4FF] focus-visible:ring-2 focus-visible:ring-[#0B63CE] focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+            <Menu size={20} className="group-open:hidden"/><X size={20} className="hidden group-open:block"/>
+          </summary>
+          <nav aria-label="Mobile navigation" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 grid w-64 gap-1 rounded-xl border border-[#D6E6F7] bg-white p-2 text-sm text-[#0F2342] shadow-xl">
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/cars">Cars</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#popular-trips">Popular trips</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#how-it-works">How it works</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/for-owners">List your car</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/contact">Contact</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/account/bookings">My bookings</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/login">Log in</Link>
+            <Link onClick={closeMobileMenu} className="mt-1 rounded-full bg-[#0B63CE] px-3 py-2.5 text-center font-semibold text-white" href="/signup">Sign up</Link>
+          </nav>
         </details>
       </div>
     </header>
   );
+}
+
+function closeMobileMenu(event: MouseEvent<HTMLAnchorElement>) {
+  event.currentTarget.closest("details")?.removeAttribute("open");
 }
