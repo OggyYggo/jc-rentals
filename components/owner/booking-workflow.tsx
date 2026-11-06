@@ -20,6 +20,7 @@ export type OwnerBooking = {
   owner_earnings: number;
   status: string;
   payment: string;
+  deposit_refund_status?: string;
   mode: string;
   created_at: string;
   customer: { full_name: string; phone: string | null } | null;
@@ -62,6 +63,7 @@ export function BookingWorkflow({ bookings }: { bookings: OwnerBooking[] }) {
   function actionsFor(booking: OwnerBooking) {
     const disabled = busyId === booking.id;
     const busyIcon = disabled ? <LoaderCircle size={12} className="animate-spin"/> : null;
+    if (["cancelled", "expired"].includes(booking.status) && booking.deposit_refund_status === "owed") return <ActionButton disabled={disabled} tone="green" onClick={async () => { if (!window.confirm("Confirm that you have sent the customer’s deposit refund?")) return; setBusyId(booking.id); const { error } = await createClient().rpc("mark_deposit_refunded", { p_booking_id: booking.id }); if (error) setError(error.message); else router.refresh(); setBusyId(null); }}>{busyIcon ?? <CircleDollarSign size={12}/>}Mark deposit refunded</ActionButton>;
     if (booking.status === "pending") return <div className="flex flex-wrap gap-1.5"><ActionButton disabled={disabled} tone="blue" onClick={() => updateStatus(booking, "confirmed")}>{busyIcon ?? <Check size={12}/>}Approve</ActionButton><ActionButton disabled={disabled} tone="red" onClick={() => updateStatus(booking, "rejected")}>{busyIcon ?? <CircleX size={12}/>}Reject</ActionButton></div>;
     if (booking.status === "confirmed") return <ActionButton disabled={disabled} tone="blue" onClick={() => updateStatus(booking, "picked_up")}>{busyIcon ?? <Truck size={12}/>}Mark picked up</ActionButton>;
     if (booking.status === "picked_up") return <ActionButton disabled={disabled} tone="blue" onClick={() => updateStatus(booking, "returned")}>{busyIcon ?? <RotateCcw size={12}/>}Mark returned</ActionButton>;

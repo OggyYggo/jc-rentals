@@ -6,7 +6,7 @@ export const instant = false;
 
 async function OwnerLayoutContent({ children }: { children: ReactNode }) {
   const { user, owner, supabase } = await getOwnerContext();
-  const { count } = await supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("status", "pending");
+  const { count } = await supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("status", "payment_review");
   return <OwnerShell email={user.email ?? "Owner"} businessName={owner.business_name} pendingBookings={count ?? 0}>{children}</OwnerShell>;
 }
 

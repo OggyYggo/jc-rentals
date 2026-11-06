@@ -122,7 +122,7 @@ export default async function CarDetail({ params, searchParams }: Props) {
       // A missing or invalid attribution cookie does not block a booking.
     }
 
-    const { error: bookingError } = await client.from("bookings").insert({
+    const { data: createdBooking, error: bookingError } = await client.from("bookings").insert({
       car_id: id,
       customer_id: user.id,
       mode,
@@ -132,12 +132,12 @@ export default async function CarDetail({ params, searchParams }: Props) {
       pickup_location: pickupLocation || null,
       itinerary_notes: itineraryNotes || null,
       ...referral,
-    });
+    }).select("id").single();
     if (bookingError) {
       const conflict = bookingError.code === "23P01" || /blocked|overlap|unavailable/i.test(bookingError.message);
       redirect(`${detailUrl}&bookingError=${conflict ? "unavailable" : bookingError.code === "42501" ? "documents" : "retry"}`);
     }
-    redirect("/account/bookings");
+    redirect(`/account/bookings/${createdBooking.id}/pay`);
   }
 
   return <><main className="theme-public min-h-screen bg-white px-5 py-8 text-[#0F2342] sm:px-8 md:py-12"><div className="mx-auto max-w-6xl">

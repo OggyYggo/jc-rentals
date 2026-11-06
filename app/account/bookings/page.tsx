@@ -14,7 +14,7 @@ export default async function CustomerBookingsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, pickup_time, pickup_location, itinerary_notes, daily_rate, total_price, deposit_amount, status, payment, created_at, car:cars(brand, model, year, car_type)").eq("customer_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, pickup_time, pickup_location, itinerary_notes, daily_rate, total_price, deposit_amount, amount_due_now, balance_at_pickup, payment_due_at, status, payment, created_at, car:cars(brand, model, year, car_type)").eq("customer_id", user.id).order("created_at", { ascending: false });
   if (error) throw new Error("We could not load your bookings. Please try again later.");
 
   const todayManila = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());

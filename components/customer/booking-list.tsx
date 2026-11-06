@@ -17,6 +17,7 @@ export type CustomerBooking = {
   daily_rate: number;
   total_price: number;
   deposit_amount: number;
+  amount_due_now: number;
   status: string;
   payment: string;
   created_at: string;
@@ -25,6 +26,9 @@ export type CustomerBooking = {
 
 const statusStyles: Record<string, string> = {
   pending: "bg-[#fff6e8] text-[#9b6818]",
+  awaiting_payment: "bg-[#fff6e8] text-[#9b6818]",
+  payment_review: "bg-[#edf2ff] text-[#315ec8]",
+  expired: "bg-[#f2f4f7] text-[#778397]",
   confirmed: "bg-[#edf2ff] text-[#315ec8]",
   picked_up: "bg-[#f0edff] text-[#6a50a2]",
   returned: "bg-[#edf2ff] text-[#315ec8]",
@@ -42,7 +46,7 @@ function formatPrice(value: number) {
 }
 
 function canCancel(booking: CustomerBooking, todayManila: string) {
-  return ["pending", "confirmed"].includes(booking.status) && booking.start_date > todayManila;
+  return ["awaiting_payment", "payment_review", "confirmed"].includes(booking.status) && booking.start_date > todayManila;
 }
 
 export function BookingList({ bookings, todayManila }: { bookings: CustomerBooking[]; todayManila: string }) {
@@ -56,7 +60,7 @@ export function BookingList({ bookings, todayManila }: { bookings: CustomerBooki
     setError("");
     try {
       const supabase = createClient();
-      const { error: cancelError } = await supabase.rpc("cancel_my_booking", { booking_uuid: booking.id });
+      const { error: cancelError } = await supabase.rpc("cancel_booking", { p_booking_id: booking.id, p_reason: "Cancelled by customer" });
       if (cancelError) throw cancelError;
       router.refresh();
     } catch (cancelError) {
@@ -75,6 +79,7 @@ export function BookingList({ bookings, todayManila }: { bookings: CustomerBooki
       <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5"><div className="flex min-w-0 gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f1f4fa] text-[#5e75a8]"><CarFront size={21}/></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-[#2d3e55]">{booking.car ? `${booking.car.year ? `${booking.car.year} ` : ""}${booking.car.brand} ${booking.car.model}` : "Rental vehicle"}</h2><p className="mt-1 text-[11px] text-[#7d8998]">{booking.mode === "self_drive" ? "Self drive" : "With driver"}{booking.car?.car_type ? ` · ${booking.car.car_type}` : ""}</p><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-[#637188]"><span className="inline-flex items-center gap-1.5"><CalendarDays size={12} className="text-[#7890ca]"/>{formatDate(booking.start_date)} – {formatDate(booking.end_date)}</span><span className="inline-flex items-center gap-1.5"><MapPin size={12} className="text-[#7890ca]"/>{booking.pickup_location || "Pickup location to be confirmed"}{booking.pickup_time ? ` · ${booking.pickup_time.slice(0, 5)}` : ""}</span></div>{booking.itinerary_notes && <p className="mt-2 whitespace-pre-wrap text-[10px] leading-4 text-[#637188]">Itinerary: {booking.itinerary_notes}</p>}</div></div>
         <div className="flex items-center justify-between gap-4 border-t border-[#edf0f4] pt-3 sm:block sm:border-0 sm:pt-0 sm:text-right"><div><p className="text-[10px] text-[#8995a5]">Rental total</p><p className="mt-0.5 text-sm font-semibold text-[#2d3e55]">{formatPrice(Number(booking.total_price))}</p><p className="mt-0.5 text-[10px] text-[#8995a5]">{formatPrice(Number(booking.daily_rate))} / day · {booking.payment}</p></div>{cancelAllowed ? <button onClick={() => cancelBooking(booking)} disabled={cancellingId === booking.id} className="mt-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[#eadede] px-3 text-[10px] font-semibold text-[#9a4b4b] transition hover:bg-[#fff6f6] disabled:opacity-60">{cancellingId === booking.id ? <LoaderCircle size={12} className="animate-spin"/> : <CircleX size={12}/>}Cancel booking</button> : <p className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#8995a5]">{booking.status === "completed" ? <CircleCheck size={12}/> : <Clock3 size={12}/>} {booking.status === "completed" ? "Rental completed" : "Cancellation unavailable"}</p>}</div>
       </div>
+      {["awaiting_payment", "payment_review"].includes(booking.status) && <div className="border-t border-[#edf0f4] px-4 py-3 text-right sm:px-5"><a href={`/account/bookings/${booking.id}/pay`} className="inline-flex h-8 items-center rounded-lg bg-[#2457d6] px-3 text-[10px] font-semibold text-white">{booking.status === "payment_review" ? "View payment" : "Pay deposit"}</a></div>}
     </article>;
   })}<div className="flex items-center gap-2 px-1 text-[10px] leading-5 text-[#8b97a7]"><RotateCw size={12}/>Booking status updates as your rental progresses.</div></div>;
 }
