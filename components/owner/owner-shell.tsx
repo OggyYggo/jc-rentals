@@ -5,13 +5,14 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell, CalendarDays, CalendarRange, CarFront, ChevronDown, CircleDollarSign,
+  Bell, CalendarDays, CalendarRange, CarFront, ChevronDown, CircleDollarSign, Megaphone,
   LayoutDashboard, Menu, Search, X,
 } from "lucide-react";
 
 const navItems = [
   { href: "/owner", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/owner/cars", label: "My cars", icon: CarFront },
+  { href: "/owner/promote", label: "Promote", icon: Megaphone },
   { href: "/owner/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/owner/calendar", label: "Calendar", icon: CalendarRange },
   { href: "/owner/earnings", label: "Earnings", icon: CircleDollarSign },

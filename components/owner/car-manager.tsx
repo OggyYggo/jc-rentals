@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CarFront, Check, ImagePlus, LoaderCircle, Pencil, Plus, Search, ToggleLeft, ToggleRight, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { makeShortCode } from "@/lib/promo/short-code";
 import { formatPeso } from "@/components/owner/ui";
 
 export type OwnerCar = {
@@ -72,9 +73,13 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
         const { error: updateError } = await supabase.from("cars").update(carValues).eq("id", carId);
         if (updateError) throw updateError;
       } else {
-        const { data, error: insertError } = await supabase.from("cars").insert(carValues).select("id").single();
-        if (insertError) throw insertError;
-        carId = data.id;
+        let created = false;
+        for (let attempt = 0; attempt < 4 && !created; attempt++) {
+          const { data, error: insertError } = await supabase.from("cars").insert({ ...carValues, short_code: makeShortCode() }).select("id").single();
+          if (!insertError) { carId = data.id; created = true; }
+          else if (insertError.code !== "23505") throw insertError;
+        }
+        if (!created) throw new Error("Could not reserve a public promo link. Please try again.");
       }
       if (!carId) throw new Error("Could not save the vehicle record.");
 

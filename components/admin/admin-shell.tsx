@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, CalendarDays, CarFront, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Search, Settings2, ShieldCheck, Store, Users, X } from "lucide-react";
+import { Bell, CalendarDays, CarFront, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Search, Settings2, ShieldCheck, Store, Users, X, Megaphone } from "lucide-react";
 
 const navItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/admin/commissions", label: "Commissions", icon: CircleDollarSign },
+  { href: "/admin/promotions", label: "Promotions", icon: Megaphone },
   { href: "/admin/settings", label: "Platform settings", icon: Settings2 },
 ];
 

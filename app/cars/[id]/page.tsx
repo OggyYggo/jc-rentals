@@ -2,11 +2,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { cookies } from "next/headers";
+import type { Metadata } from "next";
 import { CalendarDays, CarFront, Fuel, Gauge, Settings2, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { carPhotoUrl } from "@/lib/car-photo";
 import { AvailabilityCalendar } from "@/components/customer/availability-calendar";
 import { PublicFooter } from "@/components/public-footer";
+import { getPublicPromoCar } from "@/lib/promo/data";
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const car = await getPublicPromoCar(id);
+  if (!car) return { title: "Car rental in Bohol | Kuyog Bohol" };
+  const title = `${car.brand} ${car.model}${car.year ? ` ${car.year}` : ""} for rent in Bohol | Kuyog Bohol`;
+  const rates = car.rates.filter((rate) => rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
+  const from = rates.length ? Math.min(...rates.map((rate) => Number(rate.daily_rate))) : null;
+  const description = `${car.brand} ${car.model} for rent in Bohol${from === null ? "" : ` from ₱${from.toLocaleString()} per day`}. Book online with Kuyog Bohol.`;
+  return { title, description, openGraph: { title, description, type: "website" } };
+}
 
 export const instant = false;
 type Props = { params: Promise<{id:string}>; searchParams: Promise<{start?:string;end?:string;mode?:string;bookingError?:string}> };
@@ -95,6 +109,19 @@ export default async function CarDetail({ params, searchParams }: Props) {
 
     // Send only booking choices. The database insert trigger fetches the saved rate
     // and calculates the authoritative total, deposit, commission, and owner earnings.
+    let referral: { ref_owner_id?: string; ref_car_id?: string; ref_src?: string } = {};
+    try {
+      const rawReferral = (await cookies()).get("kb_ref")?.value;
+      const saved = rawReferral ? JSON.parse(rawReferral) as { o?: string; c?: string; s?: string } : null;
+      const allowedSources = ["post", "story", "poster", "sticker", "cover", "share"];
+      if (saved?.o && saved.c && saved.s && allowedSources.includes(saved.s)) {
+        const { data: referredCar } = await client.from("cars").select("id,owner_id").eq("id", saved.c).eq("owner_id", saved.o).maybeSingle();
+        if (referredCar) referral = { ref_owner_id: referredCar.owner_id, ref_car_id: referredCar.id, ref_src: saved.s };
+      }
+    } catch {
+      // A missing or invalid attribution cookie does not block a booking.
+    }
+
     const { error: bookingError } = await client.from("bookings").insert({
       car_id: id,
       customer_id: user.id,
@@ -104,6 +131,7 @@ export default async function CarDetail({ params, searchParams }: Props) {
       pickup_time: pickupTime || null,
       pickup_location: pickupLocation || null,
       itinerary_notes: itineraryNotes || null,
+      ...referral,
     });
     if (bookingError) {
       const conflict = bookingError.code === "23P01" || /blocked|overlap|unavailable/i.test(bookingError.message);

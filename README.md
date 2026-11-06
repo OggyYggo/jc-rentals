@@ -40,6 +40,8 @@ Copy `.env.example` to `.env.local` and set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SITE_URL` (local: `http://localhost:3000`; production: set the public site domain)
+- `SUPABASE_SECRET_KEY` (server-only Supabase secret API key for recording promo clicks; never expose it as a `NEXT_PUBLIC_` variable)
 
 Restart the dev server after changing environment variables.
 
@@ -55,6 +57,7 @@ Create a Supabase project and run the migrations **in order** in the SQL Editor:
 6. `supabase/migrations/202611050003_database_schema.sql`
 7. `supabase/migrations/202611050004_security_rls.sql`
 8. `supabase/migrations/202611050005_booking_flow.sql`
+9. `supabase/migrations/202611060001_promo_kit.sql`
 
 They create customer, owner, and admin data; booking and calendar rules; private document policies; and platform settings. On a database that already has platform tables, the migrations add missing fields and policies.
 
@@ -104,6 +107,7 @@ Then visit `/signup`.
 - **Phase 3 data foundation** — driver profiles and date schedules, owner or platform promo codes with duration thresholds and usage limits, multiple owner pickup locations with delivery fees, completed-booking reviews, and booking-level snapshots for selected driver, promotion, location, discount, and delivery fee. The existing admin overview provides core booking and revenue analytics.
 - **Pricing rules** — one rate per car and rental mode. Owners can set self-drive fuel, mileage, minimum-age, license, and refundable deposit terms, plus with-driver included hours, overtime, fuel/meals/accommodation coverage, and area. Booking requests save pickup location and required itinerary notes for with-driver rentals; self-drive requests require a license document. Prices shown in the browser are estimates; a database trigger calculates the final rate, total, deposit, commission, and owner earnings server-side from saved rates.
 - **Booking flow** — requests validate dates and availability on the server, with a database exclusion constraint as the final overlap check. Self-drive requires license and ID documents with verification pending or approved; with-driver requires pickup location, time, and itinerary. Owners see pending request counts, can approve or reject, then record pickup, return, completion, and payment.
+- **Promo kit** — owners can download square posts, stories, a Facebook cover, an A4 poster PDF, and an A6 sticker PDF with QR codes; they can also share a general branded post, captions, and permanent short links. Referral clicks and bookings appear in owner and admin promotion views. Set `NEXT_PUBLIC_SITE_URL` to the final public domain before sharing links or printing promo materials.
 
 ## Project structure
 
