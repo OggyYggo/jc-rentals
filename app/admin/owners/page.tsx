@@ -7,7 +7,7 @@ export const instant = false;
 export default async function AdminOwnersPage() {
   const { supabase } = await getAdminContext();
   const [{ data: owners, error: ownersError }, { data: customers, error: customersError }, { data: setting }] = await Promise.all([
-    supabase.from("owners").select("id, profile_id, business_name, contact_phone, commission_rate, is_active, profile:profiles(full_name, phone)").order("created_at", { ascending: false }),
+    supabase.from("owners").select("id, profile_id, business_name, contact_phone, commission_rate, is_active, payment_qr_path, payment_qr_verified, profile:profiles(full_name, phone)").order("created_at", { ascending: false }),
     supabase.from("profiles").select("id, full_name, phone").eq("role", "customer").order("created_at", { ascending: false }),
     supabase.from("settings").select("value").eq("key", "default_commission_rate").maybeSingle(),
   ]);

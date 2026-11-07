@@ -17,7 +17,7 @@ export default async function AdminOverviewPage() {
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer").eq("verification", "pending"),
     supabase.from("bookings").select("total_price, commission_amount").gte("created_at", monthStart).in("status", ["confirmed", "picked_up", "returned", "completed"]),
-    supabase.from("bookings").select("id, reference, created_at, total_price, status, customer:profiles(full_name), owner:owners(business_name), car:cars(brand, model)").order("created_at", { ascending: false }).limit(6),
+    supabase.from("bookings").select("id, reference, created_at, total_price, status, customer:profiles!bookings_customer_id_fkey(full_name), owner:owners!bookings_owner_id_fkey(business_name), car:cars!bookings_car_id_fkey(brand, model)").order("created_at", { ascending: false }).limit(6),
   ]);
   const monthlyBookings = monthBookings.data ?? [];
   const gross = monthlyBookings.reduce((sum, booking) => sum + Number(booking.total_price), 0);

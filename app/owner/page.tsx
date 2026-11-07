@@ -21,7 +21,7 @@ export default async function OwnerOverviewPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data: cars }, { data: bookings }, { data: contacts }] = await Promise.all([
     supabase.from("cars").select("id, brand, model, year, is_active, allows_self_drive, allows_with_driver").eq("owner_id", owner.id),
-    supabase.from("bookings").select("id, reference, start_date, end_date, total_price, owner_earnings, status, created_at, customer_id, car:cars(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
+    supabase.from("bookings").select("id, reference, start_date, end_date, total_price, owner_earnings, status, created_at, customer_id, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
   ]);
 

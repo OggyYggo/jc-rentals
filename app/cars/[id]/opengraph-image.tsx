@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { connection } from "next/server";
 import sharp from "sharp";
 import { getPublicPromoCar } from "@/lib/promo/data";
 
@@ -17,6 +18,7 @@ async function imageAsJpegDataUrl(url: string | null) {
 }
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
+  await connection();
   const { id } = await params;
   const car = await getPublicPromoCar(id);
   if (!car) return new ImageResponse(<div style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center", background: "#0A3D91", color: "white", fontSize: 56 }}>Kuyog Bohol · Car Rental in Bohol</div>, size);

@@ -12,7 +12,7 @@ export const instant = false;
 
 export default async function OwnerEarningsPage() {
   const { supabase, owner } = await getOwnerContext();
-  const { data, error } = await supabase.from("bookings").select("id, reference, created_at, start_date, total_price, commission_amount, owner_earnings, status, payment, car:cars(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("bookings").select("id, reference, created_at, start_date, total_price, commission_amount, owner_earnings, status, payment, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false });
   if (error) throw new Error("Could not load your earnings report.");
   const bookings = (data ?? []) as unknown as EarningsBooking[];
   const included = bookings.filter((booking) => ["confirmed", "picked_up", "returned", "completed"].includes(booking.status));

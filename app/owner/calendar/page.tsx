@@ -8,7 +8,7 @@ export default async function OwnerCalendarPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data: cars, error: carsError }, { data: bookings, error: bookingsError }, { data: blocks, error: blocksError }, { data: contacts, error: contactsError }] = await Promise.all([
     supabase.from("cars").select("id, brand, model, plate_number").eq("owner_id", owner.id).order("brand"),
-    supabase.from("bookings").select("id, reference, car_id, start_date, end_date, status, car:cars(brand, model)").eq("owner_id", owner.id).order("start_date"),
+    supabase.from("bookings").select("id, reference, car_id, start_date, end_date, status, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("start_date"),
     supabase.from("car_blocked_dates").select("id, car_id, start_date, end_date, reason, car:cars(brand, model)").order("start_date"),
     supabase.from("owner_booking_contacts").select("booking_id, full_name"),
   ]);

@@ -17,7 +17,7 @@ export function AccountShell({ children, email }: { children: React.ReactNode; e
             <nav className="mt-3 space-y-1">
               <Link href="/account/bookings" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${active === "bookings" ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CalendarDays size={15} /> My bookings</Link>
               <Link href="/account/profile" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${active === "profile" ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CircleUserRound size={15} /> Profile &amp; documents</Link>
-              <Link href="/" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#68778c] hover:bg-[#f6f8fb]"><CarFront size={15} /> Browse rentals</Link>
+              <Link href="/cars" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#68778c] hover:bg-[#f6f8fb]"><CarFront size={15} /> Browse rentals</Link>
             </nav>
             <form action="/auth/signout" method="post" className="mt-3 border-t border-[#edf0f4] pt-3"><button type="submit" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#758196] hover:bg-[#f6f8fb]"><LogOut size={15} /> Sign out</button></form>
           </aside>
