@@ -1,0 +1,203 @@
+# JC Rentals — Project Overview
+
+**Kuyog Bohol** (repo: `jc-rentals`) is a car rental booking platform for Bohol, Philippines. Local car owners list their vehicles, customers browse and book directly, and the platform earns a configurable commission (default 5%) on every booking.
+
+The public landing page renders without any credentials. Sign-in pages show a setup state until Supabase is configured.
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router) + React 19 + TypeScript |
+| Styling | Tailwind CSS 4 + shadcn/ui (`@base-ui/react`, `tw-animate-css`) |
+| Backend | Supabase — Postgres, Auth (Email + Google OAuth), private Storage buckets, RLS |
+| Server helpers | `@supabase/ssr`, `@supabase/supabase-js`, `sharp` (image processing) |
+| Promo tooling | `pdf-lib` (PDF posters/stickers), `qrcode`, `react-day-picker`, `date-fns` |
+| Hosting | Vercel |
+| Repo | https://github.com/jc-baliling/jc-rentals |
+
+## User roles
+
+| Role | Access |
+|---|---|
+| **Customer** | Browse cars, book, upload license/ID documents, view and cancel own bookings, upload payment proof |
+| **Owner** | Manage vehicles, rates, photos, calendar blocks, bookings, payment verification, earnings, promo materials |
+| **Admin** | Manage owners, vehicles, customers, bookings, commissions/invoices, platform settings, owner credit top-ups |
+
+Owner and admin accounts are provisioned by an administrator via SQL — customers cannot promote themselves. Role checks are enforced server-side via `getOwnerContext()` / `getAdminContext()` in `lib/` and via Postgres RLS.
+
+## Feature summary
+
+### Public site
+- Landing page, `/cars` listing with search/filter, `/cars/[id]` detail pages with OpenGraph images, `/for-owners` recruitment page, `/terms`
+- Public car availability is exposed through the `public_car_booking_dates` view (security barrier), which hides expired payment holds in real time
+
+### Customer portal (`/account`)
+- Profile management and document upload (license + ID; PDF/JPG/PNG/WebP up to 10 MB)
+- Documents are processed by authenticated server routes, orientation-corrected, stored in the private `customer-docs` bucket; admins view them via short-lived signed links — never public URLs
+- My Bookings list, per-booking detail, cancellation (only own pending/awaiting bookings before start date, enforced in Postgres)
+- Payment page (`/account/bookings/[id]/pay`) to upload deposit proof with a transaction reference number
+
+### Owner dashboard (`/owner`)
+- Vehicle management: details, self-drive and with-driver rates, photos converted server-side to WebP (full + thumbnail) in the public `car-photos` bucket
+- Pricing terms: fuel, mileage, minimum age, license requirements, refundable deposit (self-drive); included hours, overtime, fuel/meals/accommodation coverage, area (with-driver)
+- Multiple pickup locations with delivery fees; driver profiles and date schedules
+- Multi-vehicle calendar with DB-checked manual date blocks
+- Booking workflow: approve/reject requests, record pickup/return/completion/payment, verify customer payment proofs
+- Earnings dashboard: gross / commission / net
+- Payment settings: own QR code for deposits (private storage, admin-verified), fee mode (credits or invoice), deposit percent override
+- Credits page: prepaid platform-fee balance and top-up requests with proof
+- Promo kit: download square posts, stories, Facebook cover, A4 poster PDF, A6 sticker PDF with QR codes; share branded posts, captions, and permanent short links (`/c/[code]`); referral clicks and bookings tracked
+
+### Admin panel (`/admin`)
+- Overview with booking/revenue analytics
+- Owner management: access, commission rates, payment terms, QR verification, fee mode
+- Cars, customers (verification review), bookings management
+- Commissions: monthly per-owner reports with CSV export; invoice generation and payment marking
+- Payments: review owner credit top-ups, slow payment-review queue (owner response target 12 h, admin can verify after 6 h)
+- Promotions: per-car and general promo analytics
+- Fees, top-ups, and platform settings pages
+
+## Payment model (owner-direct QR + platform fee credits)
+
+There is no payment gateway — the platform never holds customer money. Customers pay deposits **directly to the owner's own QR code**; the platform collects its commission from the owner.
+
+```
+total_price        = days * daily_rate
+deposit_due_now    = total_price * deposit_percent   (default 30%, owner-overridable)
+balance_at_pickup  = total_price - deposit_due_now   (paid to owner at pickup)
+platform_fee       = total_price * commission_rate   (default 5%, snapshotted per booking)
+```
+
+**Fee collection modes** (`owners.fee_mode`):
+- `credits` (default): owner tops up prepaid credits; the platform fee is deducted automatically when the owner verifies a deposit. Cancelling before pickup refunds the fee as credits. Overdue invoices hide the owner's cars.
+- `invoice`: monthly per-owner invoices generated by admin, paid by the owner's due date.
+
+**Security deposit** (self-drive, refundable) is collected and returned by the owner at pickup — the platform never handles it.
+
+## Booking lifecycle
+
+```
+awaiting_payment ──(customer uploads proof)──> payment_review
+      │                                              │
+      │ (payment_due_at passes)           (owner verifies)   │ (owner rejects)
+      ▼                                              ▼           ▼
+   expired                                       confirmed   awaiting_payment (re-upload)
+                                                     │
+                                         picked_up → returned → completed
+
+cancelled / rejected can occur from awaiting_payment, payment_review, or confirmed
+```
+
+| Status | Meaning | Dates held? |
+|---|---|---|
+| `awaiting_payment` | Booking created, waiting for deposit (default 24 h window) | Yes, until `payment_due_at` |
+| `payment_review` | Proof uploaded, awaiting owner verification | Yes |
+| `confirmed` | Deposit verified, platform fee charged, details shared | Yes |
+| `picked_up` / `returned` / `completed` | Rental in progress / done | Yes |
+| `expired` | Payment deadline passed unpaid | No |
+| `cancelled` / `rejected` | Cancelled by customer/owner/admin | No |
+
+Key database mechanics:
+- `no_double_booking` GiST exclusion constraint prevents overlapping active bookings per car
+- `expire_unpaid_bookings()` releases expired holds; a trigger runs it before every booking insert, and `public_car_booking_dates` excludes overdue holds from availability even if the scheduled job hasn't run
+- A trigger (`set_booking_owner_and_earnings`) snapshots `total_price`, `commission_rate`, `commission_amount`, and `owner_earnings` at booking creation so later rate changes never alter old bookings
+- Final pricing is calculated server-side by a DB trigger — browser prices are estimates only
+- `owner_credit_ledger` records top-ups, booking fees, fee refunds, and adjustments with unique indexes preventing duplicate fee/refund charges per booking
+
+## Project structure
+
+```
+app/
+├─ page.tsx                    # public landing page
+├─ cars/                       # car listing + detail (+ OpenGraph image)
+├─ for-owners/, terms/         # marketing / legal pages
+├─ login/, signup/             # auth (Email + Google)
+├─ account/                    # customer portal (profile, bookings, pay)
+├─ owner/                      # owner dashboard (cars, calendar, bookings,
+│                              #   earnings, payments, credits, promote)
+├─ admin/                      # admin panel (owners, cars, customers,
+│                              #   bookings, commissions, payments, fees,
+│                              #   promotions, settings)
+├─ api/                        # document upload, car photos, promo assets
+├─ auth/callback/              # OAuth redirect
+└─ c/[code]/                   # promo short-link redirect + click tracking
+components/
+├─ customer/, owner/, admin/   # role-specific UI
+├─ ui/                         # shadcn/ui primitives
+└─ car-card, search-bar, header, public-footer, ...
+lib/
+├─ supabase/                   # client, server, proxy, admin (secret key) helpers
+├─ admin-context.ts            # admin auth guard
+├─ owner-context.ts            # owner auth guard
+├─ car-photo.ts                # server-side photo processing
+├─ promo/                      # promo data, QR, short codes, templates
+└─ utils.ts
+types/qrcode.d.ts
+proxy.ts                       # session refresh middleware (Next.js proxy)
+supabase/migrations/           # SQL migrations, run in order
+plan/                          # implementation plan documents
+```
+
+## Database migrations
+
+Run **in order** in the Supabase SQL Editor:
+
+| # | File | Contents |
+|---|---|---|
+| 1 | `202611030001_customer_portal.sql` | Customer profiles, documents, bookings |
+| 2 | `202611030002_owner_dashboard.sql` | Owners, vehicles, rates, calendar |
+| 3 | `202611030003_admin_panel.sql` | Admin management, commissions |
+| 4 | `202611050001_phase3.sql` | Drivers, promos, locations, reviews |
+| 5 | `202611050002_pricing_rules.sql` | Per-mode rates and pricing terms |
+| 6 | `202611050003_database_schema.sql` | Schema consolidation |
+| 7 | `202611050004_security_rls.sql` | Row Level Security policies |
+| 8 | `202611050005_booking_flow.sql` | Booking requests, availability, pricing trigger |
+| 9 | `202611060001_promo_kit.sql` | Promo codes, short links, click tracking |
+| 10 | `202611060002_payment_statuses.sql` | `awaiting_payment`, `payment_review`, `expired` statuses |
+| 11 | `202611060003_payment_qr_module.sql` | Owner QR payments, credit ledger, invoices, hold expiry |
+| 12 | `202611070001_require_verified_customers_to_book.sql` | Booking insert policy requires verified customer |
+| 13 | `202611070002_release_expired_booking_holds.sql` | Pre-insert expiry trigger + availability view fix |
+
+All migrations use `if not exists` / `create or replace` patterns and are safe to re-run on databases that already have platform tables.
+
+## Environment variables
+
+Copy `.env.example` to `.env.local`:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SITE_URL` — local: `http://localhost:3000`; production: the public domain (required before sharing promo links/QR codes)
+- `SUPABASE_SECRET_KEY` — server-only key for admin operations (promo click recording, promo asset generation); **never** prefix with `NEXT_PUBLIC_`
+
+## Commands
+
+```bash
+npm install
+npm run dev      # dev server
+npm run build    # production build
+npm run start    # production server
+npm run lint     # eslint
+```
+
+## Setup checklist
+
+1. Create a Supabase project; run all migrations in order
+2. Enable **Email** and **Google** in Supabase Auth; add `/auth/callback` to allowed redirect URLs
+3. Set environment variables and restart the dev server
+4. Provision roles via SQL (`update profiles set role = ...`, `insert into owners ...`)
+5. Deploy to Vercel with the same env vars; add the production `/auth/callback` URL
+
+## Plan documents (`plan/`)
+
+- `car-rental-platform.md` — master implementation plan (business model, roles, schema)
+- `customer-home-implementation.md` / `customer-home-implementation 02.md` — customer portal work
+- `payment-qr-implementation.md` — owner-direct QR deposit + fee-credit payment module (Phase 1; PayMongo/Xendit gateway is planned for Phase 2)
+- `promo-kit-implementation.md` — promo materials and short-link tracking
+
+## Security notes
+
+- RLS policies enforce ownership on bookings, documents, payments, and credit ledger entries; booking creation requires an approved, verified customer with both documents uploaded
+- Customer documents live in private buckets with per-customer policies; admin access uses signed URLs
+- Payment proofs and top-up proofs are private; transaction references are unique per booking to prevent reuse
+- Server-only Supabase admin client (`lib/supabase/admin.ts`) is gated by `server-only` and uses `SUPABASE_SECRET_KEY`

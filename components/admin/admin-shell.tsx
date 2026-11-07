@@ -9,6 +9,7 @@ import { Bell, CalendarDays, CarFront, ChevronDown, CircleDollarSign, LayoutDash
 const navItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/admin/owners", label: "Owners", icon: Store },
+  { href: "/admin/owner-applications", label: "Car applications", icon: CarFront },
   { href: "/admin/cars", label: "Cars", icon: CarFront },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/bookings", label: "Bookings", icon: CalendarDays },
