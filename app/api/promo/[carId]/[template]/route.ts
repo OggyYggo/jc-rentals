@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { PDFDocument } from "pdf-lib";
 import { loadCarForPromo } from "@/lib/promo/data";
 import { carShortUrl, getSiteOrigin, qrDataUrl } from "@/lib/promo/qr";
+import { getPromoImageAssets } from "@/lib/promo/image-assets";
 import { promoTemplate, TEMPLATES } from "@/lib/promo/templates";
 
 async function imageAsJpegDataUrl(url: string | null) {
@@ -23,15 +24,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ carI
   const car = await loadCarForPromo(carId);
   if (!car) return new Response("This active car is not available to your account", { status: 403 });
   if (!car.short_code) return new Response("Apply the promo kit migration before generating downloads", { status: 409 });
-  const rates = car.rates.filter((rate) => rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
-  if (!rates.length) return new Response("Add a daily rate before generating a promo post", { status: 409 });
 
   const link = carShortUrl(car.short_code, tpl.src, getSiteOrigin(new URL(request.url).origin));
-  const [photo, qr] = await Promise.all([imageAsJpegDataUrl(car.photoUrl), qrDataUrl(link)]);
+  const [photo, qr, { fonts, logo }] = await Promise.all([imageAsJpegDataUrl(car.photoUrl), qrDataUrl(link), getPromoImageAssets()]);
   const download = new URL(request.url).searchParams.get("download") === "1";
-  const response = new ImageResponse(promoTemplate(template as keyof typeof TEMPLATES, { car, photo, qr, link }), {
+  const response = new ImageResponse(promoTemplate(template as keyof typeof TEMPLATES, { car, photo, qr, link, logo }), {
     width: tpl.width,
     height: tpl.height,
+    fonts,
     headers: {
       ...(download && tpl.output === "png" ? { "Content-Disposition": `attachment; filename="kuyog-bohol-${car.short_code}-${template}.png"` } : {}),
       "Cache-Control": "private, max-age=300",

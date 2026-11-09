@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { ArrowLeft, CarFront } from "lucide-react";
 import { PageHeading } from "@/components/owner/ui";
 import { PromoSharePanel } from "@/components/owner/promo-share-panel";
@@ -13,6 +14,7 @@ function peso(value: number) {
 }
 
 export async function PromoCarContent({ carId, backHref = "/owner/promote" }: { carId: string; backHref?: string }) {
+  await connection();
   const car = await loadCarForPromo(carId);
   if (!car) notFound();
   const rates = car.rates.filter((rate) => rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
