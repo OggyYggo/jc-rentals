@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { ArrowRight, CarFront, CircleUserRound, Menu, X } from "lucide-react";
+import { ArrowRight, CircleUserRound, Menu, X } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
@@ -42,7 +43,7 @@ export function Header() {
     <header className={`sticky top-0 z-50 w-full border-b backdrop-blur-xl ${isPublic ? "theme-public border-[#D6E6F7]/90 bg-white/90" : "border-[#e9ede9]/90 bg-[#fbfcfa]/90"}`}>
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm ${isPublic ? "bg-[#0B63CE]" : "bg-[#2457d6]"}`}><CarFront size={20} /></span>
+          <Logo size={36} />
           <span className={`text-[15px] font-semibold tracking-tight ${isPublic ? "text-[#0F2342]" : "text-[#23372a]"}`}>Kuyog Bohol</span>
         </Link>
         <nav className={`hidden items-center gap-5 text-[12px] font-medium lg:flex ${isPublic ? "text-[#51657F]" : "text-[#67766b]"}`}>

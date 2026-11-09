@@ -9,6 +9,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/shared";
 import { SearchForm } from "@/components/customer/search-form";
 import { CarTile } from "@/components/customer/car-tile";
 import { HillsDivider } from "@/components/brand/hills-divider";
+import { Logo } from "@/components/logo";
 
 export const metadata = { title: "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver", description: "Rent a car in Bohol from local owners. Drive yourself or hire a car with a driver. Book online in minutes." };
 const trips = [
@@ -49,7 +50,7 @@ export default function Home() {
 
     <section className="bg-[#EAF4FF] px-5 py-16 sm:px-8 md:py-20"><div className="mx-auto max-w-3xl"><p className="mb-2 text-center text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Good to know</p><h2 className="mb-7 text-center text-3xl font-semibold text-[#0F2342] md:text-4xl">Frequently asked questions</h2><div className="overflow-hidden rounded-2xl border border-[#D6E6F7] bg-white">{faq.map(([q,a])=><details key={q} className="group border-b border-[#D6E6F7] px-5 py-4 last:border-0"><summary className="min-h-11 cursor-pointer list-none py-2 font-semibold text-[#0F2342] marker:hidden">{q}<span aria-hidden="true" className="float-right ml-3 text-[#0B63CE] group-open:rotate-45">+</span></summary><p className="pb-2 text-sm leading-6 text-[#51657F]">{a}</p></details>)}</div></div></section>
 
-    <footer className="public-footer relative overflow-hidden bg-[#0A3D91] px-5 pb-9 pt-20 text-white sm:px-8"><HillsDivider className="absolute inset-x-0 top-0 h-12 w-full -rotate-180 md:h-16" back="#2E9BF0" front="#0A3D91"/><div className="relative mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5"><Link href="/" className="flex items-center gap-2 font-semibold"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#0A3D91]"><CarFront size={19}/></span>Kuyog Bohol</Link><div className="flex flex-wrap gap-x-5 gap-y-3 text-xs text-white/85"><Link href="/cars">Cars</Link><Link href="/#how-it-works">How it works</Link><Link href="/for-owners">List your car</Link><Link href="/contact">Contact</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div><p className="w-full border-t border-white/20 pt-5 text-xs text-white/80">Car rental in Bohol. Self-drive or with a local driver.</p></div></footer>
+    <footer className="public-footer relative overflow-hidden bg-[#0A3D91] px-5 pb-9 pt-20 text-white sm:px-8"><HillsDivider className="absolute inset-x-0 top-0 h-12 w-full -rotate-180 md:h-16" back="#2E9BF0" front="#0A3D91"/><div className="relative mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-5"><Link href="/" className="flex items-center gap-2 font-semibold"><Logo size={96} />Kuyog Bohol</Link><div className="flex flex-wrap gap-x-5 gap-y-3 text-xs text-white/85"><Link href="/cars">Cars</Link><Link href="/#how-it-works">How it works</Link><Link href="/for-owners">List your car</Link><Link href="/contact">Contact</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div><p className="w-full border-t border-white/20 pt-5 text-xs text-white/80">Car rental in Bohol. Self-drive or with a local driver.</p></div></footer>
   </main>;
 }
 

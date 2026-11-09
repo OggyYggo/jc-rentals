@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CarFront, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/client";
 
 export function AuthForm({ mode, configured, next = "/account/bookings" }: { mode: "login" | "signup"; configured: boolean; next?: string }) {
@@ -110,7 +111,7 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
 
   return (
     <div className="w-full max-w-[420px] rounded-2xl border border-[#e5eaf1] bg-white p-6 shadow-[0_24px_70px_-38px_rgba(28,59,119,.28)] sm:p-8">
-      <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#26364e]"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2457d6] text-white"><CarFront size={20} /></span> Kuyog Bohol</Link>
+      <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#26364e]"><Logo size={36} /> Kuyog Bohol</Link>
       <h1 className="text-2xl font-semibold tracking-tight text-[#203149]">{isSignup ? "Create your account" : "Welcome back"}</h1>
       <p className="mt-2 text-sm leading-6 text-[#718096]">{isSignup ? "Keep your bookings and rental details together." : "Sign in to manage your rentals and profile."}</p>
 
