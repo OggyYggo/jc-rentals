@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { NotificationList } from "@/components/notifications/list";
 
+export const instant = false;
+
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ unread?: string }> }) {
   const { unread } = await searchParams;
   const db = await createClient();
