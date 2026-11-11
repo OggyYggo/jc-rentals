@@ -58,6 +58,14 @@ Owner and admin accounts are provisioned by an administrator via SQL — custome
 - Promotions: per-car and general promo analytics
 - Fees, top-ups, and platform settings pages
 
+### Notifications
+- In-app notification bell with Supabase Realtime updates, unread counts, mark-as-read, a full notification list (`/notifications`), and preferences (`/notifications/settings`)
+- Database triggers create notifications for booking, payment proof, account review, owner QR, and top-up events; row-level policies restrict notification access to each user
+- Email delivery uses the protected `/api/notifications/dispatch` route and Resend when the Supabase Database Webhook is enabled for `public.notifications` inserts
+- Web Push uses the `public.push_subscriptions` table, `/api/push/subscribe`, `public/sw.js`, VAPID, and a PWA opt-in prompt shown to signed-in users running the installed app
+- Owner booking and payment-proof notifications include push. Customer `booking_created` notifications currently use in-app and email only.
+- Push requires VAPID keys in the deployed environment, a device subscription created from `/notifications/settings` or the installed-app prompt, and the Supabase webhook calling the deployed dispatch route
+
 ## Payment model (owner-direct QR + platform fee credits)
 
 There is no payment gateway — the platform never holds customer money. Customers pay deposits **directly to the owner's own QR code**; the platform collects its commission from the owner.
@@ -158,6 +166,8 @@ Run **in order** in the Supabase SQL Editor:
 | 11 | `202611060003_payment_qr_module.sql` | Owner QR payments, credit ledger, invoices, hold expiry |
 | 12 | `202611070001_require_verified_customers_to_book.sql` | Booking insert policy requires verified customer |
 | 13 | `202611070002_release_expired_booking_holds.sql` | Pre-insert expiry trigger + availability view fix |
+| 14 | `202611110001_notifications.sql` | Notifications, preferences, push subscriptions, RLS, booking events, Realtime |
+| 15 | `202611110002_notification_event_coverage.sql` | Account review, top-up, and owner QR notification events |
 
 All migrations use `if not exists` / `create or replace` patterns and are safe to re-run on databases that already have platform tables.
 
@@ -169,6 +179,15 @@ Copy `.env.example` to `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_SITE_URL` — local: `http://localhost:3000`; production: the public domain (required before sharing promo links/QR codes)
 - `SUPABASE_SECRET_KEY` — server-only key for admin operations (promo click recording, promo asset generation); **never** prefix with `NEXT_PUBLIC_`
+
+Notification and push environment variables:
+
+- `RESEND_API_KEY` — server-only Resend sending key
+- `EMAIL_FROM` — sender address, such as `Kuyog Bohol <notify@your-domain.com>`; use a verified domain for real recipients
+- `NOTIFY_WEBHOOK_SECRET` — shared secret checked by `/api/notifications/dispatch` and sent in the Supabase webhook's `x-webhook-secret` header
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — public Web Push key, available to browser code at build time
+- `VAPID_PRIVATE_KEY` — server-only matching VAPID private key; never prefix with `NEXT_PUBLIC_`
+- `VAPID_SUBJECT` — VAPID contact identifier, such as `mailto:you@example.com`
 
 ## Commands
 
@@ -187,6 +206,8 @@ npm run lint     # eslint
 3. Set environment variables and restart the dev server
 4. Provision roles via SQL (`update profiles set role = ...`, `insert into owners ...`)
 5. Deploy to Vercel with the same env vars; add the production `/auth/callback` URL
+6. Enable Supabase **Integrations → Database Webhooks** and create an `INSERT` webhook on `public.notifications` to `/api/notifications/dispatch`, with the matching `x-webhook-secret` header
+7. For Web Push, generate one VAPID key pair, add its public/private keys and subject to local and Vercel environments, redeploy, then subscribe devices from `/notifications/settings` or the installed-app prompt
 
 ## Plan documents (`plan/`)
 
