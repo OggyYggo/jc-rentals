@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPush } from "@/lib/notifications/push";
 
-type NotificationRow = { id: string; user_id: string; type: string; title: string; body: string | null; url: string | null; channels: string[]; critical: boolean; email_sent_at: string | null; delivery_attempts: number };
+type NotificationRow = { id: string; user_id: string; type: string; title: string; body: string | null; url: string | null; channels: string[]; critical: boolean; email_sent_at: string | null; push_sent_at: string | null; delivery_attempts: number };
 
 export async function POST(request: Request) {
   const secret = process.env.NOTIFY_WEBHOOK_SECRET;
@@ -11,9 +12,13 @@ export async function POST(request: Request) {
   const url = new URL(request.url);
   let rows: NotificationRow[];
   if (url.searchParams.get("sweep") === "1") {
-    const { data, error } = await db.from("notifications").select("*").contains("channels", ["email"]).is("email_sent_at", null).lt("delivery_attempts", 3).gte("created_at", new Date(Date.now() - 86400000).toISOString()).limit(100);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    rows = (data ?? []) as NotificationRow[];
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const [emailResult, pushResult] = await Promise.all([
+      db.from("notifications").select("*").contains("channels", ["email"]).is("email_sent_at", null).lt("delivery_attempts", 3).gte("created_at", since).limit(100),
+      db.from("notifications").select("*").contains("channels", ["push"]).is("push_sent_at", null).lt("delivery_attempts", 3).gte("created_at", since).limit(100),
+    ]);
+    if (emailResult.error || pushResult.error) return NextResponse.json({ error: emailResult.error?.message ?? pushResult.error?.message }, { status: 500 });
+    rows = [...new Map([...(emailResult.data ?? []), ...(pushResult.data ?? [])].map((row) => [row.id, row as NotificationRow])).values()];
   } else {
     const payload = await request.json().catch(() => null) as { record?: NotificationRow } | null;
     if (!payload?.record?.id) return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
@@ -37,6 +42,11 @@ async function deliver(db: NonNullable<ReturnType<typeof createAdminClient>>, ro
       if (!response.ok) throw new Error(`Resend returned ${response.status}.`);
       patch.email_sent_at = new Date().toISOString();
     } catch (error) { errors.push(error instanceof Error ? error.message : "Email delivery failed."); }
+  }
+  if (row.channels.includes("push") && !row.push_sent_at) {
+    try {
+      if (await sendPush(db, row)) patch.push_sent_at = new Date().toISOString();
+    } catch (error) { errors.push(error instanceof Error ? `Push: ${error.message}` : "Push delivery failed."); }
   }
   patch.delivery_error = errors.join("; ") || null;
   await db.from("notifications").update(patch).eq("id", row.id);

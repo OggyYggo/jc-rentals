@@ -16,6 +16,7 @@ const workSans = Work_Sans({
 export const metadata: Metadata = {
   title: "Kuyog Bohol — Rental Business, Simplified",
   description: "Manage bookings, vehicles, customers, and rental operations in one clear workspace. Built for rental businesses in the Philippines.",
+  appleWebApp: { capable: true, title: "Kuyog Bohol", statusBarStyle: "default" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
