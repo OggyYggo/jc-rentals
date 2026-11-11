@@ -8,6 +8,17 @@ function sameOrigin(request: Request) {
   return origin !== null && origin === new URL(request.url).origin;
 }
 
+export async function GET(request: Request) {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return NextResponse.json({ subscribed: false }, { status: 401 });
+  const endpoint = new URL(request.url).searchParams.get("endpoint");
+  if (!endpoint) return NextResponse.json({ subscribed: false });
+  const { data, error } = await db.from("push_subscriptions").select("id").eq("user_id", user.id).eq("endpoint", endpoint).maybeSingle();
+  if (error) return NextResponse.json({ error: "Could not check this device." }, { status: 500 });
+  return NextResponse.json({ subscribed: Boolean(data) });
+}
+
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return NextResponse.json({ error: "Invalid origin." }, { status: 403 });
   const db = await createClient();
