@@ -15,7 +15,7 @@ async function CustomerAccountContent({ children }: { children: ReactNode }) {
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role === "admin") redirect("/admin");
   if (profile?.role === "owner") redirect("/owner");
-  return <AccountShell email={user.email ?? "Customer account"}>{children}</AccountShell>;
+  return <AccountShell userId={user.id} email={user.email ?? "Customer account"}>{children}</AccountShell>;
 }
 
 function AccountLoading() {

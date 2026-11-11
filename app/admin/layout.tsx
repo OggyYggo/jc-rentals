@@ -6,7 +6,7 @@ export const instant = false;
 
 async function AdminLayoutContent({ children }: { children: ReactNode }) {
   const { user, profile } = await getAdminContext();
-  return <AdminShell email={user.email ?? "Admin"} fullName={profile?.full_name ?? ""}>{children}</AdminShell>;
+  return <AdminShell userId={user.id} email={user.email ?? "Admin"} fullName={profile?.full_name ?? ""}>{children}</AdminShell>;
 }
 
 function AdminLoading() {
