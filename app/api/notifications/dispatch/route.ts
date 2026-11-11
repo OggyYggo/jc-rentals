@@ -31,18 +31,37 @@ export async function POST(request: Request) {
 async function deliver(db: NonNullable<ReturnType<typeof createAdminClient>>, row: NotificationRow) {
   const errors: string[] = [];
   const patch: Record<string, unknown> = { delivery_attempts: row.delivery_attempts + 1 };
+
+  // ===== EMAIL (now uses the Resend template) =====
   if (row.channels.includes("email") && !row.email_sent_at) {
     try {
       const apiKey = process.env.RESEND_API_KEY;
       const from = process.env.EMAIL_FROM;
-      if (!apiKey || !from) throw new Error("Email delivery is not configured.");
+      const templateId = process.env.RESEND_TEMPLATE_ID;
+      if (!apiKey || !from || !templateId) throw new Error("Email delivery is not configured.");
       const { data, error } = await db.auth.admin.getUserById(row.user_id);
       if (error || !data.user?.email) throw new Error("Notification recipient email is unavailable.");
-      const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [data.user.email], subject: row.title, text: [row.body, row.url ? `Open: ${row.url}` : ""].filter(Boolean).join("\n\n") }) });
-      if (!response.ok) throw new Error(`Resend returned ${response.status}.`);
+
+      const site = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+      const variables: Record<string, string> = {
+        TITLE: row.title,
+        BODY: row.body ?? "",
+        BUTTON_LABEL: "Open in Kuyog Bohol",
+        SETTINGS_URL: `${site}/notifications/settings`,
+      };
+      if (row.url) variables.BUTTON_URL = `${site}${row.url}`;
+
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: [data.user.email], subject: row.title, template: { id: templateId, variables } }),
+      });
+      if (!response.ok) throw new Error(`Resend ${response.status}: ${await response.text()}`);
       patch.email_sent_at = new Date().toISOString();
     } catch (error) { errors.push(error instanceof Error ? error.message : "Email delivery failed."); }
   }
+  // ===== END EMAIL =====
+
   if (row.channels.includes("push") && !row.push_sent_at) {
     try {
       if (await sendPush(db, row)) patch.push_sent_at = new Date().toISOString();
