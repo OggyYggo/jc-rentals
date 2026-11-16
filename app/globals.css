@@ -135,6 +135,16 @@
   }
 }
 
+@keyframes loading-shimmer { to { background-position: -200% 0; } }
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #EAF4FF 25%, #F6FAFF 50%, #EAF4FF 75%);
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer { animation: none; }
+}
+
 .hero-grid {
   background-image: radial-gradient(#dfe5f4 0.7px, transparent 0.7px);
   background-size: 22px 22px;

@@ -3,6 +3,7 @@ import { Inter, Work_Sans } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { PushOptInPrompt } from "@/components/notifications/push-opt-in-prompt";
+import { TopProgressBar } from "@/components/loading/TopProgressBar";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${workSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <TopProgressBar />
         <Header />
         {children}
         <PushOptInPrompt />

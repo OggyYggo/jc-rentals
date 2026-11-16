@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Spinner } from "@/components/loading/Spinner";
 
 export function PaymentProofForm({ bookingId, customerId, amount }: { bookingId: string; customerId: string; amount: number }) {
   const router = useRouter();
@@ -30,5 +31,5 @@ export function PaymentProofForm({ bookingId, customerId, amount }: { bookingId:
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not submit payment proof."); }
     finally { setBusy(false); }
   }
-  return <form action={submit} className="mt-6 space-y-4 border-t pt-5"><h2 className="font-semibold text-slate-900">Submit transfer proof</h2><label className="block text-sm text-slate-700">Transaction reference<input name="reference" required className="mt-1 block w-full rounded-lg border px-3 py-2"/></label><label className="block text-sm text-slate-700">Screenshot<input name="proof" type="file" accept="image/jpeg,image/png,image/webp" required className="mt-1 block w-full rounded-lg border px-3 py-2"/></label>{error && <p role="alert" className="text-sm text-red-700">{error}</p>}<button disabled={busy} className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Submitting…" : `I sent ₱${amount.toLocaleString("en-PH")}`}</button></form>;
+  return <form action={submit} aria-busy={busy} className="mt-6 space-y-4 border-t pt-5"><h2 className="font-semibold text-slate-900">Submit transfer proof</h2><label className="block text-sm text-slate-700">Transaction reference<input name="reference" required className="mt-1 block w-full rounded-lg border px-3 py-2"/></label><label className="block text-sm text-slate-700">Screenshot<input name="proof" type="file" accept="image/jpeg,image/png,image/webp" required className="mt-1 block w-full rounded-lg border px-3 py-2"/></label>{error && <p role="alert" className="text-sm text-red-700">{error}</p>}<button disabled={busy} aria-busy={busy} className="inline-flex min-w-48 items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy && <Spinner className="mr-2 size-4 text-white" label="Submitting proof"/>}{busy ? "Submitting…" : `I sent ₱${amount.toLocaleString("en-PH")}`}</button></form>;
 }

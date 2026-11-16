@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import heroBackground from "@/img/bg.jpg";
+import mascot from "@/img/mascot.png";
 import { Suspense } from "react";
 import { io } from "next/cache";
-import { CarFront, ShieldCheck, Wallet, FileText, MapPin, Users, CircleDollarSign, Mountain, Waves, Sailboat, Plane, ArrowRight, Check, CalendarCheck, MessageSquare, BadgeCheck, Sparkles, type LucideIcon } from "lucide-react";
+import { CarFront, ShieldCheck, Wallet, FileText, Users, CircleDollarSign, Mountain, Waves, Sailboat, Plane, ArrowRight, Headphones, CalendarCheck, MessageSquare, BadgeCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 import { SearchForm } from "@/components/customer/search-form";
@@ -14,32 +15,32 @@ import { CurrentYear } from "@/components/current-year";
 export const metadata = { title: "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver", description: "Rent a car in Bohol from local owners. Drive yourself or hire a car with a driver. Book online in minutes." };
 const trips = [
   { title: "Countryside day tour", desc: "Chocolate Hills, Loboc River, Bilar forest and tarsiers", Icon: Mountain, art: "trip-hills" },
-  { title: "Panglao and Alona beach day", desc: "Spend the day between Panglao's beaches and resorts", Icon: Waves, art: "trip-sea" },
-  { title: "Island hopping transfer", desc: "Plan a ride for an early boat or dolphin watching trip", Icon: Sailboat, art: "trip-island" },
-  { title: "Airport or hotel transfer", desc: "Arrange a convenient pickup to start your Bohol stay", Icon: Plane, art: "trip-sky" },
+  { title: "Panglao and Alona beach day", desc: "A relaxed day of white sand and clear water.", Icon: Waves, art: "trip-sea" },
+  { title: "Island hopping transfer", desc: "Rides to the boat for dolphin watching and island hopping.", Icon: Sailboat, art: "trip-island" },
+  { title: "Airport or hotel transfer", desc: "A comfortable ride on arrival or departure.", Icon: Plane, art: "trip-sky" },
 ];
 const steps = [
-  { Icon: CalendarCheck, title: "Choose your car", desc: "Pick your dates, choose Self-drive or With driver, and select the car that fits your trip." },
-  { Icon: BadgeCheck, title: "Book with a small deposit", desc: "Scan the QR code, upload your proof of payment, and your booking is confirmed." },
-  { Icon: MessageSquare, title: "Pick up and go", desc: "Meet the owner or your driver, settle the balance, and start exploring Bohol." },
+  { Icon: CalendarCheck, title: "Choose your car", desc: "Pick your dates, Self-drive or With driver, and a car." },
+  { Icon: BadgeCheck, title: "Pay a small deposit", desc: "Scan the QR and upload your proof of payment." },
+  { Icon: MessageSquare, title: "Pick up and go", desc: "Meet the owner or driver, pay the balance, and enjoy Bohol." },
 ];
 const faq = [
-  ["What do I need to rent self-drive?", "A valid driver's license, a valid ID, and a deposit are required. TODO: confirm final document and deposit policy."],
+  ["What do I need to rent self-drive?", "A valid driver's license, a valid ID, and a small deposit to book."],
   ["Can I book with a driver instead?", "Yes. You do not need a driver's license for a booking with a driver."],
-  ["How do I pay?", "Pay a small deposit by QR and the balance to the owner at pickup. TODO: confirm payment policy."],
-  ["What if I need to cancel?", "Please review the cancellation policy before booking. TODO: confirm cancellation terms and add the policy link."],
-  ["Is fuel included?", "Fuel arrangements depend on the listing and are shown on each car. TODO: confirm standard policy."],
+  ["How do I pay?", "Pay a small deposit by QR to confirm your booking. You pay the balance to the owner at pickup."],
+  ["What if I need to cancel?", "You can cancel from My bookings before your start date while the booking is still pending. See the cancellation policy for details."],
+  ["Is fuel included?", "It depends on the listing. Fuel terms are shown on each car page."],
   ["Where do I pick up?", "Pickup details are shown on the car page and confirmed after booking."],
 ];
 const trustItems: [LucideIcon, string][] = [
   [ShieldCheck, "Verified local owners"],
-  [Wallet, "Transparent pricing, no hidden fees"],
+  [Wallet, "Clear prices, no hidden fees"],
   [CarFront, "Small deposit to book"],
-  [FileText, "Your documents stay private"],
+  [FileText, "Documents kept private"],
 ];
 const perks: [LucideIcon, string, string][] = [
   [Users, "Local owners", "Cars come from owners based right here in Bohol."],
-  [CarFront, "Two ways to travel", "Drive yourself or ride with a professional local driver."],
+  [CarFront, "Two ways to travel", "Drive yourself or ride with a local driver."],
   [CircleDollarSign, "Clear pricing", "See exactly what is included before you book — no surprises."],
   [ShieldCheck, "Private documents", "Your license and ID are stored securely and only shared when needed."],
 ];
@@ -47,40 +48,41 @@ const perks: [LucideIcon, string, string][] = [
 export default function Home() {
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
     {/* Hero */}
-    <section className="public-hero relative flex min-h-[72vh] flex-col justify-center px-5 pb-28 pt-20 sm:px-8 md:min-h-[82vh] md:pb-32 md:pt-24">
+    <section id="top" className="public-hero relative flex flex-col justify-center px-5 pb-32 pt-16 sm:px-8 md:min-h-[560px] md:pb-36 md:pt-24">
       <Image src={heroBackground} alt="The Chocolate Hills in Bohol" fill priority sizes="100vw" className="object-cover object-center"/>
-      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#0A3D91]/80 via-[#0A3D91]/45 to-[#0F2342]/75"/>
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#0F2342]/80 via-[#0A3D91]/35 to-[#0F2342]/5 md:bg-[#0F2342]/60"/>
+      <div aria-hidden="true" className="absolute inset-0 bg-[#0A3D91]/15"/>
       <div className="relative z-10 mx-auto w-full max-w-6xl text-center text-white">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] backdrop-blur-md"><MapPin size={14}/> Bohol, Philippines</span>
-        <h1 className="mx-auto mt-6 max-w-9xl text-4xl font-bold leading-[1.08] tracking-tight md:text-6xl lg:text-7xl">Find your ride across Bohol.</h1>
-        <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/85 md:text-lg">Self-drive or with a local driver, real cars from real owners, booked online in minutes.</p>
-        <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm font-medium text-white/90">
-          <span className="flex items-center gap-2"><Check size={16} className="text-[#7FD1FF]"/> Local owners</span>
-          <span className="flex items-center gap-2"><Check size={16} className="text-[#7FD1FF]"/> Clear pricing</span>
-          <span className="flex items-center gap-2"><Check size={16} className="text-[#7FD1FF]"/> Secure booking</span>
-          <span className="flex items-center gap-2"><Check size={16} className="text-[#7FD1FF]"/> 24/7 support</span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.15em] backdrop-blur-md">CAR RENTAL IN BOHOL</span>
+        <h1 className="mx-auto mt-6 max-w-[900px] text-[46px] font-semibold leading-[1.04] tracking-tight md:text-6xl lg:text-[76px]">Explore Bohol your way.</h1>
+        <p className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Drive yourself or ride with a local driver. Book in minutes.</p>
+        <div className="mx-auto mt-8 grid max-w-[300px] grid-cols-2 justify-center gap-x-5 gap-y-3 text-left text-sm font-semibold text-white/95 sm:flex sm:max-w-none sm:flex-wrap sm:gap-x-8 sm:text-center">
+          <span className="flex items-center gap-2"><Users size={20} strokeWidth={1.8}/> Local owners</span>
+          <span className="flex items-center gap-2"><CircleDollarSign size={20} strokeWidth={1.8}/> Clear pricing</span>
+          <span className="flex items-center gap-2"><ShieldCheck size={20} strokeWidth={1.8}/> Secure booking</span>
+          <span className="flex items-center gap-2"><Headphones size={20} strokeWidth={1.8}/> 24/7 support</span>
         </div>
       </div>
       <SearchForm />
     </section>
 
     {/* Trust strip */}
-    <section className="border-b border-[#D6E6F7] bg-white px-5 py-10 sm:px-8">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-14 gap-y-6 text-sm font-medium text-[#0F2342] md:text-base">
-        {trustItems.map(([Icon,label])=><span className="flex items-center gap-3" key={label}><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF4FF] text-[#0B63CE]"><Icon size={20} strokeWidth={1.8}/></span>{label}</span>)}
+    <section className="border-b border-[#D6E6F7] bg-[#EAF4FF] px-5 py-10 sm:px-8">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 items-center justify-items-center gap-x-5 gap-y-6 text-xs font-medium text-[#0F2342] sm:flex sm:flex-wrap sm:justify-center sm:gap-x-10 sm:text-sm md:gap-x-14">
+        {trustItems.map(([Icon,label])=><span className="flex items-center gap-3" key={label}><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-[#0B63CE]"><Icon size={20} strokeWidth={1.8}/></span>{label}</span>)}
       </div>
     </section>
 
     {/* Popular trips */}
-    <section id="popular-trips" className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
+    <section id="trips" className="scroll-mt-24 bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
       <div className="mx-auto max-w-6xl">
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Get around Bohol</p>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Popular trips with a driver</h2>
           <Link href="/cars?mode=with_driver" className="group inline-flex items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">Browse cars with driver<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link>
         </div>
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {trips.map(({title,desc,Icon,art})=><Link key={title} href="/cars?mode=with_driver" className={`trip-tile ${art} group relative flex min-h-[280px] flex-col justify-end overflow-hidden rounded-2xl p-6 text-white`}><div className="trip-tile-art absolute inset-0"/><div className="trip-tile-shade absolute inset-0"/><Icon className="relative mb-auto mt-1 h-9 w-9 text-white/90" strokeWidth={1.5}/><h3 className="relative text-lg font-semibold">{title}</h3><p className="relative mt-1.5 text-sm leading-6 text-white/85">{desc}</p><span className="relative mt-4 inline-flex items-center gap-1.5 text-xs font-semibold">Find a car<ArrowRight size={14} className="transition-transform group-hover:translate-x-1"/></span></Link>)}
+        <div className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4">
+          {trips.map(({title,desc,Icon,art})=><Link key={title} href="/cars?mode=with_driver" className={`trip-tile ${art} group relative flex min-h-[380px] w-[82vw] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-3xl p-6 text-white sm:w-auto`}><div className="trip-tile-art absolute inset-0"/><div className="trip-tile-shade absolute inset-0"/><Icon className="relative mb-auto mt-1 h-9 w-9 text-white/90" strokeWidth={1.5}/><h3 className="relative text-lg font-semibold">{title}</h3><p className="relative mt-1.5 text-sm leading-6 text-white/85">{desc}</p><span className="relative mt-4 inline-flex items-center gap-1.5 text-xs font-semibold">Find a car<ArrowRight size={14} className="transition-transform group-hover:translate-x-1"/></span></Link>)}
         </div>
       </div>
     </section>
@@ -88,20 +90,27 @@ export default function Home() {
     <Suspense fallback={<FeaturedCarsFallback/>}><FeaturedCars/></Suspense>
 
     {/* How it works */}
-    <section id="how-it-works" className="relative overflow-hidden bg-[#0A3D91] px-5 py-16 sm:px-8 md:py-24">
+    <section id="how" className="scroll-mt-24 relative overflow-hidden bg-[#0A47B1] px-5 py-16 sm:px-8 md:py-24">
       <div aria-hidden="true" className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-[#2E9BF0]/20 blur-3xl"/>
       <div aria-hidden="true" className="absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-[#0B63CE]/25 blur-3xl"/>
-      <div className="relative mx-auto max-w-6xl">
-        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#7FD1FF]">A few simple steps</p>
-        <h2 className="text-center text-3xl font-bold tracking-tight text-white md:text-4xl">How it works</h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-sm leading-6 text-white/70">From search to pickup in three easy steps — no paperwork headaches.</p>
-        <div className="relative mt-14 grid gap-8 sm:grid-cols-3 sm:gap-6">
-          <div aria-hidden="true" className="absolute left-[16%] right-[16%] top-7 hidden h-px bg-gradient-to-r from-transparent via-white/25 to-transparent sm:block"/>
-          {steps.map(({Icon,title,desc},i)=><div className="relative text-center" key={title}>
-            <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#0A3D91] shadow-[0_12px_28px_-10px_rgba(0,0,0,.4)]"><Icon size={24} strokeWidth={1.8}/><span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[#0A3D91] bg-[#2E9BF0] text-[10px] font-bold text-white">{i+1}</span></div>
-            <h3 className="mt-5 font-semibold text-white">{title}</h3>
-            <p className="mt-2 text-sm leading-6 text-white/70">{desc}</p>
-          </div>)}
+      <div className="relative mx-auto grid max-w-6xl items-center gap-6 xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-10">
+        <div className="relative order-last mx-auto h-[390px] w-[220px] xl:order-first xl:mb-[-96px] xl:h-[700px] xl:w-full">
+          <Image src={mascot} alt="Kuyog Bohol mascot" fill sizes="(min-width: 1280px) 420px, 220px" className="object-contain object-bottom" />
+        </div>
+        <div className="xl:col-start-2 xl:row-start-1">
+        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB] xl:text-left">How it works</p>
+        <h2 className="text-center text-3xl font-bold tracking-tight text-white xl:text-left xl:text-[44px]">BOOK IN THREE STEPS</h2>
+        <div className="mt-8 grid gap-4">
+          {steps.map(({Icon,title,desc},i)=><article className="relative flex min-h-[118px] items-center gap-4 overflow-hidden rounded-[20px] border border-white/25 bg-white/10 p-5 text-left backdrop-blur-sm sm:gap-5 sm:px-6" key={title}>
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-[#0A47B1]"><Icon size={23} strokeWidth={1.8}/></div>
+            <div className="relative z-10 min-w-0 pr-10 sm:pr-16">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#CFE6FB]">Step 0{i+1}</p><h3 className="mt-1 text-lg font-semibold text-white">{title}</h3>
+              <p className="mt-1 max-w-[480px] text-sm leading-5 text-white/75">{desc}</p>
+            </div>
+            <span aria-hidden="true" className="absolute right-4 top-1/2 -translate-y-1/2 text-5xl font-bold text-white/20 sm:right-6 sm:text-6xl">0{i+1}</span>
+          </article>)}
+        </div>
+        <Link href="/cars" className="mt-7 inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-full bg-white px-9 font-semibold text-[#0A47B1] transition-colors hover:bg-[#EAF4FF] md:w-auto">Find your car<ArrowRight size={16}/></Link>
         </div>
       </div>
     </section>
@@ -109,8 +118,8 @@ export default function Home() {
     {/* Why book */}
     <section className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
       <div className="mx-auto max-w-6xl">
-        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Made for your Bohol trip</p>
-        <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Why book with Kuyog Bohol</h2>
+        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Why Kuyog Bohol</p>
+        <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Rent a car the easy way</h2>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {perks.map(([Icon,title,desc])=><article key={title} className="public-card rounded-2xl border border-[#D6E6F7] bg-white p-6"><div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF4FF] text-[#0B63CE]"><Icon size={22} strokeWidth={1.8}/></div><h3 className="font-semibold text-[#0F2342]">{title}</h3><p className="mt-2 text-sm leading-6 text-[#51657F]">{desc}</p></article>)}
         </div>
@@ -118,13 +127,13 @@ export default function Home() {
     </section>
 
     {/* Owner CTA */}
-    <section className="bg-white px-5 py-16 sm:px-8 md:py-20">
+    <section id="owners-band" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-20">
       <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-[#0A3D91] px-7 py-12 text-center text-white sm:px-12 md:py-16">
         <div aria-hidden="true" className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#2E9BF0]/25 blur-3xl"/>
         <div aria-hidden="true" className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-[#0B63CE]/30 blur-3xl"/>
         <div className="relative flex flex-col items-center justify-between gap-6 sm:flex-row sm:text-left">
           <div className="max-w-xl">
-            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB]"><Sparkles size={14}/> For local car owners</p>
+            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB]">For local car owners</p>
             <h2 className="text-2xl font-bold md:text-3xl">Own a car in Bohol? List it on Kuyog Bohol.</h2>
             <p className="mt-3 text-sm leading-6 text-white/75">Reach travelers across the island and turn your car into extra income.</p>
           </div>
@@ -136,16 +145,16 @@ export default function Home() {
     {/* FAQ */}
     <section className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
       <div className="mx-auto max-w-3xl">
-        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Good to know</p>
-        <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Frequently asked questions</h2>
-        <div className="mt-10 overflow-hidden rounded-2xl border border-[#D6E6F7] bg-white">
-          {faq.map(([q,a])=><details key={q} className="group border-b border-[#D6E6F7] px-6 py-5 last:border-0"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 font-semibold text-[#0F2342] marker:hidden">{q}<span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE] transition-transform duration-200 group-open:rotate-45"><span className="text-lg leading-none">+</span></span></summary><p className="pb-2 pt-1 text-sm leading-6 text-[#51657F]">{a}</p></details>)}
+        <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">FAQ</p>
+        <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Questions, answered</h2>
+        <div className="mx-auto mt-10 max-w-[880px] overflow-hidden rounded-2xl border border-[#D6E6F7] bg-white">
+          {faq.map(([q,a],i)=><details name="home-faq" open={i===0 ? true : undefined} key={q} className="group border-b border-[#D6E6F7] px-6 py-5 last:border-0"><summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 font-semibold text-[#0F2342] marker:hidden">{q}<span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE] transition-transform duration-200 group-open:rotate-45"><span className="text-lg leading-none">+</span></span></summary><p className="pb-2 pt-1 text-sm leading-6 text-[#51657F]">{a}</p></details>)}
         </div>
       </div>
     </section>
 
     {/* Footer */}
-    <footer className="public-footer relative overflow-hidden bg-[#0A3D91] px-5 pb-10 pt-14 text-white sm:px-8">
+    <footer id="footer" className="public-footer relative overflow-hidden bg-[#0F2342] px-5 pb-10 pt-14 text-white sm:px-8">
       <div className="relative mx-auto max-w-6xl">
         <div className="flex flex-wrap items-start justify-between gap-8">
           <div>
@@ -153,8 +162,8 @@ export default function Home() {
             <p className="mt-4 max-w-xs text-sm leading-6 text-white/70">Car rental in Bohol — self-drive or with a local driver. Booked online, driven by locals.</p>
           </div>
           <div className="flex flex-wrap gap-x-10 gap-y-6 text-sm">
-            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/cars">Cars</Link><Link href="/#popular-trips">Popular trips</Link><Link href="/#how-it-works">How it works</Link></div>
-            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/for-owners">List your car</Link><Link href="/contact">Contact</Link></div>
+            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/#cars">Cars</Link><Link href="/#trips">Popular trips</Link><Link href="/#how">How it works</Link></div>
+            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/#owners-band">List your car</Link><Link href="/contact">Contact</Link></div>
             <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Legal</span><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div>
           </div>
         </div>
