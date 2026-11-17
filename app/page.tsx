@@ -137,7 +137,7 @@ export default function Home() {
             <h2 className="text-2xl font-bold md:text-3xl">Own a car in Bohol? List it on Kuyog Bohol.</h2>
             <p className="mt-3 text-sm leading-6 text-white/75">Reach travelers across the island and turn your car into extra income.</p>
           </div>
-          <Link href="/for-owners" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#0A3D91] transition-transform hover:scale-[1.03]">List your car<ArrowRight size={15}/></Link>
+          <Link href="/apply" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#0A3D91] transition-transform hover:scale-[1.03]">Apply to list your car<ArrowRight size={15}/></Link>
         </div>
       </div>
     </section>
@@ -163,7 +163,7 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-x-10 gap-y-6 text-sm">
             <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/#cars">Cars</Link><Link href="/#trips">Popular trips</Link><Link href="/#how">How it works</Link></div>
-            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/#owners-band">List your car</Link><Link href="/contact">Contact</Link></div>
+            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/apply">Apply to list your car</Link><Link href="/contact">Contact</Link></div>
             <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Legal</span><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div>
           </div>
         </div>
@@ -182,7 +182,7 @@ async function FeaturedCars() {
     cars = data ?? [];
   }
 
-  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all cars<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{cars.map(car=><CarTile key={car.id} car={car}/>)}</div> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/for-owners" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">List your car</Link></div>}</div></section>;
+  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all cars<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{cars.map(car=><CarTile key={car.id} car={car}/>)}</div> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/apply" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Apply to list your car</Link></div>}</div></section>;
 }
 
 function FeaturedCarsFallback() {

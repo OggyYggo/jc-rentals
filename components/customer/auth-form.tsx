@@ -17,6 +17,7 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const isSignup = mode === "signup";
 
   async function handleEmailAuth(event: FormEvent<HTMLFormElement>) {
@@ -93,6 +94,28 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
     }
   }
 
+  async function sendPasswordReset() {
+    setError("");
+    setMessage("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Enter your email address first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error: resetError } = await createClient().auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/confirm?next=/auth/reset-password`,
+      });
+      if (resetError) throw resetError;
+      setMessage("If an account exists for that address, we sent a password reset link. Check your inbox and spam folder.");
+      setShowForgotPassword(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "We could not send a reset link. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleGoogle() {
     setError("");
     setBusy(true);
@@ -129,6 +152,8 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
         {isSignup && <label className="block text-xs font-medium text-[#43536a]">Full name<input required autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="Your name" /></label>}
         <label className="block text-xs font-medium text-[#43536a]">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="you@example.com" /></label>
         <label className="block text-xs font-medium text-[#43536a]">Password<input required minLength={8} type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="At least 8 characters" /></label>
+        {!isSignup && <button type="button" onClick={() => { setShowForgotPassword((value) => !value); setError(""); setMessage(""); }} className="text-xs font-semibold text-[#2457d6] hover:underline">{showForgotPassword ? "Cancel password reset" : "Forgot password?"}</button>}
+        {showForgotPassword && <button type="button" onClick={sendPasswordReset} disabled={!configured || busy} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Email me a reset link</button>}
         <button type="submit" disabled={!configured || busy} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
       </form>
       {showResendConfirmation && <button type="button" onClick={resendConfirmation} disabled={!configured || busy || !email.trim()} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] hover:bg-[#edf2ff] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Resend confirmation email</button>}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Your sign-in link</title>
+</head>
+<body style="margin:0;padding:0;background-color:#EAF4FF;">
+
+<!-- Inbox preview text -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#EAF4FF;font-size:1px;line-height:1px;">Tap to sign in. No password needed.</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#EAF4FF;">
+  <tr>
+    <td align="center" style="padding:28px 14px;">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;">
+
+        <!-- HEADER -->
+        <tr>
+          <td bgcolor="#0A47B1" style="background-color:#0A47B1;border-radius:16px 16px 0 0;padding:26px 28px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td valign="middle" style="padding-right:14px;">
+                  <!-- Replace YOUR-DOMAIN with your site address (must be a public image URL) -->
+                  <img src="{{ .SiteURL }}/icon-192.png" width="52" height="52" alt="Kuyog Bohol" style="display:block;border:0;border-radius:12px;">
+                </td>
+                <td valign="middle">
+                  <div style="font-family:Arial,Helvetica,sans-serif;font-size:24px;line-height:28px;font-weight:bold;color:#FFFFFF;">Kuyog Bohol</div>
+                  <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;color:#CFE3FF;">Explore Bohol Your Way</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- CONTENT -->
+        <tr>
+          <td bgcolor="#FFFFFF" style="background-color:#FFFFFF;padding:34px 28px 30px 28px;border-left:1px solid #D6E6F7;border-right:1px solid #D6E6F7;">
+            <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:16px;font-weight:bold;letter-spacing:2px;color:#0B63CE;text-transform:uppercase;">Sign in</div>
+            <h1 style="margin:10px 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;font-weight:bold;color:#0F2342;">Your sign-in link</h1>
+            <p style="margin:0 0 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;color:#51657F;">Tap the button below to sign in to Kuyog Bohol. No password needed.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 4px 0;">
+              <tr>
+                <td align="center" bgcolor="#0B63CE" style="background-color:#0B63CE;border-radius:999px;">
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next=/" target="_blank" style="display:inline-block;padding:15px 32px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Sign in to Kuyog Bohol</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#51657F;">
+              Button not working? Copy this link into your browser:<br>
+              <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next=/" target="_blank" style="color:#0B63CE;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next=/</a>
+            </p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:26px;">
+              <tr><td bgcolor="#EAF4FF" style="background-color:#EAF4FF;border-radius:12px;padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#51657F;">This link works once. Only open it on a device you trust.</td></tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- FOOTER STRIP -->
+        <tr>
+          <td bgcolor="#0A3D91" align="center" style="background-color:#0A3D91;padding:16px 28px;">
+            <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:20px;font-weight:bold;color:#FFFFFF;">Kuyog Bohol | Car Rental In Bohol</div>
+          </td>
+        </tr>
+
+        <!-- SMALL PRINT -->
+        <tr>
+          <td align="center" bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D6E6F7;border-top:0;border-radius:0 0 16px 16px;padding:18px 28px;">
+            <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:18px;color:#51657F;">
+              This email was sent to {{ .Email }} by Kuyog Bohol.<br>
+              If you did not expect it, you can safely ignore it.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

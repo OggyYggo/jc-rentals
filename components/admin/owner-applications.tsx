@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminStatus } from "@/components/admin/ui";
-import { createClient } from "@/lib/supabase/client";
+import { approveOwnerApplication, updateOwnerApplication } from "@/app/admin/owner-applications/actions";
 
 export type OwnerApplication = {
   id: string;
@@ -15,6 +15,14 @@ export type OwnerApplication = {
   car_model: string;
   car_year: number | null;
   message: string;
+  plate_number?: string | null;
+  seats?: number | null;
+  transmission?: string | null;
+  offers_self_drive?: boolean;
+  offers_with_driver?: boolean;
+  daily_rate_self_drive?: number | null;
+  daily_rate_with_driver?: number | null;
+  admin_note?: string | null;
   status: string;
   created_at: string;
 };
@@ -24,14 +32,17 @@ export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
 
-  async function review(row: OwnerApplication, status: "approved" | "rejected") {
+  async function review(row: OwnerApplication, status: "approved" | "needs_changes" | "rejected") {
     setBusyId(row.id);
     setError("");
-    const { error: updateError } = await createClient()
-      .from("owner_applications")
-      .update({ status, reviewed_at: new Date().toISOString() })
-      .eq("id", row.id);
-    if (updateError) setError(updateError.message);
+    let result: { error?: string; ok?: boolean };
+    if (status === "approved") result = await approveOwnerApplication(row.id);
+    else {
+      const note = window.prompt(status === "rejected" ? "Add a short rejection note for the applicant:" : "What should the applicant change?") ?? "";
+      if (!note.trim()) { setBusyId(""); return; }
+      result = await updateOwnerApplication(row.id, status, note);
+    }
+    if (result.error) setError(result.error);
     else router.refresh();
     setBusyId("");
   }
@@ -46,9 +57,12 @@ export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
         <AdminStatus status={row.status}/>
       </div>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#53637a]"><a href={`mailto:${row.email}`} className="text-[#4568bd] hover:underline">{row.email}</a><a href={`tel:${row.phone}`} className="text-[#4568bd] hover:underline">{row.phone}</a></div>
+      <p className="mt-3 text-xs text-[#68778c]">Plate {row.plate_number || "—"} · {row.seats || "—"} seats · {row.transmission || "Transmission not specified"}</p>
+      <p className="mt-1 text-xs text-[#68778c]">{row.offers_self_drive ? `Self-drive ₱${Number(row.daily_rate_self_drive).toLocaleString()}/day` : ""}{row.offers_self_drive && row.offers_with_driver ? " · " : ""}{row.offers_with_driver ? `With driver ₱${Number(row.daily_rate_with_driver).toLocaleString()}/day` : ""}</p>
       {row.message && <p className="mt-4 whitespace-pre-wrap rounded-lg bg-[#f7f9fc] p-3 text-sm leading-6 text-[#53637a]">{row.message}</p>}
+      {row.admin_note && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Review note: {row.admin_note}</p>}
       <p className="mt-3 text-xs text-[#8b97a8]">Submitted {new Date(row.created_at).toLocaleString("en-PH")}</p>
-      {row.status === "pending" && <div className="mt-4 flex gap-2"><button disabled={busyId === row.id} onClick={() => review(row, "approved")} className="rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">Approve application</button><button disabled={busyId === row.id} onClick={() => review(row, "rejected")} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-60">Reject</button></div>}
+      {row.status === "pending" && <div className="mt-4 flex flex-wrap gap-2"><button disabled={busyId === row.id} onClick={() => review(row, "approved")} className="rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">{busyId === row.id ? "Working…" : "Approve and invite"}</button><button disabled={busyId === row.id} onClick={() => review(row, "needs_changes")} className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-800 disabled:opacity-60">Request changes</button><button disabled={busyId === row.id} onClick={() => review(row, "rejected")} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-60">Reject</button></div>}
     </article>)}
   </div>;
 }

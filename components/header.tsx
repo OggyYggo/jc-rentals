@@ -50,7 +50,7 @@ export function Header() {
           <Link href="/#cars" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Cars</Link>
           <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Popular trips</Link>
           <Link href="/#how" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>How it works</Link>
-          <Link href="/#owners-band" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>List your car</Link>
+          <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Apply to list your car</Link>
           <Link href="/contact" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Contact</Link>
         </nav>
 
@@ -75,7 +75,7 @@ export function Header() {
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#cars">Cars</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#trips">Popular trips</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#how">How it works</Link>
-            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#owners-band">List your car</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/apply">Apply to list your car</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/contact">Contact</Link>
             {userName ? <>
               <span className="flex items-center gap-3 rounded-xl border border-[#D6E6F7] bg-[#F5FAFF] px-3 py-3">
