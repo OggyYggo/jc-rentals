@@ -47,8 +47,8 @@ export function Header() {
           <span className={`text-[15px] font-semibold tracking-tight ${isPublic ? "text-[#0F2342]" : "text-[#23372a]"}`}>Kuyog Bohol</span>
         </Link>
         <nav className={`hidden items-center gap-5 text-[15px] font-medium lg:flex ${isPublic ? "text-[#0F2342]" : "text-[#67766b]"}`}>
-          <Link href="/#cars" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Cars</Link>
-          <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Popular trips</Link>
+          <Link href="/cars" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Cars</Link>
+          <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>With a driver</Link>
           <Link href="/#how" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>How it works</Link>
           <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Apply to list your car</Link>
           <Link href="/contact" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Contact</Link>
@@ -72,8 +72,8 @@ export function Header() {
             <Menu size={20} className="group-open:hidden"/><X size={20} className="hidden group-open:block"/>
           </summary>
           <nav aria-label="Mobile navigation" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 grid w-64 gap-1 rounded-xl border border-[#D6E6F7] bg-white p-2 text-sm text-[#0F2342] shadow-xl">
-            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#cars">Cars</Link>
-            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#trips">Popular trips</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/cars">Cars</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#trips">With a driver</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#how">How it works</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/apply">Apply to list your car</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/contact">Contact</Link>

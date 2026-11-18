@@ -4,21 +4,18 @@ import heroBackground from "@/img/bg.jpg";
 import mascot from "@/img/mascot.png";
 import { Suspense } from "react";
 import { io } from "next/cache";
-import { CarFront, ShieldCheck, Wallet, FileText, Users, CircleDollarSign, Mountain, Waves, Sailboat, Plane, ArrowRight, Headphones, CalendarCheck, MessageSquare, BadgeCheck, Sparkles, type LucideIcon } from "lucide-react";
+import { CarFront, ShieldCheck, Wallet, FileText, Users, CircleDollarSign, ArrowRight, Headphones, CalendarCheck, MessageSquare, BadgeCheck, Sparkles, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 import { SearchForm } from "@/components/customer/search-form";
 import { CarTile } from "@/components/customer/car-tile";
 import { Logo } from "@/components/logo";
 import { CurrentYear } from "@/components/current-year";
+import { RideWithDriver } from "@/components/home/RideWithDriver";
+import { FindCarLink } from "@/components/home/FindCarLink";
+import { FeaturedCarsGrid } from "@/components/home/FeaturedCarsGrid";
 
 export const metadata = { title: "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver", description: "Rent a car in Bohol from local owners. Drive yourself or hire a car with a driver. Book online in minutes." };
-const trips = [
-  { title: "Countryside day tour", desc: "Chocolate Hills, Loboc River, Bilar forest and tarsiers", Icon: Mountain, art: "trip-hills" },
-  { title: "Panglao and Alona beach day", desc: "A relaxed day of white sand and clear water.", Icon: Waves, art: "trip-sea" },
-  { title: "Island hopping transfer", desc: "Rides to the boat for dolphin watching and island hopping.", Icon: Sailboat, art: "trip-island" },
-  { title: "Airport or hotel transfer", desc: "A comfortable ride on arrival or departure.", Icon: Plane, art: "trip-sky" },
-];
 const steps = [
   { Icon: CalendarCheck, title: "Choose your car", desc: "Pick your dates, Self-drive or With driver, and a car." },
   { Icon: BadgeCheck, title: "Pay a small deposit", desc: "Scan the QR and upload your proof of payment." },
@@ -45,7 +42,7 @@ const perks: [LucideIcon, string, string][] = [
   [ShieldCheck, "Private documents", "Your license and ID are stored securely and only shared when needed."],
 ];
 
-export default function Home() {
+export default function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
     {/* Hero */}
     <section id="top" className="public-hero relative flex flex-col justify-center px-5 pb-32 pt-16 sm:px-8 md:min-h-[560px] md:pb-36 md:pt-24">
@@ -73,21 +70,9 @@ export default function Home() {
       </div>
     </section>
 
-    {/* Popular trips */}
-    <section id="trips" className="scroll-mt-24 bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
-      <div className="mx-auto max-w-6xl">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Get around Bohol</p>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Popular trips with a driver</h2>
-          <Link href="/cars?mode=with_driver" className="group inline-flex items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">Browse cars with driver<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link>
-        </div>
-        <div className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4">
-          {trips.map(({title,desc,Icon,art})=><Link key={title} href="/cars?mode=with_driver" className={`trip-tile ${art} group relative flex min-h-[380px] w-[82vw] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-3xl p-6 text-white sm:w-auto`}><div className="trip-tile-art absolute inset-0"/><div className="trip-tile-shade absolute inset-0"/><Icon className="relative mb-auto mt-1 h-9 w-9 text-white/90" strokeWidth={1.5}/><h3 className="relative text-lg font-semibold">{title}</h3><p className="relative mt-1.5 text-sm leading-6 text-white/85">{desc}</p><span className="relative mt-4 inline-flex items-center gap-1.5 text-xs font-semibold">Find a car<ArrowRight size={14} className="transition-transform group-hover:translate-x-1"/></span></Link>)}
-        </div>
-      </div>
-    </section>
+    <Suspense fallback={<RideWithDriver lowestDriverPrice={null} />}><RideWithDriverData /></Suspense>
 
-    <Suspense fallback={<FeaturedCarsFallback/>}><FeaturedCars/></Suspense>
+    <Suspense fallback={<FeaturedCarsFallback mode="all"/>}><FeaturedCarsForQuery searchParams={searchParams}/></Suspense>
 
     {/* How it works */}
     <section id="how" className="scroll-mt-24 relative overflow-hidden bg-[#0A47B1] px-5 py-16 sm:px-8 md:py-24">
@@ -110,7 +95,7 @@ export default function Home() {
             <span aria-hidden="true" className="absolute right-4 top-1/2 -translate-y-1/2 text-5xl font-bold text-white/20 sm:right-6 sm:text-6xl">0{i+1}</span>
           </article>)}
         </div>
-        <Link href="/cars" className="mt-7 inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-full bg-white px-9 font-semibold text-[#0A47B1] transition-colors hover:bg-[#EAF4FF] md:w-auto">Find your car<ArrowRight size={16}/></Link>
+        <FindCarLink />
         </div>
       </div>
     </section>
@@ -162,7 +147,7 @@ export default function Home() {
             <p className="mt-4 max-w-xs text-sm leading-6 text-white/70">Car rental in Bohol — self-drive or with a local driver. Booked online, driven by locals.</p>
           </div>
           <div className="flex flex-wrap gap-x-10 gap-y-6 text-sm">
-            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/#cars">Cars</Link><Link href="/#trips">Popular trips</Link><Link href="/#how">How it works</Link></div>
+            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/#cars">Cars</Link><Link href="/#trips">With a driver</Link><Link href="/#how">How it works</Link></div>
             <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/apply">Apply to list your car</Link><Link href="/contact">Contact</Link></div>
             <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Legal</span><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div>
           </div>
@@ -173,7 +158,14 @@ export default function Home() {
   </main>;
 }
 
-async function FeaturedCars() {
+async function FeaturedCarsForQuery({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const query = await searchParams;
+  const rawMode = Array.isArray(query.mode) ? query.mode[0] : query.mode;
+  const mode = rawMode === "driver" || rawMode === "with_driver" ? "driver" : rawMode === "self" || rawMode === "self_drive" ? "self" : "all";
+  return <FeaturedCars mode={mode}/>;
+}
+
+async function FeaturedCars({ mode }: { mode: "all" | "self" | "driver" }) {
   let cars: Parameters<typeof CarTile>[0]["car"][] = [];
   if (isSupabaseConfigured()) {
     await io();
@@ -182,9 +174,25 @@ async function FeaturedCars() {
     cars = data ?? [];
   }
 
-  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all cars<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{cars.map(car=><CarTile key={car.id} car={car}/>)}</div> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/apply" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Apply to list your car</Link></div>}</div></section>;
+  return <section id="cars" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all cars<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <FeaturedCarsGrid cars={cars} mode={mode}/> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/apply" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Apply to list your car</Link></div>}</div></section>;
 }
 
-function FeaturedCarsFallback() {
-  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center text-sm text-[#51657F]">Loading cars…</div></div></section>;
+async function RideWithDriverData() {
+  let lowestDriverPrice: number | null = null;
+  if (isSupabaseConfigured()) {
+    try {
+      await io();
+      const db = await createClient();
+      const { data } = await db.from("cars").select("car_rates(mode,daily_rate)").eq("is_active", true).eq("allows_with_driver", true);
+      const prices = (data ?? []).flatMap((car) => (car.car_rates ?? []).filter((rate) => rate.mode === "with_driver").map((rate) => Number(rate.daily_rate))).filter((price) => Number.isFinite(price) && price > 0);
+      lowestDriverPrice = prices.length ? Math.min(...prices) : null;
+    } catch {
+      lowestDriverPrice = null;
+    }
+  }
+  return <RideWithDriver lowestDriverPrice={lowestDriverPrice} />;
+}
+
+function FeaturedCarsFallback({ mode }: { mode: "all" | "self" | "driver" }) {
+  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><div role="status" className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center text-sm text-[#51657F]">Loading {mode === "driver" ? "cars with a driver" : mode === "self" ? "self-drive cars" : "cars"}…</div></div></section>;
 }

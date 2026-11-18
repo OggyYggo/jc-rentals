@@ -1,56 +1,105 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { CarTile } from "@/components/customer/car-tile";
-import Link from "next/link";
-import { SlidersHorizontal } from "lucide-react";
+import { CarFilterTabs } from "@/components/cars/CarFilterTabs";
+import { CarListFilters } from "@/components/cars/CarListFilters";
 import { PublicFooter } from "@/components/public-footer";
+import { parseCarSearch, carsUrl } from "@/lib/cars/searchParams";
 
 export const instant = false;
-type Props = { searchParams: Promise<{start?:string;end?:string;mode?:string;pickup?:string;type?:string;seats?:string;transmission?:string;minPrice?:string;maxPrice?:string}> };
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+type Rate = { mode: string; daily_rate: number };
+type Car = {
+  id: string; owner_id?: string; brand: string; model: string; year?: number; seats?: number; transmission?: string; car_type?: string;
+  allows_self_drive: boolean; allows_with_driver: boolean;
+  car_photos?: { path: string; thumb_path?: string | null; sort_order: number }[];
+  car_rates?: Rate[];
+};
 
-function Filters({ query, mode }: { query: Awaited<Props["searchParams"]>; mode: string }) {
-  return <form action="/cars" className="flex flex-wrap items-end gap-3 text-xs">
-    {query.start&&<input type="hidden" name="start" value={query.start}/>} {query.end&&<input type="hidden" name="end" value={query.end}/>} {query.pickup&&<input type="hidden" name="pickup" value={query.pickup}/>}
-    <label className="font-semibold text-[#0F2342]">Mode<select name="mode" defaultValue={mode} className="mt-1 block h-11 rounded-xl border border-[#D6E6F7] bg-white px-3 font-normal"><option value="self_drive">Self-drive</option><option value="with_driver">With driver</option></select></label>
-    <label className="font-semibold text-[#0F2342]">Car type<input name="type" defaultValue={query.type} placeholder="Any type" className="mt-1 block h-11 w-32 rounded-xl border border-[#D6E6F7] bg-white px-3 font-normal"/></label>
-    <label className="font-semibold text-[#0F2342]">Seats<input type="number" name="seats" min="1" defaultValue={query.seats} placeholder="Any" className="mt-1 block h-11 w-24 rounded-xl border border-[#D6E6F7] bg-white px-3 font-normal"/></label>
-    <label className="font-semibold text-[#0F2342]">Transmission<select name="transmission" defaultValue={query.transmission} className="mt-1 block h-11 rounded-xl border border-[#D6E6F7] bg-white px-3 font-normal"><option value="">Any</option><option>Automatic</option><option>Manual</option></select></label>
-    <label className="font-semibold text-[#0F2342]">Min ₱/day<input type="number" name="minPrice" min="0" defaultValue={query.minPrice} className="mt-1 block h-11 w-24 rounded-xl border border-[#D6E6F7] bg-white px-3 font-normal"/></label>
-    <label className="font-semibold text-[#0F2342]">Max ₱/day<input type="number" name="maxPrice" min="0" defaultValue={query.maxPrice} className="mt-1 block h-11 w-24 rounded-xl border border-[#D6E6F7] bg-white px-3 font-normal"/></label>
-    <button className="h-11 rounded-full bg-[#0B63CE] px-5 font-semibold text-white hover:bg-[#0A3D91]">Apply filters</button>
-  </form>;
+function priceFor(car: Car, mode?: "self" | "driver") {
+  const rates = (car.car_rates ?? []).filter((rate) => mode === "self"
+    ? rate.mode === "self_drive" && car.allows_self_drive
+    : mode === "driver" ? rate.mode === "with_driver" && car.allows_with_driver
+      : rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
+  const prices = rates.map((rate) => Number(rate.daily_rate)).filter((rate) => Number.isFinite(rate) && rate > 0);
+  return prices.length ? Math.min(...prices) : null;
 }
 
 export default async function CarsPage({ searchParams }: Props) {
-  const q = await searchParams;
-  const mode = q.mode === "with_driver" ? "with_driver" : "self_drive";
-  let cars: any[] = [];
+  const { search, invalidDates } = parseCarSearch(await searchParams);
+  let cars: Car[] = [];
+  let loadError = false;
+
   try {
     const db = await createClient();
-    let query = db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false });
-    if (q.type) query = query.eq("car_type", q.type);
-    if (q.seats) query = query.gte("seats", Number(q.seats));
-    if (q.transmission) query = query.eq("transmission", q.transmission);
-    const { data } = await query;
-    cars = (data ?? []).filter(car => (mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver));
-    if (q.start && q.end && cars.length) {
-      const ids = cars.map(car => car.id);
-      const [{data:blocks},{data:bookings}] = await Promise.all([
-        db.from("public_car_blocked_dates").select("car_id").in("car_id",ids).lte("start_date",q.end).gte("end_date",q.start),
-        db.from("public_car_booking_dates").select("car_id").in("car_id",ids).lte("start_date",q.end).gte("end_date",q.start),
-      ]);
-      const unavailable = new Set([...(blocks??[]),...(bookings??[])].map(item=>item.car_id));
-      cars = cars.filter(car=>!unavailable.has(car.id));
+    const { data, error } = await db.from("cars")
+      .select("id,owner_id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
+      .eq("is_active", true).order("created_at", { ascending: false });
+    if (error) throw error;
+    cars = data ?? [];
+  } catch {
+    loadError = true;
+  }
+
+  cars = cars.filter((car) => {
+    if (search.type && car.car_type?.toLowerCase() !== search.type.toLowerCase()) return false;
+    if (search.seats && Number(car.seats ?? 0) < search.seats) return false;
+    if (search.transmission && car.transmission?.toLowerCase() !== search.transmission.toLowerCase()) return false;
+    return true;
+  });
+
+  if (search.pickup && cars.length) {
+    try {
+      const db = await createClient();
+      const { data, error } = await db.from("pickup_locations").select("owner_id").ilike("name", `%${search.pickup}%`);
+      if (error) throw error;
+      const matchingOwners = new Set((data ?? []).map((location) => location.owner_id));
+      cars = cars.filter((car) => car.owner_id && matchingOwners.has(car.owner_id));
+    } catch {
+      loadError = true;
+      cars = [];
     }
-    cars = cars.filter(car=>{
-      const rates=(car.car_rates??[]).filter((rate:any)=>rate.mode===mode).map((rate:any)=>Number(rate.daily_rate));
-      if (!rates.length) return false;
-      return (!q.minPrice || Math.max(...rates)>=Number(q.minPrice)) && (!q.maxPrice || Math.min(...rates)<=Number(q.maxPrice));
-    });
-  } catch {}
-  return <><main className="theme-public min-h-screen bg-white px-5 py-10 text-[#0F2342] sm:px-8 md:py-14"><div className="mx-auto max-w-6xl"><p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Explore Bohol</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Cars for your trip</h1>
-    <form action="/cars" className="mt-6 grid gap-3 rounded-2xl border border-[#D6E6F7] bg-[#F5FAFF] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end"><label className="text-xs font-semibold text-[#0F2342]">Pickup date<input name="start" type="date" defaultValue={q.start} className="mt-1 block h-11 w-full rounded-xl border border-[#D6E6F7] bg-white px-3 text-sm"/></label><label className="text-xs font-semibold text-[#0F2342]">Return date<input name="end" type="date" defaultValue={q.end} className="mt-1 block h-11 w-full rounded-xl border border-[#D6E6F7] bg-white px-3 text-sm"/></label><button className="h-11 rounded-full bg-[#0B63CE] px-6 text-sm font-semibold text-white hover:bg-[#0A3D91]">Update dates</button><input type="hidden" name="mode" value={mode}/>{q.pickup&&<input type="hidden" name="pickup" value={q.pickup}/>}</form>
-    <details className="mobile-filters mt-4 rounded-xl border border-[#D6E6F7] bg-white p-4 md:hidden"><summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-semibold text-[#0A3D91]"><SlidersHorizontal size={17}/> Filters</summary><div className="mt-3"><Filters query={q} mode={mode}/></div></details>
-    <div className="mt-4 hidden rounded-2xl border border-[#D6E6F7] bg-[#EAF4FF] p-4 md:block"><Filters query={q} mode={mode}/></div>
-    {cars.length ? <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{cars.map(car=><CarTile key={car.id} car={car} available={!!q.start&&!!q.end} searchParams={q}/>)}</div> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><SlidersHorizontal/></div><h2 className="mt-4 font-semibold text-[#0F2342]">{q.start&&q.end?"No cars free on those dates. Try different days or switch mode.":"Cars are being added. Check back soon."}</h2>{(q.start||q.end||q.pickup||q.type||q.seats||q.transmission||q.minPrice||q.maxPrice)&&<Link href="/cars" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Clear filters</Link>}</div>}
+  }
+
+  if (search.from && search.to && cars.length) {
+    try {
+      const db = await createClient();
+      const ids = cars.map((car) => car.id);
+      const [{ data: blocks, error: blocksError }, { data: bookings, error: bookingsError }] = await Promise.all([
+        db.from("public_car_blocked_dates").select("car_id").in("car_id", ids).lte("start_date", search.to).gte("end_date", search.from),
+        db.from("public_car_booking_dates").select("car_id").in("car_id", ids).lte("start_date", search.to).gte("end_date", search.from),
+      ]);
+      if (blocksError || bookingsError) throw blocksError ?? bookingsError;
+      const unavailable = new Set([...(blocks ?? []), ...(bookings ?? [])].map((item) => item.car_id));
+      cars = cars.filter((car) => !unavailable.has(car.id));
+    } catch {
+      loadError = true;
+      cars = [];
+    }
+  }
+
+  const inPriceRange = (price: number | null) => price != null && (search.minPrice == null || price >= search.minPrice) && (search.maxPrice == null || price <= search.maxPrice);
+  const resultForMode = (mode?: "self" | "driver") => cars.filter((car) => inPriceRange(priceFor(car, mode)));
+  const allCars = cars.filter((car) => inPriceRange(priceFor(car, "self")) || inPriceRange(priceFor(car, "driver")));
+  const counts = { all: allCars.length, self: resultForMode("self").length, driver: resultForMode("driver").length };
+  let shownCars = search.mode ? resultForMode(search.mode) : allCars;
+  if (search.sort !== "recommended") shownCars = [...shownCars].sort((a, b) => {
+    const aPrice = priceFor(a, search.mode) ?? Math.min(priceFor(a, "self") ?? Infinity, priceFor(a, "driver") ?? Infinity);
+    const bPrice = priceFor(b, search.mode) ?? Math.min(priceFor(b, "self") ?? Infinity, priceFor(b, "driver") ?? Infinity);
+    return search.sort === "price_asc" ? aPrice - bPrice : bPrice - aPrice;
+  });
+
+  const resultLabel = search.mode === "driver" ? `Showing ${shownCars.length} cars with a driver` : search.mode === "self" ? `Showing ${shownCars.length} self-drive cars` : `Showing all ${shownCars.length} cars`;
+  const dateNotice = search.mode === "driver" && search.from && search.to && !shownCars.length;
+
+  return <><main className="theme-public min-h-screen bg-white px-5 py-10 text-[#0F2342] sm:px-8 md:py-14"><div className="mx-auto max-w-6xl">
+    <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Explore Bohol</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Cars for your trip</h1>
+    {invalidDates && <p role="status" className="mt-4 rounded-xl bg-[#fff7e8] px-4 py-3 text-sm text-[#76551b]">Please choose valid dates.</p>}
+    <CarFilterTabs current={search.mode ?? "all"} counts={counts} search={search}/>
+    {search.pickup && <p className="mt-4 text-xs text-[#51657F]">Pickup: {search.pickup}</p>}
+    <details className="mobile-filters mt-4 rounded-xl border border-[#D6E6F7] bg-white p-4 md:hidden"><summary className="flex min-h-11 cursor-pointer list-none items-center font-semibold text-[#0A3D91]">Filters</summary><div className="mt-3"><CarListFilters search={search}/></div></details>
+    <div className="mt-4 hidden rounded-2xl border border-[#D6E6F7] bg-[#EAF4FF] p-4 md:block"><CarListFilters search={search}/></div>
+    <p aria-live="polite" className="mt-6 text-sm text-[#51657F]">{resultLabel}</p>
+    {loadError ? <div role="alert" className="mt-5 rounded-2xl border border-[#D6E6F7] p-10 text-center"><p className="font-semibold">We couldn’t load cars right now.</p><Link href={carsUrl(search)} className="mt-3 inline-flex text-sm font-semibold text-[#0B63CE] underline">Try again</Link></div> : shownCars.length ? <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{shownCars.map((car) => <CarTile key={car.id} car={car} available={!!search.from && !!search.to} mode={search.mode} searchParams={search}/>)}</div> : <div className="mt-5 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><h2 className="font-semibold text-[#0F2342]">{dateNotice ? "No cars with a driver on those dates." : "No cars match your search."}</h2><div className="mt-4 flex flex-wrap justify-center gap-3">{dateNotice && <><Link href={carsUrl({ mode: "self", from: search.from, to: search.to, pickup: search.pickup })} className="rounded-full bg-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-white">Try self-drive</Link><Link href="/#top" className="rounded-full border border-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-[#0B63CE]">Change dates</Link></>}<Link href={carsUrl({ mode: search.mode })} className="rounded-full border border-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-[#0B63CE]">Clear filters</Link><Link href="/cars" className="rounded-full border border-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-[#0B63CE]">See all cars</Link></div></div>}
   </div></main><PublicFooter/></>;
 }
