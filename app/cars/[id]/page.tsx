@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -9,6 +8,7 @@ import { CalendarDays, CarFront, Fuel, Gauge, Settings2, Users } from "lucide-re
 import { createClient } from "@/lib/supabase/server";
 import { carPhotoUrl } from "@/lib/car-photo";
 import { AvailabilityCalendar } from "@/components/customer/availability-calendar";
+import { CarPhotoCarousel } from "@/components/customer/car-photo-carousel";
 import { PublicFooter } from "@/components/public-footer";
 import { getPublicPromoCar } from "@/lib/promo/data";
 
@@ -110,6 +110,7 @@ async function CarDetailContent({ params, searchParams }: Props) {
   const total = days * Number(rate?.daily_rate ?? 0);
   const deposit = Number(rate?.deposit_amount ?? 0);
   const photos = [...(car.car_photos ?? [])].sort((a: any,b: any) => a.sort_order - b.sort_order);
+  const photoUrls = photos.map((photo: any) => carPhotoUrl(photo.path)).filter((photo: string | null): photo is string => Boolean(photo));
   const specs = [[Users, car.seats ? `${car.seats} seats` : null], [Settings2, car.transmission], [CarFront, car.car_type], [Fuel, car.fuel_type]].filter((entry: any) => entry[1]);
 
   async function book(formData: FormData) {
@@ -187,7 +188,7 @@ async function CarDetailContent({ params, searchParams }: Props) {
     <div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-3xl font-semibold md:text-4xl">{car.brand} {car.model}</h1><p className="mt-2 text-sm text-[#51657F]">{[car.year,car.car_type].filter(Boolean).join(" · ")}</p></div><div className="flex flex-wrap gap-2">{specs.map(([Icon,label]:any)=><span key={label} className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2 text-xs text-[#0A3D91]"><Icon size={14}/>{label}</span>)}</div></div>
     <div className="mt-6 grid items-start gap-7 lg:grid-cols-[1.45fr_0.85fr]">
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-3">{photos.length ? photos.slice(0,4).map((photo:any,index:number)=><div key={photo.path} className={`relative aspect-[4/3] overflow-hidden rounded-2xl bg-[#EAF4FF] ${index===0?"col-span-2":""}`}><Image src={carPhotoUrl(photo.path) ?? ""} alt={`${car.brand} ${car.model} ${index===0?"main view":"photo"}`} fill unoptimized sizes={index===0?"(max-width: 1024px) 100vw, 65vw":"(max-width: 640px) 50vw, 32vw"} priority={index===0} className="object-cover"/></div>) : <div className="car-photo-placeholder col-span-2 flex aspect-[16/9] items-center justify-center rounded-2xl text-[#0B63CE]"><CarFront size={60} strokeWidth={1.2}/></div>}</div>
+        <div className="relative aspect-[16/9] overflow-hidden rounded-2xl bg-[#EAF4FF]">{photoUrls.length ? <CarPhotoCarousel photos={photoUrls} alt={`${car.brand} ${car.model}`} priority/> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={60} strokeWidth={1.2}/></div>}</div>
 
         <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold text-[#0F2342]">Choose a rental mode</h2><div className="flex rounded-full bg-[#EAF4FF] p-1">{[["self_drive","Self-drive",car.allows_self_drive],["with_driver","With driver",car.allows_with_driver]].filter(([, ,enabled])=>enabled).map(([value,label])=>{const canonicalMode = value === "with_driver" ? "driver" : "self"; const params = new URLSearchParams(); if(start)params.set("from",start);if(end)params.set("to",end);params.set("mode",canonicalMode);if(pickup)params.set("pickup",pickup);return <Link key={String(value)} href={`/cars/${id}?${params}`} className={`rounded-full px-4 py-2 text-xs font-semibold ${value===mode?"bg-[#0B63CE] text-white":"text-[#0A3D91]"}`}>{String(label)}</Link>})}</div></div>
           {modeUnavailable && requestedMode === "with_driver" && <p className="mt-3 text-sm text-[#51657F]">This car is available self-drive only. We switched the mode for you.</p>}

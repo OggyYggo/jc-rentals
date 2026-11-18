@@ -54,10 +54,12 @@ export default async function CarsPage({ searchParams }: Props) {
       const { data, error } = await db.from("pickup_locations").select("owner_id").ilike("name", `%${search.pickup}%`);
       if (error) throw error;
       const matchingOwners = new Set((data ?? []).map((location) => location.owner_id));
-      cars = cars.filter((car) => car.owner_id && matchingOwners.has(car.owner_id));
+      // Free-form pickup entries (for example, a hotel or airport) may not
+      // match an owner's saved service-area label. Keep inventory visible when
+      // the lookup has no matches; the pickup text is still passed to booking.
+      if (matchingOwners.size) cars = cars.filter((car) => car.owner_id && matchingOwners.has(car.owner_id));
     } catch {
-      loadError = true;
-      cars = [];
+      // Location is an optional hint. A lookup failure should not hide cars.
     }
   }
 

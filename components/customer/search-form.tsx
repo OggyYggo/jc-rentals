@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, CarFront, MapPin, Search, UserRound } from "lucide-react";
 import { Spinner } from "@/components/loading/Spinner";
 import { carsUrl } from "@/lib/cars/searchParams";
@@ -14,12 +14,17 @@ function manilaToday() {
 
 export function SearchForm() {
   const router = useRouter();
+  const pathname = usePathname();
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [location, setLocation] = useState("");
   const [mode, setMode] = useState<"self" | "driver">("self");
   const [errors, setErrors] = useState<{ from?: string; to?: string }>({});
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    setSearching(false);
+  }, [pathname]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
