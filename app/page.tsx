@@ -101,7 +101,7 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
     </section>
 
     {/* Why book */}
-    <section className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
+    <section id="faq" className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
       <div className="mx-auto max-w-6xl">
         <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Why Kuyog Bohol</p>
         <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Rent a car the easy way</h2>

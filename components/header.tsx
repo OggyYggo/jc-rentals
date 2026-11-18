@@ -51,7 +51,7 @@ export function Header() {
           <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>With a driver</Link>
           <Link href="/#how" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>How it works</Link>
           <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Apply to list your car</Link>
-          <Link href="/contact" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Contact</Link>
+          <Link href="/contact" aria-current={pathname === "/contact" ? "page" : undefined} className={`relative transition-colors ${pathname === "/contact" ? "font-semibold text-[#0B63CE] after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:bg-[#0B63CE]" : isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Contact</Link>
         </nav>
 
         <div className="hidden items-center gap-4 md:flex">
@@ -76,7 +76,7 @@ export function Header() {
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#trips">With a driver</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#how">How it works</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/apply">Apply to list your car</Link>
-            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/contact">Contact</Link>
+            <Link onClick={closeMobileMenu} aria-current={pathname === "/contact" ? "page" : undefined} className={`rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF] ${pathname === "/contact" ? "font-semibold text-[#0B63CE]" : ""}`} href="/contact">Contact</Link>
             {userName ? <>
               <span className="flex items-center gap-3 rounded-xl border border-[#D6E6F7] bg-[#F5FAFF] px-3 py-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0B63CE] text-sm font-semibold text-white shadow-sm">{userInitial}</span>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CalendarDays, CarFront, CircleCheck, CircleX, Clock3, LoaderCircle, MapPin, RotateCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -70,7 +71,7 @@ export function BookingList({ bookings, todayManila }: { bookings: CustomerBooki
     }
   }
 
-  if (!bookings.length) return <div className="rounded-2xl border border-[#e3e8ef] bg-white px-6 py-14 text-center shadow-sm"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#edf2ff] text-[#4d71cc]"><CalendarDays size={21}/></span><h2 className="mt-4 text-base font-semibold text-[#34445b]">No bookings yet</h2><p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#7d8998]">When you book a vehicle, you’ll find the schedule, status, and rental details here.</p><a href="/" className="mt-5 inline-flex h-9 items-center rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white hover:bg-[#1d4ed8]">Browse rentals</a></div>;
+  if (!bookings.length) return <div className="rounded-2xl border border-[#e3e8ef] bg-white px-6 py-14 text-center shadow-sm"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#edf2ff] text-[#4d71cc]"><CalendarDays size={21}/></span><h2 className="mt-4 text-base font-semibold text-[#34445b]">No bookings yet</h2><p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#7d8998]">When you book a vehicle, you’ll find the schedule, status, and rental details here.</p><Link href="/" className="mt-5 inline-flex h-9 items-center rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white hover:bg-[#1d4ed8]">Browse rentals</Link></div>;
 
   return <div className="space-y-4">{error && <p role="alert" className="rounded-xl border border-[#f1cccc] bg-[#fff6f6] px-4 py-3 text-xs text-[#a13a3a]">{error}</p>}{bookings.map((booking) => {
     const cancelAllowed = canCancel(booking, todayManila);
@@ -80,6 +81,7 @@ export function BookingList({ bookings, todayManila }: { bookings: CustomerBooki
         <div className="flex items-center justify-between gap-4 border-t border-[#edf0f4] pt-3 sm:block sm:border-0 sm:pt-0 sm:text-right"><div><p className="text-[10px] text-[#8995a5]">Rental total</p><p className="mt-0.5 text-sm font-semibold text-[#2d3e55]">{formatPrice(Number(booking.total_price))}</p><p className="mt-0.5 text-[10px] text-[#8995a5]">{formatPrice(Number(booking.daily_rate))} / day · {booking.payment}</p></div>{cancelAllowed ? <button onClick={() => cancelBooking(booking)} disabled={cancellingId === booking.id} className="mt-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[#eadede] px-3 text-[10px] font-semibold text-[#9a4b4b] transition hover:bg-[#fff6f6] disabled:opacity-60">{cancellingId === booking.id ? <LoaderCircle size={12} className="animate-spin"/> : <CircleX size={12}/>}Cancel booking</button> : <p className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#8995a5]">{booking.status === "completed" ? <CircleCheck size={12}/> : <Clock3 size={12}/>} {booking.status === "completed" ? "Rental completed" : "Cancellation unavailable"}</p>}</div>
       </div>
       {["awaiting_payment", "payment_review"].includes(booking.status) && <div className="border-t border-[#edf0f4] px-4 py-3 text-right sm:px-5"><a href={`/account/bookings/${booking.id}/pay`} className="inline-flex h-8 items-center rounded-lg bg-[#2457d6] px-3 text-[10px] font-semibold text-white">{booking.status === "payment_review" ? "View payment" : "Pay deposit"}</a></div>}
+      <div className="border-t border-[#edf0f4] px-4 py-2.5 text-right sm:px-5"><Link href={`/contact?topic=booking&ref=${encodeURIComponent(booking.reference)}`} className="text-[11px] font-medium text-[#2457d6] underline">Need help with this booking?</Link></div>
     </article>;
   })}<div className="flex items-center gap-2 px-1 text-[10px] leading-5 text-[#8b97a7]"><RotateCw size={12}/>Booking status updates as your rental progresses.</div></div>;
 }
