@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { ContactForm } from "@/components/contact/ContactForm";
 import { ContactHero } from "@/components/contact/ContactHero";
 import { ContactInfoCards } from "@/components/contact/ContactInfoCards";
@@ -17,6 +18,7 @@ const topics = ["booking", "cars_pricing", "payment", "owner", "other"] as const
 type Topic = (typeof topics)[number];
 
 export default async function ContactPage({ searchParams }: { searchParams: Promise<{ topic?: string; ref?: string }> }) {
+  await connection();
   const params = await searchParams;
   const initialTopic: Topic = topics.includes(params.topic as Topic) ? params.topic as Topic : "other";
   const initialBookingRef = params.ref && isBookingReference(params.ref) ? params.ref : "";
