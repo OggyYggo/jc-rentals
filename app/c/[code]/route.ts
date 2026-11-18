@@ -14,10 +14,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const src = normalizePromoSource(request.nextUrl.searchParams.get("src"));
   const admin = createAdminClient();
-  if (admin) await admin.from("promo_clicks").insert({ car_id: car.id, owner_id: car.owner_id, src });
+  const now = Date.now();
+  let isRepeatClick = false;
+  try {
+    const previous = request.cookies.get("kb_ref")?.value;
+    const saved = previous ? JSON.parse(previous) as { o?: string; c?: string; s?: string; t?: number } : null;
+    const clickedAt = saved?.t;
+    isRepeatClick = saved?.o === car.owner_id
+      && saved?.c === car.id
+      && saved?.s === src
+      && typeof clickedAt === "number"
+      && now >= clickedAt
+      && now - clickedAt < 30 * 60 * 1000;
+  } catch {
+    // Invalid attribution cookies do not prevent a visit from being counted.
+  }
+  if (admin && !isRepeatClick) await admin.from("promo_clicks").insert({ car_id: car.id, owner_id: car.owner_id, src });
 
   const response = NextResponse.redirect(`${origin}/cars/${car.id}`);
-  response.cookies.set("kb_ref", JSON.stringify({ o: car.owner_id, c: car.id, s: src }), {
+  response.cookies.set("kb_ref", JSON.stringify({ o: car.owner_id, c: car.id, s: src, t: now }), {
     maxAge: 60 * 60 * 24 * 30,
     httpOnly: true,
     sameSite: "lax",

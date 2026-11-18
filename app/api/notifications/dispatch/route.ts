@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendPush } from "@/lib/notifications/push";
@@ -6,7 +7,11 @@ type NotificationRow = { id: string; user_id: string; type: string; title: strin
 
 export async function POST(request: Request) {
   const secret = process.env.NOTIFY_WEBHOOK_SECRET;
-  if (!secret || request.headers.get("x-webhook-secret") !== secret) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const given = Buffer.from(request.headers.get("x-webhook-secret") ?? "");
+  const expected = Buffer.from(secret ?? "");
+  if (!secret || given.length !== expected.length || !timingSafeEqual(given, expected)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   const db = createAdminClient();
   if (!db) return NextResponse.json({ error: "server_not_configured" }, { status: 503 });
   const url = new URL(request.url);

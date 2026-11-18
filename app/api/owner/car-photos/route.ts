@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
 
   const file = form.get("file");
   const carId = form.get("carId");
-  if (!(file instanceof File) || typeof carId !== "string" || !carId) {
+  if (!(file instanceof File) || typeof carId !== "string" || !UUID_PATTERN.test(carId)) {
     return NextResponse.json({ error: "Choose a car and a photo to upload." }, { status: 400 });
   }
   if (!ACCEPTED_TYPES.has(file.type) || file.size > MAX_FILE_SIZE || file.size === 0) {
