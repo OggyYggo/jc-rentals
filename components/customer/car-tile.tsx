@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, CarFront, Users, Settings2 } from "lucide-react";
 import { carPhotoUrl } from "@/lib/car-photo";
+import type { CarSearch } from "@/lib/cars/searchParams";
 
 type Car = {
   id: string;
@@ -17,18 +18,17 @@ type Car = {
   car_rates?: { mode: string; daily_rate: number }[];
 };
 
-type CarSearchParams = { start?: string; end?: string; mode?: string; pickup?: string };
+type SearchFilters = Pick<CarSearch, "from" | "to" | "mode" | "pickup" | "seats" | "sort" | "type" | "transmission">;
 
-export function CarTile({ car, available, searchParams }: { car: Car; available?: boolean; searchParams?: CarSearchParams }) {
-  const rates = car.car_rates ?? [];
+export function CarTile({ car, available, mode, searchParams }: { car: Car; available?: boolean; mode?: "self" | "driver"; searchParams?: SearchFilters }) {
+  const rates = (car.car_rates ?? []).filter(rate => rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
+  const visibleRates = mode === "self" ? rates.filter(rate => rate.mode === "self_drive") : mode === "driver" ? rates.filter(rate => rate.mode === "with_driver") : rates;
   const firstPhoto = [...(car.car_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
   const photo = carPhotoUrl(firstPhoto?.thumb_path ?? firstPhoto?.path);
-  const enabledRates = rates.filter(rate => rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
-  const lowestRate = enabledRates.length ? Math.min(...enabledRates.map(rate => Number(rate.daily_rate))) : null;
   const params = new URLSearchParams();
-  for (const key of ["start", "end", "mode", "pickup"] as const) {
+  for (const key of ["from", "to", "mode", "pickup", "seats", "sort", "type", "transmission"] as const) {
     const value = searchParams?.[key];
-    if (value) params.set(key, value);
+    if (value) params.set(key, String(value));
   }
   const href = `/cars/${car.id}${params.size ? `?${params.toString()}` : ""}`;
 
@@ -36,8 +36,7 @@ export function CarTile({ car, available, searchParams }: { car: Car; available?
     <div className="relative aspect-[4/3] overflow-hidden bg-[#EAF4FF]">
       {photo ? <Image src={photo} alt={`${car.brand} ${car.model}`} fill unoptimized sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" /> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={56} strokeWidth={1.2} /></div>}
       {available && <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#0A3D91] shadow-sm">Available</span>}
-      {lowestRate !== null && <span className="absolute bottom-3 left-3 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#0F2342] shadow-sm">From ₱{lowestRate.toLocaleString("en-PH")} / day</span>}
-      {enabledRates.length > 0 && <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">{enabledRates.map(rate => <span key={rate.mode} className="rounded-full bg-[#0B63CE] px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm">{rate.mode === "self_drive" ? "Self-drive" : "With driver"}</span>)}</div>}
+      {visibleRates.length > 0 && <div className="absolute inset-x-3 bottom-3 flex flex-col items-start gap-1">{visibleRates.map(rate => <span key={rate.mode} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#0F2342] shadow-sm">{rate.mode === "self_drive" ? "Self-drive" : "With driver"} from ₱{Number(rate.daily_rate).toLocaleString("en-PH")} / day</span>)}</div>}
     </div>
     <div className="p-5">
       <h3 className="text-lg font-semibold text-[#0F2342]">{car.brand} {car.model}</h3>
@@ -46,7 +45,7 @@ export function CarTile({ car, available, searchParams }: { car: Car; available?
         {car.seats && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2"><Users size={14} />{car.seats} seats</span>}
         {car.transmission && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2"><Settings2 size={14} />{car.transmission}</span>}
       </div>
-      <span className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#0B63CE] text-sm font-semibold text-white transition-colors group-hover:bg-[#0A3D91]">View car<ArrowRight size={15} /></span>
+      <span className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#0B63CE] text-sm font-semibold text-white transition-colors group-hover:bg-[#0A3D91]">View car<ArrowRight size={15} aria-hidden="true" /></span>
     </div>
   </Link>;
 }
