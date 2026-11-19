@@ -4,9 +4,66 @@ import { getAdminContext } from "@/lib/admin-context";
 
 export const instant = false;
 
+const customerColumns = "id, full_name, phone, verification, created_at, license_path, id_path";
+const licenseColumns = "id, license_declared_classes, license_classes";
+const archiveColumns = "id, customer_archived_at";
+const reasonColumns = "id, verification_rejection_reason";
+
+function unavailableColumn(error: { code: string; message: string } | null) {
+  return error?.code === "42501" || error?.code === "42703" || error?.code === "PGRST204";
+}
+
 export default async function AdminCustomersPage() {
   const { supabase } = await getAdminContext();
-  const { data, error } = await supabase.from("profiles").select("id, full_name, phone, verification, created_at, license_path, id_path, license_declared_classes, license_classes").eq("role", "customer").order("created_at", { ascending: false });
-  if (error) throw new Error("Could not load customer records.");
-  return <><AdminHeading eyebrow="People" title="Customers" description="Review customer records and privately inspect submitted verification documents."/><CustomerManager customers={(data ?? []) as AdminCustomer[]}/></>;
+  const loadCustomers = <Columns extends string>(columns: Columns) =>
+    supabase.from("profiles").select(columns).eq("role", "customer").order("created_at", { ascending: false });
+
+  const [result, access] = await Promise.all([
+    loadCustomers(`${customerColumns}, license_declared_classes, license_classes, verification_rejection_reason, customer_archived_at`),
+    supabase.rpc("is_super_admin"),
+  ]);
+  let customers: AdminCustomer[] = result.data ?? [];
+  let canReject = true;
+  let canReviewClasses = true;
+  let archiveAvailable = true;
+  let error = result.error;
+
+  if (unavailableColumn(error)) {
+    const [base, licenses, reasons, archives] = await Promise.all([
+      loadCustomers(customerColumns), loadCustomers(licenseColumns), loadCustomers(reasonColumns), loadCustomers(archiveColumns),
+    ]);
+    canReviewClasses = !licenses.error;
+    canReject = !reasons.error;
+    archiveAvailable = !archives.error;
+    error = base.error
+      ?? (unavailableColumn(licenses.error) ? null : licenses.error)
+      ?? (unavailableColumn(reasons.error) ? null : reasons.error)
+      ?? (unavailableColumn(archives.error) ? null : archives.error);
+
+    const licensesById = new Map(licenses.data?.map((row) => [row.id, row]));
+    const reasonsById = new Map(reasons.data?.map((row) => [row.id, row.verification_rejection_reason]));
+    const archivesById = new Map(archives.data?.map((row) => [row.id, row.customer_archived_at]));
+    customers = (base.data ?? []).map((customer) => ({
+      ...customer,
+      license_declared_classes: licensesById.get(customer.id)?.license_declared_classes ?? [],
+      license_classes: licensesById.get(customer.id)?.license_classes ?? [],
+      verification_rejection_reason: reasonsById.get(customer.id) ?? null,
+      customer_archived_at: archivesById.get(customer.id) ?? null,
+    }));
+  }
+
+  return <>
+    <AdminHeading eyebrow="People" title="Customers" description="Review customer records and privately inspect submitted verification documents." />
+    {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+      Could not load customer records. Reload this page to try again.
+      {/^(?:[0-9A-Z]{5}|PGRST\d{3})$/.test(error.code) && <> Database error code {error.code}.</>}
+    </p> : <>
+      {(!canReviewClasses || !canReject || (access.data === true && !archiveAvailable)) && <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        {!canReviewClasses && <>License class review requires database migrations through 202611190006. </>}
+        {!canReject && <>Rejection requires database migration 202611190004. </>}
+        {access.data === true && !archiveAvailable && <>Customer archiving requires database migration 202611190007.</>}
+      </p>}
+      <CustomerManager customers={customers} canReject={canReject} canReviewClasses={canReviewClasses} archiveAvailable={archiveAvailable} canArchive={archiveAvailable && access.data === true} />
+    </>}
+  </>;
 }

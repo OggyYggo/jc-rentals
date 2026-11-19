@@ -1,5 +1,6 @@
 "use client";
 
+import { runWithAlerts } from "@/lib/alerts/run";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AdminStatus } from "@/components/admin/ui";
@@ -35,30 +36,37 @@ export type OwnerApplication = {
 export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
-  const [error, setError] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const filteredRows = rows.filter((row) => planFilter === "all" || (planFilter === "paid" ? Boolean(row.preferred_plan && row.preferred_plan !== "starter") : (row.preferred_plan ?? "starter") === planFilter));
 
-  async function review(row: OwnerApplication, status: "approved" | "needs_changes" | "rejected") {
-    setBusyId(row.id);
-    setError("");
-    let result: { error?: string; ok?: boolean };
-    if (status === "approved") result = await approveOwnerApplication(row.id);
-    else {
-      const note = window.prompt(status === "rejected" ? "Add a short rejection note for the applicant:" : "What should the applicant change?") ?? "";
-      if (!note.trim()) { setBusyId(""); return; }
-      result = await updateOwnerApplication(row.id, status, note);
-    }
-    if (result.error) setError(result.error);
-    else router.refresh();
-    setBusyId("");
+  function review(row: OwnerApplication, status: "approved" | "needs_changes" | "rejected") {
+    const approve = status === "approved";
+    const reject = status === "rejected";
+    return runWithAlerts({
+      confirm: approve ? {
+        title: "Approve this application?",
+        text: `This creates an owner account or updates an existing one. New account holders receive an invite at ${row.email}.`,
+        confirmText: "Approve application",
+      } : undefined,
+      reason: approve ? undefined : {
+        title: reject ? "Reject this application?" : "Request application changes?",
+        label: "Note shown to the applicant",
+        confirmText: reject ? "Reject application" : "Request changes",
+      },
+      setPending: (pending) => setBusyId(pending ? row.id : ""),
+      run: async (reason) => {
+        const result = approve ? await approveOwnerApplication(row.id) : await updateOwnerApplication(row.id, status, reason);
+        if (!result.ok) throw new Error(result.error);
+      },
+      success: approve ? "Application approved" : reject ? "Application rejected" : "Changes requested",
+      refresh: router.refresh,
+    });
   }
 
   if (!rows.length) return <p className="rounded-xl border border-[#e7ecf3] bg-white p-8 text-center text-sm text-[#718096]">No vehicle listing applications yet.</p>;
 
   return <div className="space-y-4">
     <label className="flex items-center gap-3 text-sm font-medium text-[#53637a]">Filter applications<select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)} className="h-10 rounded-lg border border-[#dfe6ef] bg-white px-3 text-sm"><option value="all">All plans</option><option value="paid">Wants a paid plan</option><option value="starter">Starter</option></select></label>
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {filteredRows.map((row) => <article key={row.id} className="rounded-xl border border-[#e7ecf3] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="font-semibold text-[#33445b]">{row.business_name} <span className="ml-2 rounded-full bg-[#edf4ff] px-2 py-1 text-[10px] capitalize text-[#315fae]">{row.vehicle_type ?? "car"}</span></h2><p className="mt-1 text-sm text-[#65738a]">{row.full_name} · {row.car_year ? `${row.car_year} ` : ""}{row.car_make} {row.car_model}</p></div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { runWithAlerts } from "@/lib/alerts/run";
 import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -48,25 +49,32 @@ export function CalendarManager({ cars, bookings, blocks }: { cars: CalendarCar[
     event.preventDefault(); setError("");
     if (!carId) { setError("Add a vehicle before blocking dates."); return; }
     if (endDate < startDate) { setError("The end date must be on or after the start date."); return; }
-    setBusy(true);
-    try {
-      const supabase = createClient();
-      const { error: blockError } = await supabase.from("car_blocked_dates").insert({ car_id: carId, start_date: startDate, end_date: endDate, reason: reason.trim() || "Unavailable" });
-      if (blockError) throw blockError;
-      setFormOpen(false); setReason(""); router.refresh();
-    } catch (blockError) { setError(blockError instanceof Error ? blockError.message : "These dates could not be blocked."); }
-    finally { setBusy(false); }
+    await runWithAlerts({
+      setPending: setBusy,
+      run: async () => {
+        const { error } = await createClient().from("car_blocked_dates").insert({
+          car_id: carId, start_date: startDate, end_date: endDate, reason: reason.trim() || "Unavailable",
+        });
+        if (error) throw error;
+        setFormOpen(false);
+        setReason("");
+      },
+      success: "Dates blocked",
+      refresh: router.refresh,
+    });
   }
 
-  async function removeBlock(id: string) {
-    setBusy(true); setError("");
-    try {
-      const supabase = createClient();
-      const { error: removeError } = await supabase.from("car_blocked_dates").delete().eq("id", id);
-      if (removeError) throw removeError;
-      router.refresh();
-    } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "This blocked date could not be removed."); }
-    finally { setBusy(false); }
+  function removeBlock(id: string) {
+    return runWithAlerts({
+      confirm: { title: "Remove these blocked dates?", text: "Customers may be able to book these dates again.", confirmText: "Remove block" },
+      setPending: setBusy,
+      run: async () => {
+        const { error } = await createClient().from("car_blocked_dates").delete().eq("id", id);
+        if (error) throw error;
+      },
+      success: "Date block removed",
+      refresh: router.refresh,
+    });
   }
 
   return <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.6fr)_minmax(285px,.75fr)]">
@@ -79,7 +87,7 @@ export function CalendarManager({ cars, bookings, blocks }: { cars: CalendarCar[
 
     <div className="space-y-4">
       <section className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold text-[#33445b]">Manual date blocks</h2><p className="mt-1 text-[10px] leading-4 text-[#8b97a8]">Set cars unavailable for personal use or maintenance.</p></div><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#fff1f0] text-[#ad6460]"><LockKeyhole size={15}/></span></div>
-        {formOpen ? <form onSubmit={addBlock} className="mt-4 space-y-3"><Field label="Vehicle"><select required value={carId} onChange={(event) => setCarId(event.target.value)} className={inputClass}>{cars.map((car) => <option key={car.id} value={car.id}>{car.brand} {car.model} {car.plate_number ? `· ${car.plate_number}` : ""}</option>)}</select></Field><div className="grid grid-cols-2 gap-2"><Field label="Start date"><input required type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={inputClass}/></Field><Field label="End date"><input required type="date" min={startDate} value={endDate} onChange={(event) => setEndDate(event.target.value)} className={inputClass}/></Field></div><Field label="Reason"><input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={120} placeholder="Maintenance, personal use..." className={inputClass}/></Field>{error && <p role="alert" className="text-[10px] leading-4 text-[#a13a3a]">{error}</p>}<div className="flex gap-2"><button type="button" onClick={() => { setFormOpen(false); setError(""); }} className="h-8 flex-1 rounded-lg border border-[#e2e8f0] text-[10px] font-medium text-[#68778c]">Cancel</button><button disabled={busy || !cars.length} className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#2457d6] text-[10px] font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle size={12} className="animate-spin"/> : <Plus size={12}/>}Block dates</button></div></form> : <button disabled={!cars.length} onClick={() => setFormOpen(true)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#d4ddeb] text-[10px] font-semibold text-[#5b6d86] hover:border-[#9bb0e7] hover:text-[#4568bd] disabled:opacity-50"><Plus size={13}/>Add unavailable dates</button>}
+        {formOpen ? <form onSubmit={addBlock} className="mt-4 space-y-3"><Field label="Vehicle"><select required value={carId} onChange={(event) => setCarId(event.target.value)} className={inputClass}>{cars.map((car) => <option key={car.id} value={car.id}>{car.brand} {car.model} {car.plate_number ? `· ${car.plate_number}` : ""}</option>)}</select></Field><div className="grid grid-cols-2 gap-2"><Field label="Start date"><input required type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={inputClass}/></Field><Field label="End date"><input required type="date" min={startDate} value={endDate} aria-invalid={Boolean(error)} aria-describedby={error ? "calendar-block-error" : undefined} onChange={(event) => setEndDate(event.target.value)} className={inputClass}/></Field></div><Field label="Reason"><input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={120} placeholder="Maintenance, personal use..." className={inputClass}/></Field>{error && <p id="calendar-block-error" role="alert" className="text-[10px] leading-4 text-[#a13a3a]">{error}</p>}<div className="flex gap-2"><button type="button" onClick={() => { setFormOpen(false); setError(""); }} className="h-8 flex-1 rounded-lg border border-[#e2e8f0] text-[10px] font-medium text-[#68778c]">Cancel</button><button disabled={busy || !cars.length} className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#2457d6] text-[10px] font-semibold text-white disabled:opacity-50">{busy ? <LoaderCircle size={12} className="animate-spin"/> : <Plus size={12}/>}Block dates</button></div></form> : <button disabled={!cars.length} onClick={() => setFormOpen(true)} className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#d4ddeb] text-[10px] font-semibold text-[#5b6d86] hover:border-[#9bb0e7] hover:text-[#4568bd] disabled:opacity-50"><Plus size={13}/>Add unavailable dates</button>}
         {!cars.length && <p className="mt-2 text-[9px] text-[#9aa4b2]">Add a vehicle before blocking calendar dates.</p>}
         {error && !formOpen && <p role="alert" className="mt-3 text-[10px] text-[#a13a3a]">{error}</p>}
       </section>

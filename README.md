@@ -89,6 +89,12 @@ set role = 'admin'
 where id = 'AUTH-USER-UUID';
 ```
 
+**Archive super admin** — apply migrations in order through `supabase/migrations/202611190008_correct_super_admin_email.sql`. The verified Supabase Auth account `jc-admin@rentals.com` can archive and restore owners and customers. If the account is verified after migration, run the following in the Supabase SQL Editor as the database administrator. A result of `true` confirms provisioning.
+
+```sql
+select private.provision_owner_archive_admin();
+```
+
 ### 5. Run locally
 
 ```bash

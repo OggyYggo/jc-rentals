@@ -1,5 +1,6 @@
 "use server";
 
+import { reasonError } from "@/lib/alerts/reason";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getAdminContext } from "@/lib/admin-context";
@@ -86,7 +87,9 @@ function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => 
 export async function updateOwnerApplication(id: string, status: "needs_changes" | "rejected", note: string) {
   const { user, supabase } = await getAdminContext();
   const cleanNote = note.trim();
-  if (!cleanNote || cleanNote.length > 2000) return { error: "Add a note of up to 2,000 characters." };
+  if (status !== "needs_changes" && status !== "rejected") return { error: "Could not update this application." };
+  const validationError = reasonError(cleanNote);
+  if (validationError) return { error: validationError };
   const { error } = await supabase.from("owner_applications").update({ status, admin_note: cleanNote, reviewed_by: user.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");
   if (error) return { error: "Could not update this application." };
   revalidatePath("/admin/owner-applications");

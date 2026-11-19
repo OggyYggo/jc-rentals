@@ -37,8 +37,8 @@ export function CarTile({ car, available, mode, searchParams }: { car: Car; avai
   }
   const href = `/cars/${car.id}${params.size ? `?${params.toString()}` : ""}`;
 
-  return <article className="public-card group block overflow-hidden rounded-3xl border border-[#D6E6F7] bg-white shadow-[0_8px_28px_-22px_rgba(10,61,145,.4)]">
-    <div className="relative aspect-[4/3] overflow-hidden bg-[#EAF4FF]">
+  return <article className="motion-car-card group block overflow-hidden rounded-3xl border border-[#D6E6F7] bg-white shadow-[0_8px_28px_-22px_rgba(10,61,145,.4)]">
+    <div className="motion-car-image relative aspect-[4/3] overflow-hidden bg-[#EAF4FF]">
       {photos.length ? <CarPhotoCarousel photos={photos} alt={`${car.brand} ${car.model}`} /> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={56} strokeWidth={1.2} /></div>}
       <Link href={href} aria-label={`View ${car.brand} ${car.model}`} className="absolute inset-0 z-10" />
       {available && <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#0A3D91] shadow-sm">Available</span>}

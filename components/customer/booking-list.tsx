@@ -1,5 +1,6 @@
 "use client";
 
+import { runWithAlerts } from "@/lib/alerts/run";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -53,27 +54,31 @@ function canCancel(booking: CustomerBooking, todayManila: string) {
 export function BookingList({ bookings, todayManila }: { bookings: CustomerBooking[]; todayManila: string }) {
   const router = useRouter();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
 
-  async function cancelBooking(booking: CustomerBooking) {
-    if (!window.confirm(`Cancel booking ${booking.reference}? This action cannot be undone.`)) return;
-    setCancellingId(booking.id);
-    setError("");
-    try {
-      const supabase = createClient();
-      const { error: cancelError } = await supabase.rpc("cancel_booking", { p_booking_id: booking.id, p_reason: "Cancelled by customer" });
-      if (cancelError) throw cancelError;
-      router.refresh();
-    } catch (cancelError) {
-      setError(cancelError instanceof Error ? cancelError.message : "This booking could not be cancelled. Please try again.");
-    } finally {
-      setCancellingId(null);
-    }
+  function cancelBooking(booking: CustomerBooking) {
+    return runWithAlerts({
+      confirm: {
+        title: `Cancel booking ${booking.reference}?`,
+        text: "This cancellation is permanent.",
+        confirmText: "Cancel booking",
+        cancelText: "Keep booking",
+        danger: true,
+      },
+      setPending: (pending) => setCancellingId(pending ? booking.id : null),
+      run: async () => {
+        const { error } = await createClient().rpc("cancel_booking", {
+          p_booking_id: booking.id, p_reason: "Cancelled by customer",
+        });
+        if (error) throw error;
+      },
+      success: "Booking cancelled",
+      refresh: router.refresh,
+    });
   }
 
   if (!bookings.length) return <div className="rounded-2xl border border-[#e3e8ef] bg-white px-6 py-14 text-center shadow-sm"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#edf2ff] text-[#4d71cc]"><CalendarDays size={21}/></span><h2 className="mt-4 text-base font-semibold text-[#34445b]">No bookings yet</h2><p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#7d8998]">When you book a vehicle, you’ll find the schedule, status, and rental details here.</p><Link href="/" className="mt-5 inline-flex h-9 items-center rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white hover:bg-[#1d4ed8]">Browse rentals</Link></div>;
 
-  return <div className="space-y-4">{error && <p role="alert" className="rounded-xl border border-[#f1cccc] bg-[#fff6f6] px-4 py-3 text-xs text-[#a13a3a]">{error}</p>}{bookings.map((booking) => {
+  return <div className="space-y-4">{bookings.map((booking) => {
     const cancelAllowed = canCancel(booking, todayManila);
     return <article key={booking.id} className="overflow-hidden rounded-2xl border border-[#e3e8ef] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f4] px-4 py-3.5 sm:px-5"><div><p className="text-[10px] font-medium uppercase tracking-wide text-[#8b97a7]">Booking reference</p><p className="mt-0.5 text-xs font-semibold text-[#43536a]">{booking.reference}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${statusStyles[booking.status] ?? "bg-[#f2f4f7] text-[#68778c]"}`}>{booking.status.replaceAll("_", " ")}</span></div>

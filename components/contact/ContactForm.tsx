@@ -1,7 +1,10 @@
 "use client";
 
+import { DrawCheck } from "@/components/motion/DrawCheck";
+import { EASE_OUT, gsap, MOTION, useGSAP } from "@/lib/motion/gsap";
+import { useFieldShake } from "@/lib/motion/useFieldShake";
 import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import Link from "next/link";
 import { submitContactMessage } from "@/app/contact/actions";
 import { contactSchema, contactTopics, contactTopicLabels, validateContactField, type ContactField, type ContactTopic } from "@/lib/contact/schema";
@@ -11,7 +14,7 @@ import { Spinner } from "@/components/loading/Spinner";
 import { TurnstileBox, type TurnstileBoxHandle } from "@/components/turnstile/TurnstileBox";
 
 const fieldOrder: ContactField[] = ["full_name", "email", "mobile", "topic", "booking_ref", "message"];
-const inputClass = "mt-2 h-12 w-full rounded-xl border border-[#D6E6F7] bg-white px-4 text-sm text-[#0F2342] outline-none placeholder:text-[#8DA0B8] focus-visible:border-[#0B63CE] focus-visible:ring-[3px] focus-visible:ring-[#2E9BF0]/40 focus-visible:ring-offset-2 disabled:opacity-60";
+const inputClass = "motion-safe:transition-[border-color,box-shadow] motion-safe:duration-150 mt-2 h-12 w-full rounded-xl border border-[#D6E6F7] bg-white px-4 text-sm text-[#0F2342] outline-none placeholder:text-[#8DA0B8] focus-visible:border-[#0B63CE] focus-visible:ring-[3px] focus-visible:ring-[#2E9BF0]/40 focus-visible:ring-offset-2 disabled:opacity-60";
 const areaClass = `${inputClass} h-36 resize-y py-3 leading-6`;
 
 type ContactFormProps = {
@@ -31,6 +34,9 @@ export function ContactForm({ initialName, initialEmail, initialTopic, initialBo
   const [touched, setTouched] = useState<Partial<Record<ContactField, boolean>>>({});
   const [clientErrors, setClientErrors] = useState<Partial<Record<ContactField, string>>>({});
   const [dismissSuccess, setDismissSuccess] = useState(false);
+  const scope = useRef<HTMLElement>(null);
+  const shake = useFieldShake(scope);
+  const successPanelRef = useRef<HTMLDivElement>(null);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const firstNameRef = useRef<HTMLInputElement>(null);
   const turnstile = useRef<TurnstileBoxHandle>(null);
@@ -43,12 +49,35 @@ export function ContactForm({ initialName, initialEmail, initialTopic, initialBo
     }
     if (!pending && (state.error || state.fieldErrors)) turnstile.current?.reset();
     const firstInvalid = fieldOrder.find((field) => state.fieldErrors?.[field]?.length);
-    if (firstInvalid) document.getElementById(firstInvalid)?.focus();
-  }, [state, dismissSuccess, pending]);
+    if (firstInvalid && !pending) {
+      const field = document.getElementById(firstInvalid);
+      field?.focus();
+      shake(field);
+    }
+  }, [state, dismissSuccess, pending, shake]);
 
   useEffect(() => {
     if (dismissSuccess) firstNameRef.current?.focus();
   }, [dismissSuccess]);
+
+  useGSAP(() => {
+    const media = gsap.matchMedia(scope);
+    media.add(MOTION, () => {
+      gsap.from(scope.current!, { y: 24, duration: 0.55, delay: 0.28, ease: EASE_OUT, clearProps: "transform" });
+    });
+    return () => media.revert();
+  }, { scope });
+
+  useGSAP(() => {
+    if (!showSuccess || !successPanelRef.current) return;
+    const media = gsap.matchMedia(scope);
+    media.add(MOTION, () => {
+      gsap.from(successPanelRef.current!, {
+        y: 12, opacity: 0, duration: 0.4, ease: EASE_OUT, clearProps: "transform,opacity",
+      });
+    });
+    return () => media.revert();
+  }, { scope, dependencies: [showSuccess], revertOnUpdate: true });
 
   function fieldError(field: ContactField): string {
     if (touched[field]) return clientErrors[field] ?? "";
@@ -82,7 +111,11 @@ export function ContactForm({ initialName, initialEmail, initialTopic, initialBo
       const errors = parsed.error.flatten().fieldErrors as Record<string, string[]>;
       setClientErrors(Object.fromEntries(Object.entries(errors).map(([key, messages]) => [key, messages?.[0] ?? ""])));
       const firstInvalid = fieldOrder.find((field) => errors[field]?.length);
-      if (firstInvalid) document.getElementById(firstInvalid)?.focus();
+      if (firstInvalid) {
+        const field = document.getElementById(firstInvalid);
+        field?.focus();
+        shake(field);
+      }
     } else {
       setDismissSuccess(false);
       setClientErrors({});
@@ -102,10 +135,10 @@ export function ContactForm({ initialName, initialEmail, initialTopic, initialBo
   const replyHours = isContactPlaceholder(contactInfo.replyWithinHours) ? "" : contactInfo.replyWithinHours;
 
   return (
-    <section className="relative rounded-[22px] border border-[#D6E6F7] bg-white p-6 shadow-[0_20px_55px_rgba(10,61,145,.09)] sm:p-8 lg:p-10" aria-busy={pending}>
+    <section ref={scope} className="relative rounded-[22px] border border-[#D6E6F7] bg-white p-6 shadow-[0_20px_55px_rgba(10,61,145,.09)] sm:p-8 lg:p-10" aria-busy={pending}>
       {showSuccess ? (
-        <div className="py-8 text-center sm:py-12" role="status" aria-live="polite">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#E8F7EF] text-[#1E8E5A]"><Check size={28} aria-hidden="true" /></span>
+        <div ref={successPanelRef} className="py-8 text-center sm:py-12" role="status" aria-live="polite">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#E8F7EF] text-[#1E8E5A]"><DrawCheck /></span>
           <h2 ref={successHeadingRef} tabIndex={-1} className="mt-5 text-2xl font-bold text-[#0F2342] outline-none focus-visible:ring-[3px] focus-visible:ring-[#2E9BF0]">Message sent</h2>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#51657F]">
             Thanks, {firstName}. We will reply{state.email ? ` to ${state.email}` : ""}{replyHours ? ` within ${replyHours} hours` : " as soon as we can"}.

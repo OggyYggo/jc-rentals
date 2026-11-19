@@ -10,6 +10,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
 export function Header() {
   const pathname = usePathname();
+  const motionHeader = pathname === "/" || /^\/(cars|apply|contact|for-owners)(?:\/|$)/.test(pathname);
+  const [scrolled, setScrolled] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const activeUserId = useRef<string | null>(null);
   const userInitial = userName?.trim().charAt(0).toUpperCase() || "U";
@@ -36,11 +38,19 @@ export function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!motionHeader) return;
+    const updateShadow = () => setScrolled(window.scrollY > 8);
+    updateShadow();
+    window.addEventListener("scroll", updateShadow, { passive: true });
+    return () => window.removeEventListener("scroll", updateShadow);
+  }, [motionHeader]);
+
   if (pathname.startsWith("/owner") || pathname.startsWith("/admin")) return null;
   const isPublic = !pathname.startsWith("/for-owners");
 
   return (
-    <header className={`sticky top-0 z-50 w-full border-b shadow-[0_6px_24px_rgba(15,35,66,.08)] ${isPublic ? "theme-public border-[#E3EEF9] bg-white" : "border-[#e9ede9]/90 bg-[#fbfcfa]/90"}`}>
+    <header data-scrolled={motionHeader && scrolled ? "" : undefined} className={`sticky top-0 z-50 w-full border-b ${motionHeader ? "motion-header border-transparent bg-white" : "border-[#E3EEF9] bg-white shadow-[0_6px_24px_rgba(15,35,66,.08)]"} ${isPublic ? "theme-public" : ""}`}>
       <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 lg:h-[88px] lg:px-[140px]">
         <Link href="/#top" className="flex items-center gap-2.5">
           <Logo size={36} />

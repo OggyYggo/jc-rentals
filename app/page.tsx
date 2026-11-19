@@ -1,3 +1,5 @@
+import { HeroIntro } from "@/components/motion/HeroIntro";
+import { Reveal } from "@/components/motion/Reveal";
 import Link from "next/link";
 import Image from "next/image";
 import heroBackground from "@/img/bg.jpg";
@@ -54,23 +56,23 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd).replace(/</g, "\\u003c") }} />
     {/* Hero */}
-    <section id="top" className="public-hero relative flex flex-col justify-center px-5 pb-32 pt-16 sm:px-8 md:min-h-[560px] md:pb-36 md:pt-24">
+    <HeroIntro as="section" id="top" className="public-hero relative flex flex-col justify-center px-5 pb-32 pt-16 sm:px-8 md:min-h-[560px] md:pb-36 md:pt-24">
       <Image src={heroBackground} alt="The Chocolate Hills in Bohol" fill priority sizes="100vw" className="object-cover object-center"/>
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#0F2342]/80 via-[#0A3D91]/35 to-[#0F2342]/5 md:bg-[#0F2342]/60"/>
       <div aria-hidden="true" className="absolute inset-0 bg-[#0A3D91]/15"/>
       <div className="relative z-10 mx-auto w-full max-w-6xl text-center text-white">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.15em] backdrop-blur-md">CAR & MOTORCYCLE RENTAL IN BOHOL</span>
-        <h1 className="mx-auto mt-6 max-w-[900px] text-[46px] font-semibold leading-[1.04] tracking-tight md:text-6xl lg:text-[76px]">Rent a car or motorcycle in Bohol.</h1>
-        <p className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Choose a self-drive car, a car with a driver, or a self-drive motorcycle. Book in minutes.</p>
+        <span data-intro className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.15em] backdrop-blur-md">CAR & MOTORCYCLE RENTAL IN BOHOL</span>
+        <h1 data-intro className="mx-auto mt-6 max-w-[900px] text-[46px] font-semibold leading-[1.04] tracking-tight md:text-6xl lg:text-[76px]">Rent a car or motorcycle in Bohol.</h1>
+        <p data-intro className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Choose a self-drive car, a car with a driver, or a self-drive motorcycle. Book in minutes.</p>
         <div className="mx-auto mt-8 grid max-w-[300px] grid-cols-2 justify-center gap-x-5 gap-y-3 text-left text-sm font-semibold text-white/95 sm:flex sm:max-w-none sm:flex-wrap sm:gap-x-8 sm:text-center">
-          <span className="flex items-center gap-2"><Users size={20} strokeWidth={1.8}/> Local owners</span>
-          <span className="flex items-center gap-2"><CircleDollarSign size={20} strokeWidth={1.8}/> Clear pricing</span>
-          <span className="flex items-center gap-2"><ShieldCheck size={20} strokeWidth={1.8}/> Secure booking</span>
-          <span className="flex items-center gap-2"><Headphones size={20} strokeWidth={1.8}/> 24/7 support</span>
+          <span data-intro-trust className="flex items-center gap-2"><Users size={20} strokeWidth={1.8}/> Local owners</span>
+          <span data-intro-trust className="flex items-center gap-2"><CircleDollarSign size={20} strokeWidth={1.8}/> Clear pricing</span>
+          <span data-intro-trust className="flex items-center gap-2"><ShieldCheck size={20} strokeWidth={1.8}/> Secure booking</span>
+          <span data-intro-trust className="flex items-center gap-2"><Headphones size={20} strokeWidth={1.8}/> 24/7 support</span>
         </div>
       </div>
       <SearchForm />
-    </section>
+    </HeroIntro>
 
     {/* Trust strip */}
     <section className="border-b border-[#D6E6F7] bg-[#EAF4FF] px-5 py-10 sm:px-8">
@@ -79,12 +81,12 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
       </div>
     </section>
 
-    <Suspense fallback={<RideWithDriver lowestDriverPrice={null} />}><RideWithDriverData /></Suspense>
+    <Suspense fallback={<RideWithDriver lowestDriverPrice={null} animate={false} />}><RideWithDriverData /></Suspense>
 
     <Suspense fallback={<FeaturedCarsFallback mode="all"/>}><FeaturedCarsForQuery searchParams={searchParams}/></Suspense>
 
     {/* How it works */}
-    <section id="how" className="scroll-mt-24 relative overflow-hidden bg-[#0A47B1] px-5 py-16 sm:px-8 md:py-24">
+    <Reveal as="section" id="how" className="scroll-mt-24 relative overflow-hidden bg-[#0A47B1] px-5 py-16 sm:px-8 md:py-24">
       <div aria-hidden="true" className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-[#2E9BF0]/20 blur-3xl"/>
       <div aria-hidden="true" className="absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-[#0B63CE]/25 blur-3xl"/>
       <div className="relative mx-auto grid max-w-6xl items-center gap-6 xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-10">
@@ -94,8 +96,9 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
         <div className="xl:col-start-2 xl:row-start-1">
         <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB] xl:text-left">How it works</p>
         <h2 className="text-center text-3xl font-bold tracking-tight text-white xl:text-left xl:text-[44px]">BOOK IN THREE STEPS</h2>
-        <div className="mt-8 grid gap-4">
-          {steps.map(({Icon,title,desc},i)=><article className="relative flex min-h-[118px] items-center gap-4 overflow-hidden rounded-[20px] border border-white/25 bg-white/10 p-5 text-left backdrop-blur-sm sm:gap-5 sm:px-6" key={title}>
+        <div data-reveal-stagger className="mt-8 grid gap-4">
+          <span data-reveal-line aria-hidden="true" className="h-px w-full origin-left bg-white/35" />
+          {steps.map(({Icon,title,desc},i)=><article data-reveal-item className="relative flex min-h-[118px] items-center gap-4 overflow-hidden rounded-[20px] border border-white/25 bg-white/10 p-5 text-left backdrop-blur-sm sm:gap-5 sm:px-6" key={title}>
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-[#0A47B1]"><Icon size={23} strokeWidth={1.8}/></div>
             <div className="relative z-10 min-w-0 pr-10 sm:pr-16">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#CFE6FB]">Step 0{i+1}</p><h3 className="mt-1 text-lg font-semibold text-white">{title}</h3>
@@ -107,34 +110,34 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
         <FindCarLink />
         </div>
       </div>
-    </section>
+    </Reveal>
 
     {/* Why book */}
-    <section id="faq" className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
+    <Reveal as="section" id="faq" className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
       <div className="mx-auto max-w-6xl">
         <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Why Kuyog Bohol</p>
         <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Rent the right vehicle the easy way</h2>
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {perks.map(([Icon,title,desc])=><article key={title} className="public-card rounded-2xl border border-[#D6E6F7] bg-white p-6"><div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF4FF] text-[#0B63CE]"><Icon size={22} strokeWidth={1.8}/></div><h3 className="font-semibold text-[#0F2342]">{title}</h3><p className="mt-2 text-sm leading-6 text-[#51657F]">{desc}</p></article>)}
+        <div data-reveal-stagger className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {perks.map(([Icon,title,desc])=><article data-reveal-item key={title} className="public-card rounded-2xl border border-[#D6E6F7] bg-white p-6"><div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF4FF] text-[#0B63CE]"><Icon size={22} strokeWidth={1.8}/></div><h3 className="font-semibold text-[#0F2342]">{title}</h3><p className="mt-2 text-sm leading-6 text-[#51657F]">{desc}</p></article>)}
         </div>
       </div>
-    </section>
+    </Reveal>
 
     {/* Owner CTA */}
-    <section id="owners-band" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-20">
+    <Reveal as="section" id="owners-band" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-20">
       <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl bg-[#0A3D91] px-7 py-12 text-center text-white sm:px-12 md:py-16">
         <div aria-hidden="true" className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#2E9BF0]/25 blur-3xl"/>
         <div aria-hidden="true" className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-[#0B63CE]/30 blur-3xl"/>
-        <div className="relative flex flex-col items-center justify-between gap-6 sm:flex-row sm:text-left">
+        <div data-reveal-stagger className="relative flex flex-col items-center justify-between gap-6 sm:flex-row sm:text-left">
           <div className="max-w-xl">
             <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB]">For local vehicle owners</p>
-            <h2 className="text-2xl font-bold md:text-3xl">Own a car or motorcycle in Bohol? List it on Kuyog Bohol.</h2>
-            <p className="mt-3 text-sm leading-6 text-white/75">Reach travelers across the island and turn your vehicle into extra income.</p>
+            <h2 data-reveal-item className="text-2xl font-bold md:text-3xl">Own a car or motorcycle in Bohol? List it on Kuyog Bohol.</h2>
+            <p data-reveal-item className="mt-3 text-sm leading-6 text-white/75">Reach travelers across the island and turn your vehicle into extra income.</p>
           </div>
-          <Link href="/apply" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#0A3D91] transition-transform hover:scale-[1.03]">Apply to list your vehicle<ArrowRight size={15}/></Link>
+          <Link data-reveal-item href="/apply" className="motion-arrow inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#0A3D91]">Apply to list your vehicle<ArrowRight size={15}/></Link>
         </div>
       </div>
-    </section>
+    </Reveal>
 
     {/* FAQ */}
     <section className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">

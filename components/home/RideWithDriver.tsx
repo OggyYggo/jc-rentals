@@ -1,3 +1,4 @@
+import { Reveal } from "@/components/motion/Reveal";
 import Link from "next/link";
 import { ArrowRight, IdCard, MapPin, Sun, Users } from "lucide-react";
 import { DriverPhotoShowcase } from "./DriverPhotoShowcase";
@@ -10,13 +11,14 @@ const benefits = [
   { icon: Users, title: "Great for families and groups", text: "Everyone rides together in one car." },
 ];
 
-export function RideWithDriver({ lowestDriverPrice }: { lowestDriverPrice: number | null }) {
+export function RideWithDriver({ lowestDriverPrice, animate = true }: { lowestDriverPrice: number | null; animate?: boolean }) {
+  const Content = animate ? Reveal : "div";
   return (
     <section id="trips" className="scroll-mt-24 bg-[#F5FAFF] py-14 lg:py-24" aria-labelledby="driver-heading">
-      <div className="mx-auto max-w-[1440px] px-5 lg:px-[140px]">
+      <Content className="mx-auto max-w-[1440px] px-5 lg:px-[140px]">
         <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-[72px]">
-          <DriverPhotoShowcase />
-          <div>
+          <DriverPhotoShowcase animate={animate} />
+          <div data-reveal>
             <p className="text-xs font-semibold tracking-[2px] text-[#0B63CE] lg:text-[13px]">RIDE WITH A LOCAL DRIVER</p>
             <h2 id="driver-heading" className="mt-3 font-heading text-[32px] font-bold leading-[38px] tracking-tight text-[#0F2342] lg:text-[44px] lg:leading-[52px]">Sit back. Let a local show you Bohol.</h2>
             <p className="mt-4 max-w-[520px] text-base leading-[25px] text-[#51657F] lg:text-lg lg:leading-7">No license, no maps, no parking stress. Pick a car with a driver and spend your day looking at the view instead of the road.</p>
@@ -30,7 +32,7 @@ export function RideWithDriver({ lowestDriverPrice }: { lowestDriverPrice: numbe
             <Link href={carsUrl({ mode: "self" })} className="mt-4 flex justify-center text-[15px] font-semibold text-[#0B63CE] hover:underline lg:inline-flex lg:justify-start">Prefer to drive yourself? See self-drive cars →</Link>
           </div>
         </div>
-      </div>
+      </Content>
     </section>
   );
 }

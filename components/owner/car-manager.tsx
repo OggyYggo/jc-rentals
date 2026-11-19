@@ -1,5 +1,6 @@
 "use client";
 
+import { runWithAlerts } from "@/lib/alerts/run";
 import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -72,77 +73,93 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
     if ((form.self_drive && Number(form.self_rate) < 1) || (form.with_driver && Number(form.driver_rate) < 1)) { setError("Enter a daily rate for each enabled rental mode."); return; }
     if (photos.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024)) { setError("Photos must be JPG, PNG, or WebP files under 10 MB each."); return; }
 
-    setBusy(true);
-    try {
-      const supabase = createClient();
-      const carValues = { owner_id: ownerId, vehicle_type:form.vehicle_type, engine_cc:form.vehicle_type === "motorcycle" && form.engine_cc ? Number(form.engine_cc) : null, helmets_included:form.vehicle_type === "motorcycle" ? Number(form.helmets_included) : 0, brand: form.brand.trim(), model: form.model.trim(), year: form.year ? Number(form.year) : null, plate_number: form.plate_number.trim() || null, car_type: form.car_type, transmission: form.transmission, fuel_type: form.fuel_type, seats: Number(form.seats), description: form.description.trim() || null, is_active: form.is_active, allows_self_drive: form.self_drive, allows_with_driver: form.vehicle_type === "motorcycle" ? false : form.with_driver };
-      let carId = editing?.id;
-      if (carId) {
-        const { error: updateError } = await supabase.from("cars").update(carValues).eq("id", carId);
-        if (updateError) throw updateError;
-      } else {
-        let created = false;
-        for (let attempt = 0; attempt < 4 && !created; attempt++) {
-          const { data, error: insertError } = await supabase.from("cars").insert({ ...carValues, short_code: makeShortCode() }).select("id").single();
-          if (!insertError) { carId = data.id; created = true; }
-          else if (insertError.code !== "23505") throw insertError;
+    const visibilityChanged = editing ? editing.is_active !== form.is_active : form.is_active;
+    await runWithAlerts({
+      confirm: visibilityChanged ? {
+        title: form.is_active ? "Publish this vehicle?" : "Hide this vehicle?",
+        text: form.is_active ? "Customers can find it in search once it is eligible." : "It will disappear from customer search.",
+        confirmText: form.is_active ? "Publish vehicle" : "Hide vehicle",
+      } : undefined,
+      setPending: setBusy,
+      success: "Vehicle saved",
+      refresh: router.refresh,
+      run: async () => {
+        const supabase = createClient();
+        const carValues = { owner_id: ownerId, vehicle_type:form.vehicle_type, engine_cc:form.vehicle_type === "motorcycle" && form.engine_cc ? Number(form.engine_cc) : null, helmets_included:form.vehicle_type === "motorcycle" ? Number(form.helmets_included) : 0, brand: form.brand.trim(), model: form.model.trim(), year: form.year ? Number(form.year) : null, plate_number: form.plate_number.trim() || null, car_type: form.car_type, transmission: form.transmission, fuel_type: form.fuel_type, seats: Number(form.seats), description: form.description.trim() || null, is_active: form.is_active, allows_self_drive: form.self_drive, allows_with_driver: form.vehicle_type === "motorcycle" ? false : form.with_driver };
+        let carId = editing?.id;
+        if (carId) {
+          const { error: updateError } = await supabase.from("cars").update(carValues).eq("id", carId);
+          if (updateError) throw updateError;
+        } else {
+          let created = false;
+          for (let attempt = 0; attempt < 4 && !created; attempt++) {
+            const { data, error: insertError } = await supabase.from("cars").insert({ ...carValues, short_code: makeShortCode() }).select("id").single();
+            if (!insertError) { carId = data.id; created = true; }
+            else if (insertError.code !== "23505") throw insertError;
+          }
+          if (!created) throw new Error("Could not reserve a public promo link. Please try again.");
         }
-        if (!created) throw new Error("Could not reserve a public promo link. Please try again.");
-      }
-      if (!carId) throw new Error("Could not save the vehicle record.");
+        if (!carId) throw new Error("Could not save the vehicle record.");
 
-      const rates: Array<Record<string, unknown>> = [];
-      if (form.self_drive) rates.push({ car_id: carId, mode: "self_drive", daily_rate: Number(form.self_rate), deposit_amount: Number(form.deposit || 0), fuel_policy: form.fuel_policy.trim() || null, mileage_limit: form.mileage_limit.trim() || null, minimum_age: form.minimum_age ? Number(form.minimum_age) : null, license_required: true });
-      if (form.with_driver && form.vehicle_type !== "motorcycle") rates.push({ car_id: carId, mode: "with_driver", daily_rate: Number(form.driver_rate), included_hours: Number(form.included_hours || 10), overtime_per_hour: Number(form.overtime || 0), fuel_included: form.fuel_included, driver_meals_included: form.driver_meals_included, accommodation_included: form.accommodation_included, coverage_area: form.coverage_area.trim() || null, license_required: false });
-      if (rates.length) {
-        const { error: rateError } = await supabase.from("car_rates").upsert(rates, { onConflict: "car_id,mode" });
-        if (rateError) throw rateError;
-      }
+        const rates: Array<Record<string, unknown>> = [];
+        if (form.self_drive) rates.push({ car_id: carId, mode: "self_drive", daily_rate: Number(form.self_rate), deposit_amount: Number(form.deposit || 0), fuel_policy: form.fuel_policy.trim() || null, mileage_limit: form.mileage_limit.trim() || null, minimum_age: form.minimum_age ? Number(form.minimum_age) : null, license_required: true });
+        if (form.with_driver && form.vehicle_type !== "motorcycle") rates.push({ car_id: carId, mode: "with_driver", daily_rate: Number(form.driver_rate), included_hours: Number(form.included_hours || 10), overtime_per_hour: Number(form.overtime || 0), fuel_included: form.fuel_included, driver_meals_included: form.driver_meals_included, accommodation_included: form.accommodation_included, coverage_area: form.coverage_area.trim() || null, license_required: false });
+        if (rates.length) {
+          const { error: rateError } = await supabase.from("car_rates").upsert(rates, { onConflict: "car_id,mode" });
+          if (rateError) throw rateError;
+        }
 
-      for (const file of photos) {
-        const uploadForm = new FormData();
-        uploadForm.append("carId", carId);
-        uploadForm.append("file", file, file.name);
-        const response = await fetch("/api/owner/car-photos", { method: "POST", body: uploadForm });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error ?? "The photo could not be uploaded.");
-      }
+        for (const file of photos) {
+          const uploadForm = new FormData();
+          uploadForm.append("carId", carId);
+          uploadForm.append("file", file, file.name);
+          const response = await fetch("/api/owner/car-photos", { method: "POST", body: uploadForm });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error ?? "The photo could not be uploaded.");
+        }
 
-      setIsOpen(false); setPhotos([]); router.refresh();
-    } catch (saveError) {
-      const rawMessage = saveError instanceof Error ? saveError.message : "";
-      setError(rawMessage.includes("CAR_LIMIT_REACHED") ? "You have reached your plan limit. Upgrade your plan to publish more vehicles." : "The vehicle could not be saved. Please try again.");
-    } finally { setBusy(false); }
+        setIsOpen(false); setPhotos([]);
+      },
+    });
   }
 
-  async function toggleActive(car: OwnerCar) {
-    setBusy(true); setError("");
-    try {
-      const supabase = createClient();
-      const { error: updateError } = await supabase.from("cars").update({ is_active: !car.is_active }).eq("id", car.id);
-      if (updateError) {
-        if (updateError.message.includes("CAR_LIMIT_REACHED")) throw new Error("You have reached your plan limit. Upgrade your plan to publish more vehicles.");
-        throw updateError;
-      }
-      router.refresh();
-    } catch (toggleError) { setError(toggleError instanceof Error ? toggleError.message : "Could not update vehicle availability."); }
-    finally { setBusy(false); }
+  function toggleActive(car: OwnerCar) {
+    return runWithAlerts({
+      confirm: {
+        title: car.is_active ? "Hide this vehicle?" : "Publish this vehicle?",
+        text: car.is_active ? `${car.brand} ${car.model} will disappear from customer search.` : `${car.brand} ${car.model} can appear in customer search once eligible.`,
+        confirmText: car.is_active ? "Hide vehicle" : "Publish vehicle",
+      },
+      setPending: setBusy,
+      run: async () => {
+        const { error } = await createClient().from("cars").update({ is_active: !car.is_active }).eq("id", car.id);
+        if (error) throw error;
+      },
+      success: car.is_active ? "Vehicle hidden" : "Vehicle published",
+      refresh: router.refresh,
+    });
   }
 
-  async function removePhoto(photo: OwnerCar["car_photos"][number]) {
-    if (!editing || !window.confirm("Remove this vehicle photo?")) return;
-    setBusy(true); setError("");
-    try {
-      const supabase = createClient();
-      const { error: rowError } = await supabase.from("car_photos").delete().eq("id", photo.id);
-      if (rowError) throw rowError;
-      const paths = [photo.path, photo.thumb_path].filter((path): path is string => !!path);
-      const { error: fileError } = await supabase.storage.from("car-photos").remove(paths);
-      if (fileError) throw fileError;
-      setEditing({ ...editing, car_photos: editing.car_photos.filter((item) => item.id !== photo.id) });
-      router.refresh();
-    } catch (removeError) { setError(removeError instanceof Error ? removeError.message : "Could not remove this photo."); }
-    finally { setBusy(false); }
+  function removePhoto(photo: OwnerCar["car_photos"][number]) {
+    const car = editing;
+    if (!car) return;
+    return runWithAlerts({
+      confirm: { title: "Remove this photo?", confirmText: "Remove photo", danger: true },
+      setPending: setBusy,
+      run: async () => {
+        const db = createClient();
+        const { error: rowError } = await db.from("car_photos").delete().eq("id", photo.id);
+        if (rowError) throw rowError;
+        setEditing((current) => current?.id === car.id
+          ? { ...current, car_photos: current.car_photos.filter((item) => item.id !== photo.id) }
+          : current);
+        const paths = [photo.path, photo.thumb_path].filter((path): path is string => !!path);
+        const { error: fileError } = await db.storage.from("car-photos").remove(paths);
+        if (fileError) { router.refresh(); throw fileError; }
+      },
+      success: "Photo removed",
+      refresh: router.refresh,
+    });
   }
 
   return <div className="space-y-5">

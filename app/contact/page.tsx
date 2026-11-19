@@ -1,3 +1,5 @@
+import { HeroIntro } from "@/components/motion/HeroIntro";
+import { Reveal } from "@/components/motion/Reveal";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { ContactForm } from "@/components/contact/ContactForm";
@@ -43,10 +45,10 @@ export default async function ContactPage({ searchParams }: { searchParams: Prom
   }
 
   return <>
-    <ContactHero />
+    <HeroIntro><ContactHero /></HeroIntro>
     <main className="relative z-10 mx-auto -mt-12 grid w-full max-w-[1440px] gap-7 px-5 pb-16 sm:px-8 lg:-mt-16 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-8 lg:px-[140px]">
       <ContactForm initialName={initialName} initialEmail={initialEmail} initialTopic={initialTopic} initialBookingRef={initialBookingRef} />
-      <ContactInfoCards />
+      <Reveal desktop><ContactInfoCards /></Reveal>
     </main>
     <PublicFooter />
   </>;
