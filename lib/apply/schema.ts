@@ -4,6 +4,7 @@ import { MAX_CAR_YEAR } from "@/lib/apply/constants";
 const phone = z.string().transform((v) => v.replace(/[\s-]/g, "")).pipe(z.string().regex(/^(\+63|63|0)9\d{9}$/, "Enter a valid mobile number, like 09XX XXX XXXX."));
 
 export const applicationSchema = z.object({
+  preferred_plan: z.string().regex(/^[a-z][a-z0-9_]{1,30}$/).default("starter"),
   full_name: z.string().trim().min(2, "Enter your full name.").max(100),
   phone,
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),

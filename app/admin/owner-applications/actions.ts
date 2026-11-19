@@ -11,6 +11,9 @@ export async function approveOwnerApplication(id: string) {
   if (!admin) return { error: "Supabase admin access is not configured." };
   const { data: application, error: loadError } = await admin.from("owner_applications").select("*").eq("id", id).eq("status", "pending").single();
   if (loadError || !application) return { error: "This application is no longer pending." };
+  const chosenCode = application.preferred_plan ?? "starter";
+  const { data: chosenPlan } = await admin.from("plans").select("code,name").eq("code", chosenCode).maybeSingle();
+  const chosenPlanName = chosenPlan?.name ?? "Starter";
 
   let userId: string;
   const { data: users, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -41,7 +44,7 @@ export async function approveOwnerApplication(id: string) {
     }
     const { data: invited, error } = await admin.auth.admin.inviteUserByEmail(application.email, {
       redirectTo: `${site}/auth/confirm?next=/owner/welcome`,
-      data: { full_name: application.full_name, role: "owner" },
+      data: { full_name: application.full_name, role: "owner", preferred_plan: chosenPlan?.code ?? "starter", preferred_plan_name: escapeHtml(chosenPlanName) },
     });
     if (error || !invited.user) return { error: error?.message || "Could not send the account invitation." };
     userId = invited.user.id;
@@ -51,6 +54,11 @@ export async function approveOwnerApplication(id: string) {
   if (profileError) return { error: "The account exists, but the owner profile could not be created. Contact support before retrying." };
   const { data: owner, error: ownerError } = await admin.from("owners").upsert({ profile_id: userId, business_name: application.business_name, contact_phone: application.phone, payment_qr_path: application.payment_qr_path ?? null }, { onConflict: "profile_id" }).select("id").single();
   if (ownerError || !owner) return { error: "The profile exists, but the owner record could not be created. Contact support before retrying." };
+  const { data: starterPlan } = await admin.from("plans").select("id").eq("code", "starter").single();
+  if (starterPlan) {
+    const { error: ownerPlanError } = await admin.from("owner_plans").upsert({ owner_id: owner.id, plan_id: starterPlan.id, status: "active", expires_at: null }, { onConflict: "owner_id", ignoreDuplicates: true });
+    if (ownerPlanError) return { error: "The owner was created, but their Starter plan could not be initialized. Contact support before retrying." };
+  }
   const { data: car, error: carError } = await admin.from("cars").insert({
     owner_id: owner.id, brand: application.car_make, model: application.car_model, year: application.car_year,
     plate_number: application.plate_number, seats: application.seats, transmission: application.transmission,
@@ -71,6 +79,8 @@ export async function approveOwnerApplication(id: string) {
   revalidatePath("/admin/owner-applications");
   return { ok: true, existingAccount: Boolean(existing) };
 }
+
+function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char); }
 
 export async function updateOwnerApplication(id: string, status: "needs_changes" | "rejected", note: string) {
   const { user, supabase } = await getAdminContext();

@@ -21,6 +21,7 @@ export type OwnerCar = {
   seats: number | null;
   description: string | null;
   is_active: boolean;
+  plan_hidden: boolean;
   allows_self_drive: boolean;
   allows_with_driver: boolean;
   car_rates: { id: string; mode: "self_drive" | "with_driver"; daily_rate: number; deposit_amount: number; included_hours: number | null; overtime_per_hour: number | null; notes: string | null; fuel_policy: string | null; mileage_limit: string | null; minimum_age: number | null; license_required: boolean; fuel_included: boolean; driver_meals_included: boolean; accommodation_included: boolean; coverage_area: string | null }[];
@@ -44,7 +45,7 @@ function formFromCar(car: OwnerCar): CarForm {
   return { brand: car.brand, model: car.model, year: car.year?.toString() ?? "", plate_number: car.plate_number ?? "", car_type: car.car_type ?? "Sedan", transmission: car.transmission ?? "Automatic", fuel_type: car.fuel_type ?? "Gasoline", seats: car.seats?.toString() ?? "5", description: car.description ?? "", is_active: car.is_active, self_drive: car.allows_self_drive, with_driver: car.allows_with_driver, self_rate: self?.daily_rate?.toString() ?? "", deposit: self?.deposit_amount?.toString() ?? "", driver_rate: driver?.daily_rate?.toString() ?? "", included_hours: driver?.included_hours?.toString() ?? "10", overtime: driver?.overtime_per_hour?.toString() ?? "", fuel_policy: self?.fuel_policy ?? "Full-to-full", mileage_limit: self?.mileage_limit ?? "", minimum_age: self?.minimum_age?.toString() ?? "21", fuel_included: driver?.fuel_included ?? false, driver_meals_included: driver?.driver_meals_included ?? false, accommodation_included: driver?.accommodation_included ?? false, coverage_area: driver?.coverage_area ?? "" };
 }
 
-export function CarManager({ cars, ownerId, initialOpen = false }: { cars: OwnerCar[]; ownerId: string; initialOpen?: boolean }) {
+export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenByPlan = 0 }: { cars: OwnerCar[]; ownerId: string; initialOpen?: boolean; usage: {used:number;limit:number}|null; hiddenByPlan?:number }) {
   const router = useRouter();
   const [editing, setEditing] = useState<OwnerCar | null>(null);
   const [isOpen, setIsOpen] = useState(initialOpen);
@@ -103,7 +104,8 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
 
       setIsOpen(false); setPhotos([]); router.refresh();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "The vehicle could not be saved. Please try again.");
+      const rawMessage = saveError instanceof Error ? saveError.message : "";
+      setError(rawMessage.includes("CAR_LIMIT_REACHED") ? "You have reached your plan limit. Upgrade your plan to publish more cars." : "The vehicle could not be saved. Please try again.");
     } finally { setBusy(false); }
   }
 
@@ -112,7 +114,10 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
     try {
       const supabase = createClient();
       const { error: updateError } = await supabase.from("cars").update({ is_active: !car.is_active }).eq("id", car.id);
-      if (updateError) throw updateError;
+      if (updateError) {
+        if (updateError.message.includes("CAR_LIMIT_REACHED")) throw new Error("You have reached your plan limit. Upgrade your plan to publish more cars.");
+        throw updateError;
+      }
       router.refresh();
     } catch (toggleError) { setError(toggleError instanceof Error ? toggleError.message : "Could not update vehicle availability."); }
     finally { setBusy(false); }
@@ -135,6 +140,7 @@ export function CarManager({ cars, ownerId, initialOpen = false }: { cars: Owner
   }
 
   return <div className="space-y-5">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e3eaf4] bg-white px-4 py-3"><p className="text-sm font-semibold text-[#40536d]">Active cars <span className="text-[#2457d6]">{usage?.used ?? 0} of {usage?.limit ?? "—"}</span></p><div className="flex items-center gap-3">{hiddenByPlan > 0 && <p className="text-xs text-amber-800">{hiddenByPlan} hidden by plan</p>}<a href="/owner/plan" className="text-xs font-semibold text-[#315fae] hover:underline">Manage plan</a></div></div>
     <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-xs"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b97a8]"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vehicles..." className="h-9 w-full rounded-lg border border-[#e1e7ef] bg-white pl-9 pr-3 text-xs outline-none focus:border-[#94a9e9]"/></div><button onClick={openNewCar} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8]"><Plus size={14}/>Add vehicle</button></div>
     {error && !isOpen && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}
     {isOpen && <section className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><h2 className="text-sm font-semibold text-[#33445b]">{editing ? "Edit vehicle" : "Add a vehicle"}</h2><p className="mt-1 text-[10px] text-[#8793a3]">Set up the details and rental options for this car.</p></div><button aria-label="Close form" onClick={() => setIsOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8591a2] hover:bg-[#f4f6fa]"><X size={17}/></button></div>
@@ -170,6 +176,6 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
 function CarCard({ car, busy, onEdit, onToggle }: { car: OwnerCar; busy: boolean; onEdit: () => void; onToggle: () => void }) {
   const photo = car.car_photos?.[0]?.path;
   const photoUrl = photo ? car.car_photos[0].publicUrl : null;
-  return <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="relative h-40 bg-[#f0f3f8]">{photoUrl ? <img src={photoUrl} alt={`${car.brand} ${car.model}`} className="h-full w-full object-cover"/> : <div className="flex h-full items-center justify-center text-[#a8b3c2]"><CarFront size={42} strokeWidth={1.2}/></div>}<span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[9px] font-semibold ${car.is_active ? "bg-white text-[#31805c]" : "bg-white text-[#798596]"}`}>{car.is_active ? "Active" : "Hidden"}</span><span className="absolute bottom-3 right-3 rounded-md bg-[#202d40]/70 px-2 py-1 text-[9px] text-white">{car.car_photos?.length ?? 0} photos</span></div><div className="p-4"><div className="flex items-start justify-between gap-2"><div><h2 className="text-sm font-semibold text-[#33445b]">{car.year ? `${car.year} ` : ""}{car.brand} {car.model}</h2><p className="mt-1 text-[10px] text-[#8b97a8]">{[car.plate_number, car.car_type, car.transmission].filter(Boolean).join(" · ") || "Vehicle details not set"}</p></div><button aria-label={`Edit ${car.brand} ${car.model}`} onClick={onEdit} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#e5eaf1] text-[#6c7b90] hover:bg-[#f7f9fc]"><Pencil size={14}/></button></div><div className="mt-4 grid grid-cols-2 gap-2">{car.allows_self_drive && <RateTile label="Self drive" rate={car.car_rates?.find((item) => item.mode === "self_drive")?.daily_rate} />}{car.allows_with_driver && <RateTile label="With driver" rate={car.car_rates?.find((item) => item.mode === "with_driver")?.daily_rate} />}</div><div className="mt-4 flex items-center justify-between border-t border-[#edf0f4] pt-3"><span className="text-[10px] text-[#8995a6]">{car.car_photos?.length ?? 0} vehicle photos</span><button disabled={busy} onClick={onToggle} className={`text-[10px] font-semibold ${car.is_active ? "text-[#a15757]" : "text-[#4569c4]"}`}>{car.is_active ? "Hide vehicle" : "Make active"}</button></div></div></article>;
+  return <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="relative h-40 bg-[#f0f3f8]">{photoUrl ? <img src={photoUrl} alt={`${car.brand} ${car.model}`} className="h-full w-full object-cover"/> : <div className="flex h-full items-center justify-center text-[#a8b3c2]"><CarFront size={42} strokeWidth={1.2}/></div>}<span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[9px] font-semibold ${car.is_active ? "bg-white text-[#31805c]" : "bg-white text-[#798596]"}`}>{car.is_active ? "Active" : "Hidden"}</span>{car.plan_hidden && <span className="absolute left-3 top-10 rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-semibold text-amber-800">Hidden by plan</span>}<span className="absolute bottom-3 right-3 rounded-md bg-[#202d40]/70 px-2 py-1 text-[9px] text-white">{car.car_photos?.length ?? 0} photos</span></div><div className="p-4"><div className="flex items-start justify-between gap-2"><div><h2 className="text-sm font-semibold text-[#33445b]">{car.year ? `${car.year} ` : ""}{car.brand} {car.model}</h2><p className="mt-1 text-[10px] text-[#8b97a8]">{[car.plate_number, car.car_type, car.transmission].filter(Boolean).join(" · ") || "Vehicle details not set"}</p></div><button aria-label={`Edit ${car.brand} ${car.model}`} onClick={onEdit} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#e5eaf1] text-[#6c7b90] hover:bg-[#f7f9fc]"><Pencil size={14}/></button></div>{car.plan_hidden && <p className="mt-3 text-[10px] text-amber-800">Renew or upgrade your plan to bring this car back online.</p>}<div className="mt-4 grid grid-cols-2 gap-2">{car.allows_self_drive && <RateTile label="Self drive" rate={car.car_rates?.find((item) => item.mode === "self_drive")?.daily_rate} />}{car.allows_with_driver && <RateTile label="With driver" rate={car.car_rates?.find((item) => item.mode === "with_driver")?.daily_rate} />}</div><div className="mt-4 flex items-center justify-between border-t border-[#edf0f4] pt-3"><span className="text-[10px] text-[#8995a6]">{car.car_photos?.length ?? 0} vehicle photos</span><button disabled={busy} onClick={onToggle} className={`text-[10px] font-semibold ${car.is_active ? "text-[#a15757]" : "text-[#4569c4]"}`}>{car.is_active ? "Hide vehicle" : "Make active"}</button></div></div></article>;
 }
 function RateTile({ label, rate }: { label: string; rate?: number }) { return <div className="rounded-lg bg-[#f7f9fc] px-2.5 py-2"><p className="text-[9px] text-[#8b97a8]">{label}</p><p className="mt-0.5 text-xs font-semibold text-[#485970]">{rate ? `${formatPeso(Number(rate))} / day` : "Rate not set"}</p></div>; }

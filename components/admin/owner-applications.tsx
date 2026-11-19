@@ -23,6 +23,7 @@ export type OwnerApplication = {
   daily_rate_self_drive?: number | null;
   daily_rate_with_driver?: number | null;
   admin_note?: string | null;
+  preferred_plan?: string | null;
   status: string;
   created_at: string;
 };
@@ -31,6 +32,8 @@ export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const filteredRows = rows.filter((row) => planFilter === "all" || (planFilter === "paid" ? Boolean(row.preferred_plan && row.preferred_plan !== "starter") : (row.preferred_plan ?? "starter") === planFilter));
 
   async function review(row: OwnerApplication, status: "approved" | "needs_changes" | "rejected") {
     setBusyId(row.id);
@@ -50,11 +53,12 @@ export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
   if (!rows.length) return <p className="rounded-xl border border-[#e7ecf3] bg-white p-8 text-center text-sm text-[#718096]">No car listing applications yet.</p>;
 
   return <div className="space-y-4">
+    <label className="flex items-center gap-3 text-sm font-medium text-[#53637a]">Filter applications<select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)} className="h-10 rounded-lg border border-[#dfe6ef] bg-white px-3 text-sm"><option value="all">All plans</option><option value="paid">Wants a paid plan</option><option value="starter">Starter</option></select></label>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {rows.map((row) => <article key={row.id} className="rounded-xl border border-[#e7ecf3] bg-white p-5">
+    {filteredRows.map((row) => <article key={row.id} className="rounded-xl border border-[#e7ecf3] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="font-semibold text-[#33445b]">{row.business_name}</h2><p className="mt-1 text-sm text-[#65738a]">{row.full_name} · {row.car_year ? `${row.car_year} ` : ""}{row.car_make} {row.car_model}</p></div>
-        <AdminStatus status={row.status}/>
+        <div className="flex items-center gap-2"><span className="rounded-full bg-[#edf4ff] px-2.5 py-1 text-xs font-semibold text-[#315fae]">Wants {(row.preferred_plan ?? "starter").replace(/^./, (letter) => letter.toUpperCase())}</span><AdminStatus status={row.status}/></div>
       </div>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-[#53637a]"><a href={`mailto:${row.email}`} className="text-[#4568bd] hover:underline">{row.email}</a><a href={`tel:${row.phone}`} className="text-[#4568bd] hover:underline">{row.phone}</a></div>
       <p className="mt-3 text-xs text-[#68778c]">Plate {row.plate_number || "—"} · {row.seats || "—"} seats · {row.transmission || "Transmission not specified"}</p>

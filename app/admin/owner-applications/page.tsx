@@ -6,7 +6,7 @@ export const instant = false;
 
 export default async function AdminOwnerApplicationsPage() {
   const { supabase } = await getAdminContext();
-  const { data, error } = await supabase.from("owner_applications").select("id,full_name,business_name,email,phone,car_make,car_model,car_year,message,status,created_at,plate_number,seats,transmission,offers_self_drive,offers_with_driver,daily_rate_self_drive,daily_rate_with_driver,admin_note").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("owner_applications").select("id,full_name,business_name,email,phone,car_make,car_model,car_year,message,status,created_at,plate_number,seats,transmission,offers_self_drive,offers_with_driver,daily_rate_self_drive,daily_rate_with_driver,admin_note,preferred_plan").order("created_at", { ascending: false });
   if (error) throw new Error("Could not load car listing applications.");
 
   return <>

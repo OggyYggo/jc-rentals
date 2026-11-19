@@ -48,9 +48,9 @@ export function Header() {
         </Link>
         <nav className={`hidden items-center gap-5 text-[15px] font-medium lg:flex ${isPublic ? "text-[#0F2342]" : "text-[#67766b]"}`}>
           <Link href="/cars" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Cars</Link>
-          <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>With a driver</Link>
+          <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Popular Trips</Link>
           <Link href="/#how" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>How it works</Link>
-          <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Apply to list your car</Link>
+          <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>List your car</Link>
           <Link href="/contact" aria-current={pathname === "/contact" ? "page" : undefined} className={`relative transition-colors ${pathname === "/contact" ? "font-semibold text-[#0B63CE] after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:bg-[#0B63CE]" : isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Contact</Link>
         </nav>
 

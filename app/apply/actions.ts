@@ -43,6 +43,10 @@ export async function startApplication(input: unknown, captchaToken: string, fil
 
   const parsed = applicationSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]> };
+  const requestedPlan = parsed.data.preferred_plan;
+  const validPlanCode = /^[a-z][a-z0-9_]{1,30}$/.test(requestedPlan) ? requestedPlan : "starter";
+  const { data: selectedPlan } = await admin.from("plans").select("code").eq("code", validPlanCode).eq("is_public", true).eq("is_active", true).maybeSingle();
+  const preferredPlan = selectedPlan?.code ?? "starter";
   if (!Array.isArray(files) || files.length < 7 || files.length > 12 || files.some((file) => !file || !UPLOADS.includes(file.kind))) return { ok: false as const, error: "Add 3 to 8 car photos and all four required documents." };
   const photos = files.filter((file) => file.kind === "car_photos");
   if (photos.length < 3 || photos.length > 8 || ["orcr", "license", "valid_id", "payment_qr"].some((kind) => files.filter((file) => file.kind === kind).length !== 1) || files.some((file) => !isValidFile(file, file.kind))) {
@@ -58,6 +62,7 @@ export async function startApplication(input: unknown, captchaToken: string, fil
     daily_rate_self_drive: parsed.data.offers_self_drive ? parsed.data.daily_rate_self_drive : null,
     daily_rate_with_driver: parsed.data.offers_with_driver ? parsed.data.daily_rate_with_driver : null,
     pickup_location: parsed.data.pickup_location, notes: parsed.data.notes ?? "", message: parsed.data.notes ?? "", status: "pending",
+    preferred_plan: preferredPlan,
     submitted_ip: ip === "unknown" ? null : ip, edit_token_hash: createHash("sha256").update(cancelToken).digest("hex"),
   }).select("id").single();
   if (insertError?.code === "23505") return { ok: false as const, fieldErrors: { email: ["We already have an open application for this email."] } };
@@ -95,7 +100,7 @@ export async function finalizeApplication(applicationId: string, cancelToken: st
   const admin = createAdminClient();
   if (!admin || !/^[0-9a-f-]{36}$/i.test(applicationId) || !/^[0-9a-f-]{36}$/i.test(cancelToken)) return { ok: false as const, error: "Your upload session expired. Please try again." };
   const cancelHash = createHash("sha256").update(cancelToken).digest("hex");
-  const { data: application, error: loadError } = await admin.from("owner_applications").select("id,email,full_name,status").eq("id", applicationId).eq("edit_token_hash", cancelHash).eq("status", "pending").single();
+  const { data: application, error: loadError } = await admin.from("owner_applications").select("id,email,full_name,status,preferred_plan").eq("id", applicationId).eq("edit_token_hash", cancelHash).eq("status", "pending").single();
   if (loadError || !application || !Array.isArray(files) || files.length < 7 || files.length > 12 || files.some((file) => !file || !UPLOADS.includes(file.kind))) return { ok: false as const, error: "Your upload session expired. Please try again." };
   const photos = files.filter((file) => file.kind === "car_photos");
   if (photos.length < 3 || photos.length > 8 || ["orcr", "license", "valid_id", "payment_qr"].some((kind) => files.filter((file) => file.kind === kind).length !== 1) || files.some((file) => !isValidFile(file, file.kind))) return { ok: false as const, error: "Some files are missing or invalid. Please review your uploads." };
@@ -117,13 +122,15 @@ export async function finalizeApplication(applicationId: string, cancelToken: st
 
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
+  const { data: preferredPlanRow } = await admin.from("plans").select("name").eq("code", application.preferred_plan).maybeSingle();
+  const preferredPlanName = preferredPlanRow?.name ?? "Starter";
   if (apiKey && from) {
     const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "https://kuyogbohol.com";
-    const emailHtml = `<div style="font-family:Arial,sans-serif;background:#EAF4FF;padding:32px;color:#0F2342"><div style="max-width:560px;margin:auto;background:white;border-radius:18px;padding:32px"><h1>We received your application</h1><p>Hi ${escapeHtml(application.full_name)},</p><p>Thank you for applying to list your car with Kuyog Bohol. We will review it and reply by email.</p><p><a href="${origin}/apply" style="color:#0B63CE">Visit Kuyog Bohol</a></p></div></div>`;
+    const emailHtml = `<div style="font-family:Arial,sans-serif;background:#EAF4FF;padding:32px;color:#0F2342"><div style="max-width:560px;margin:auto;background:white;border-radius:18px;padding:32px"><h1>We received your application</h1><p>Hi ${escapeHtml(application.full_name)},</p><p>Thank you for applying to list your car with Kuyog Bohol. We will review it and reply by email.</p><p>Your chosen plan: <strong>${escapeHtml(preferredPlanName)}</strong>. You pay nothing now; if you chose a paid plan, payment is only after approval.</p><p><a href="${origin}/apply" style="color:#0B63CE">Visit Kuyog Bohol</a></p></div></div>`;
     const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [application.email], subject: "We received your application", html: emailHtml }) }).catch((error) => { console.error("Application email failed", error instanceof Error ? error.message : "unknown"); return null; });
     if (response && !response.ok) console.error("Application email failed", response.status);
   }
-  await admin.rpc("notify_admins", { p_type: "application_received", p_title: "New owner application", p_body: "A car owner submitted an application.", p_url: "/admin/owner-applications", p_channels: ["in_app"], p_critical: false, p_dedupe: `application:${applicationId}` }).then(({ error }) => { if (error) console.error("Application notification failed", error.message); });
+  await admin.rpc("notify_admins", { p_type: "application_received", p_title: `New application from ${application.full_name}, plan: ${preferredPlanName}`, p_body: "A car owner submitted an application.", p_url: "/admin/owner-applications", p_channels: ["in_app"], p_critical: false, p_dedupe: `application:${applicationId}` }).then(({ error }) => { if (error) console.error("Application notification failed", error.message); });
   const cookieStore = await cookies();
   cookieStore.set("apply_email", `${application.email}.${sign(application.email)}`, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/apply/received", maxAge: 600 });
   redirect("/apply/received");
@@ -138,4 +145,18 @@ export async function getApplicationEmail() {
   if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
   return email;
 }
+
+export async function getApplicationPlanSummary() {
+  const email = await getApplicationEmail();
+  const admin = createAdminClient();
+  if (!email || !admin) return null;
+  const { data: application } = await admin.from("owner_applications").select("preferred_plan").eq("email", email).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const code = application?.preferred_plan ?? "starter";
+  const [{ data: plan }, { data: starter }] = await Promise.all([
+    admin.from("plans").select("code,name,price_php,max_active_cars,commission_rate").eq("code", code).eq("is_public", true).eq("is_active", true).maybeSingle(),
+    admin.from("plans").select("max_active_cars").eq("code", "starter").maybeSingle(),
+  ]);
+  return { plan, starterMaxCars: starter?.max_active_cars ?? null };
+}
+
 function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char); }

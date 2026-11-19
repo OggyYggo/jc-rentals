@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CalendarDays, CalendarRange, CarFront, ChevronDown, CircleDollarSign, Megaphone, WalletCards,
+  CalendarDays, CalendarRange, CarFront, ChevronDown, CircleDollarSign, Megaphone, WalletCards, BadgeDollarSign,
   LayoutDashboard, Menu, Search, X,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/notifications/bell";
 const navItems = [
   { href: "/owner", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/owner/cars", label: "My cars", icon: CarFront },
+  { href: "/owner/plan", label: "Plans and pricing", icon: BadgeDollarSign },
   { href: "/owner/promote", label: "Promote", icon: Megaphone },
   { href: "/owner/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/owner/payments", label: "Payments", icon: CircleDollarSign },

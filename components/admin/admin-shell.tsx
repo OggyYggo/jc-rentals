@@ -17,6 +17,7 @@ const navItems = [
   { href: "/admin/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/admin/payments", label: "Payments", icon: CircleDollarSign },
   { href: "/admin/topups", label: "Top-ups", icon: CircleDollarSign },
+  { href: "/admin/plan-payments", label: "Plan payments", icon: CircleDollarSign },
   { href: "/admin/fees", label: "Fees & credits", icon: CircleDollarSign },
   { href: "/admin/commissions", label: "Commissions", icon: CircleDollarSign },
   { href: "/admin/promotions", label: "Promotions", icon: Megaphone },
