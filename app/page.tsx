@@ -16,6 +16,14 @@ import { FindCarLink } from "@/components/home/FindCarLink";
 import { FeaturedCarsGrid } from "@/components/home/FeaturedCarsGrid";
 
 export const metadata = { title: "Kuyog Bohol: Car and Motorcycle Rental in Bohol, Self-Drive and With Driver", description: "Rent a car or motorcycle in Bohol from local owners. Choose self-drive or a car with a driver. Book online in minutes." };
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://kuyogbohol.com").replace(/\/$/, "");
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Kuyog Bohol",
+  url: siteUrl,
+  logo: `${siteUrl}/icon-512.png`,
+};
 const steps = [
   { Icon: CalendarCheck, title: "Choose your vehicle", desc: "Pick your dates, Self-drive or With driver, and a car." },
   { Icon: BadgeCheck, title: "Pay a small deposit", desc: "Scan the QR and upload your proof of payment." },
@@ -44,6 +52,7 @@ const perks: [LucideIcon, string, string][] = [
 
 export default function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd).replace(/</g, "\\u003c") }} />
     {/* Hero */}
     <section id="top" className="public-hero relative flex flex-col justify-center px-5 pb-32 pt-16 sm:px-8 md:min-h-[560px] md:pb-36 md:pt-24">
       <Image src={heroBackground} alt="The Chocolate Hills in Bohol" fill priority sizes="100vw" className="object-cover object-center"/>

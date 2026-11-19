@@ -16,8 +16,16 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://kuyogbohol.com"),
   title: "Kuyog Bohol — Rental Business, Simplified",
   description: "Manage bookings, vehicles, customers, and rental operations in one clear workspace. Built for rental businesses in the Philippines.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: "/icon-192.png",
+  },
   appleWebApp: { capable: true, title: "Kuyog Bohol", statusBarStyle: "default" },
 };
 
