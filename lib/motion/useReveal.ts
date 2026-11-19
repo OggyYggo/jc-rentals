@@ -2,49 +2,56 @@
 
 import { useRef, type RefObject } from "react";
 import { EASE_OUT, gsap, MOTION, useGSAP } from "./gsap";
+import { observeReveal } from "./observeReveal";
 
 export function useReveal(
   scope: RefObject<HTMLElement | null>,
   { desktop = false, intro = false }: { desktop?: boolean; intro?: boolean } = {},
 ) {
   const seen = useRef(new WeakSet<Element>());
+  const introPlayed = useRef(false);
 
   useGSAP(() => {
     const root = scope.current!;
     const media = gsap.matchMedia(scope);
-    media.add(desktop ? `${MOTION} and (min-width: 1024px)` : MOTION, () => {
-      if (intro) {
-        const timeline = gsap.timeline({ defaults: { ease: EASE_OUT, clearProps: "transform,opacity" } });
-        timeline
-          .from("[data-intro]", { y: 16, duration: 0.5, stagger: 0.08 }, 0)
-          .from("[data-intro-trust]", { y: 12, opacity: 0, duration: 0.5, stagger: 0.05 }, 0.22)
-          .from("[data-intro-card]", { y: 20, duration: 0.6 }, 0.43);
+    media.add(desktop ? `${MOTION} and (min-width: 1024px)` : MOTION, (context) => {
+      if (intro && !introPlayed.current) {
+        gsap.delayedCall(0, () => {
+          if (window.scrollY > 32 || root.getBoundingClientRect().top >= window.innerHeight) return;
+          introPlayed.current = true;
+          context.add(() => {
+            gsap.timeline({ defaults: { ease: EASE_OUT, clearProps: "transform,opacity" } })
+              .from("[data-intro]", { y: 8, duration: 0.4, stagger: 0.05 }, 0)
+              .from("[data-intro-trust]", { y: 6, opacity: 0.85, duration: 0.38, stagger: 0.04 }, 0.12)
+              .from("[data-intro-card]", { y: 10, duration: 0.45 }, 0.2);
+          });
+        });
       }
 
-      const reveal = (trigger: Element, targets: Element[], line?: Element | null, mask?: Element | null) => {
-        if (seen.current.has(trigger) || !targets.length) return;
-        const timeline = gsap.timeline({
-          defaults: { ease: EASE_OUT, clearProps: "transform,opacity" },
-          scrollTrigger: {
-            trigger,
-            start: "top 90%",
-            once: true,
-            onEnter: () => seen.current.add(trigger),
-          },
-        });
-        if (mask) timeline.fromTo(mask, { clipPath: "inset(0 0 100% 0 round 18px)" }, {
-          clipPath: "inset(0 0 0% 0 round 18px)", duration: 0.9, immediateRender: false, clearProps: "clipPath",
-        }, 0);
-        const delay = Number(trigger.getAttribute("data-reveal-delay") ?? 0);
-        timeline.from(targets, { y: 20, opacity: 0, duration: 0.6, stagger: 0.1, immediateRender: false }, mask ? 0.35 : delay);
-        if (line) timeline.from(line, { scaleX: 0, duration: 0.65, immediateRender: false }, 0);
-      };
+      const cleanups: (() => void)[] = [];
 
-      root.querySelectorAll("[data-reveal]").forEach((element) => reveal(element, [element]));
+      function observe(targets: Element[], delay = 0) {
+        const cleanup = observeReveal(targets.filter((target) => !seen.current.has(target)), (entering) => {
+          entering.forEach((target) => seen.current.add(target));
+          const line = entering.find((target) => target.hasAttribute("data-reveal-line"));
+          const items = entering.filter((target) => target !== line);
+          context.add(() => {
+            if (items.length) gsap.from(items, {
+              y: 10, opacity: 0.8, duration: 0.4, stagger: 0.06, delay, ease: EASE_OUT,
+              immediateRender: delay === 0, clearProps: "transform,opacity",
+            });
+            if (line) gsap.from(line, { scaleX: 0.5, duration: 0.45, ease: EASE_OUT, clearProps: "transform" });
+          });
+        });
+        if (cleanup) cleanups.push(cleanup);
+      }
+
+      observe(Array.from(root.querySelectorAll("[data-reveal]")));
       root.querySelectorAll("[data-reveal-stagger]").forEach((group) => {
-        const items = Array.from(group.querySelectorAll("[data-reveal-item]"));
-        reveal(group, items, group.querySelector("[data-reveal-line]"), group.querySelector("[data-reveal-mask]"));
+        const targets = Array.from(group.querySelectorAll("[data-reveal-item], [data-reveal-line]"));
+        observe(targets, Number(group.getAttribute("data-reveal-delay") ?? 0));
       });
+      return () => cleanups.forEach((cleanup) => cleanup());
     });
     return () => media.revert();
   }, { scope });

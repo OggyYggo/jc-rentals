@@ -6,14 +6,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { accountReturnPath, googleNextCookie } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/client";
 
-export function AuthForm({ mode, configured, next = "/account/bookings" }: { mode: "login" | "signup"; configured: boolean; next?: string }) {
+export function AuthForm({ mode, configured, next = "/account/bookings", initialMessage = "" }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
@@ -118,15 +119,19 @@ export function AuthForm({ mode, configured, next = "/account/bookings" }: { mod
 
   async function handleGoogle() {
     setError("");
+    setMessage("");
     setBusy(true);
     try {
       const supabase = createClient();
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `${googleNextCookie}=${encodeURIComponent(accountReturnPath(next))}; Max-Age=600; Path=/auth/callback; SameSite=Lax${secure}`;
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}` },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (authError) throw authError;
     } catch (authError) {
+      document.cookie = `${googleNextCookie}=; Max-Age=0; Path=/auth/callback`;
       setError(authError instanceof Error ? authError.message : "Google sign-in is unavailable. Please try again.");
       setBusy(false);
     }

@@ -65,7 +65,7 @@ They create customer, owner, and admin data; booking and calendar rules; private
 
 In Supabase Authentication settings, enable **Email** and **Google**.
 
-- For Google: add the Supabase callback URL shown in the provider setup to Google Cloud, and add your app's `/auth/callback` URL to Supabase's allowed redirect URLs. For local development this is `http://localhost:3000/auth/callback`.
+- For Google, register the Supabase provider callback in Google Cloud. In Supabase **Authentication → URL Configuration**, set **Site URL** to `https://kuyogbohol.app` and add `https://kuyogbohol.app/auth/callback` to **Redirect URLs**. Add `http://localhost:3000/auth/callback` separately for local sign-in.
 - Email confirmation redirects to the profile page; Google and existing email sign-ins open My Bookings.
 
 ### 4. Provision roles

@@ -81,7 +81,7 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
       </div>
     </section>
 
-    <Suspense fallback={<RideWithDriver lowestDriverPrice={null} animate={false} />}><RideWithDriverData /></Suspense>
+    <RideWithDriver price={<Suspense fallback={null}><RideWithDriverPrice /></Suspense>} />
 
     <Suspense fallback={<FeaturedCarsFallback mode="all"/>}><FeaturedCarsForQuery searchParams={searchParams}/></Suspense>
 
@@ -189,7 +189,7 @@ async function FeaturedCars({ mode }: { mode: "all" | "self" | "driver" }) {
   return <section id="cars" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured vehicles</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all vehicles<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <FeaturedCarsGrid cars={cars} mode={mode}/> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Vehicles are being added. Check back soon.</h3><Link href="/apply" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Apply to list your vehicle</Link></div>}</div></section>;
 }
 
-async function RideWithDriverData() {
+async function RideWithDriverPrice() {
   let lowestDriverPrice: number | null = null;
   if (isSupabaseConfigured()) {
     try {
@@ -202,7 +202,7 @@ async function RideWithDriverData() {
       lowestDriverPrice = null;
     }
   }
-  return <RideWithDriver lowestDriverPrice={lowestDriverPrice} />;
+  return lowestDriverPrice == null ? null : <p className="text-center text-[15px] text-[#51657F] lg:text-left">With driver from <b className="text-[#0F2342]">₱{lowestDriverPrice.toLocaleString()} / day</b></p>;
 }
 
 function FeaturedCarsFallback({ mode }: { mode: "all" | "self" | "driver" }) {

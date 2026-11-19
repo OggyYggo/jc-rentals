@@ -28,6 +28,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [{ source: "/account/documents", destination: "/account/profile", permanent: false }];
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },

@@ -1,15 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { accountReturnPath, googleNextCookie } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
-function safeNextPath(value: string | null) {
-  if (value !== "/account/profile" && value !== "/account/bookings") return "/account/bookings";
-  return value;
-}
-
 export async function GET(request: NextRequest) {
-  if (!isSupabaseConfigured()) return NextResponse.redirect(new URL("/login", request.url));
-  const code = request.nextUrl.searchParams.get("code");
+  const params = request.nextUrl.searchParams;
+
+  function returnTo(path: string, clearHash = false) {
+    const target = new URL(path, request.url);
+    // An explicit fragment prevents browsers from carrying over OAuth error details.
+    if (clearHash) target.hash = "#";
+    const response = NextResponse.redirect(target);
+    response.cookies.set(googleNextCookie, "", { path: "/auth/callback", maxAge: 0 });
+    return response;
+  }
+
+  if (params.get("error") === "access_denied") return returnTo("/login?error=auth_cancelled", true);
+  if (!isSupabaseConfigured()) return returnTo("/login", true);
+
+  const code = params.get("code");
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -17,11 +26,11 @@ export async function GET(request: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-        if (profile?.role === "owner") return NextResponse.redirect(new URL("/owner", request.url));
-        if (profile?.role === "admin") return NextResponse.redirect(new URL("/admin", request.url));
+        if (profile?.role === "owner") return returnTo("/owner");
+        if (profile?.role === "admin") return returnTo("/admin");
       }
-      return NextResponse.redirect(new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url));
+      return returnTo(accountReturnPath(params.get("next") ?? request.cookies.get(googleNextCookie)?.value));
     }
   }
-  return NextResponse.redirect(new URL("/login?error=auth", request.url));
+  return returnTo("/login?error=auth", true);
 }

@@ -16,6 +16,10 @@ export function useCountUp(value: number, onChange: boolean) {
     const text = scope.current!;
     text.textContent = numberFormat.format(value);
     if (onChange ? start === value : played.current) return;
+    if (!onChange && text.getBoundingClientRect().top < window.innerHeight + 24) {
+      played.current = true;
+      return;
+    }
 
     const media = gsap.matchMedia();
     media.add(MOTION, () => {
@@ -25,7 +29,7 @@ export function useCountUp(value: number, onChange: boolean) {
         duration: onChange ? 0.4 : 1.2,
         ease: EASE_OUT,
         scrollTrigger: onChange ? undefined : {
-          trigger: text, start: "top 90%", once: true, onEnter: () => { played.current = true; },
+          trigger: text, start: "top bottom+=24", once: true, onEnter: () => { played.current = true; },
         },
         onUpdate: () => { text.textContent = numberFormat.format(Number.isInteger(value) ? Math.round(counter.value) : counter.value); },
       });
