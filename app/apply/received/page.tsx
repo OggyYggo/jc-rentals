@@ -13,7 +13,7 @@ async function ChosenPlanCard() {
   const starter = plan.code === "starter";
   return <article className="mx-auto mt-6 max-w-lg rounded-2xl border border-[#D6E6F7] bg-[#F3F9FF] p-5 text-left">
     <div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-[#0B63CE]"><Star size={20}/></span><div><h2 className="font-semibold text-[#0F2342]">Your chosen plan: {plan.name}</h2>
-      <p className="mt-1 text-sm leading-5 text-[#51657F]">{starter ? "You are starting on the Starter plan. You can upgrade any time after approval." : `You pay nothing now. After we approve you, open Plan in your owner dashboard to pay and activate it. Until then, you start on Starter${details?.starterMaxCars ? ` (${details.starterMaxCars} cars)` : ""}.`}</p>
+      <p className="mt-1 text-sm leading-5 text-[#51657F]">{starter ? "You are starting on the Starter plan. You can upgrade any time after approval." : `You pay nothing now. After we approve you, open Plan in your owner dashboard to pay and activate it. Until then, you start on Starter${details?.starterMaxVehicles ? ` (${details.starterMaxVehicles} vehicles)` : ""}.`}</p>
     </div></div>
   </article>;
 }

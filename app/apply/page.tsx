@@ -6,7 +6,7 @@ import { PublicFooter } from "@/components/public-footer";
 import { ApplyPlanProvider } from "@/components/apply/ApplyPlanContext";
 import { getPublicPlans } from "@/lib/plans/queries";
 
-export const metadata: Metadata = { title: "Apply to List Your Car | Kuyog Bohol", description: "Apply to offer your car for rent in Bohol. No account needed." };
+export const metadata: Metadata = { title: "Apply to List Your Car | Kuyog Bohol", description: "Apply to offer your vehicle for rent in Bohol. No account needed." };
 export const instant = false;
 export default async function ApplyPage({ searchParams }: PageProps<"/apply">) {
   const [{ plans, unavailable }, params] = await Promise.all([getPublicPlans(), searchParams]);

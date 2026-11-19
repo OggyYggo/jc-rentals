@@ -6,6 +6,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
 });
 
 const carSearchSchema = z.object({
+  vehicle: z.enum(["car", "motorcycle"]).optional().catch(undefined),
   mode: z.enum(["self", "driver"]).optional().catch(undefined),
   from: isoDate.optional().catch(undefined),
   to: isoDate.optional().catch(undefined),
@@ -40,6 +41,7 @@ export function parseCarSearch(input: CarSearchInput) {
   const rawTo = first(input.to) ?? first(input.end);
   const parsed = carSearchSchema.safeParse({
     mode: rawMode === "self_drive" ? "self" : rawMode === "with_driver" ? "driver" : rawMode,
+    vehicle: first(input.vehicle),
     from: rawFrom,
     to: rawTo,
     pickup: first(input.pickup),

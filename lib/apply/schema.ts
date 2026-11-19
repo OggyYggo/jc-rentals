@@ -4,6 +4,10 @@ import { MAX_CAR_YEAR } from "@/lib/apply/constants";
 const phone = z.string().transform((v) => v.replace(/[\s-]/g, "")).pipe(z.string().regex(/^(\+63|63|0)9\d{9}$/, "Enter a valid mobile number, like 09XX XXX XXXX."));
 
 export const applicationSchema = z.object({
+  vehicle_type: z.enum(["car", "motorcycle"]).default("car"),
+  car_type: z.string().trim().min(1).max(80).default("Sedan"),
+  engine_cc: z.preprocess((value) => value === "" || value == null ? undefined : value, z.coerce.number().int().min(50).max(2000).optional()),
+  helmets_included: z.coerce.number().int().min(0).max(2).default(0),
   preferred_plan: z.string().regex(/^[a-z][a-z0-9_]{1,30}$/).default("starter"),
   full_name: z.string().trim().min(2, "Enter your full name.").max(100),
   phone,
@@ -14,7 +18,7 @@ export const applicationSchema = z.object({
   car_year: z.coerce.number().int().min(1990, "Enter a valid year.").max(MAX_CAR_YEAR),
   plate_number: z.string().trim().min(3, "Enter the plate number.").max(12).transform((v) => v.toUpperCase()),
   seats: z.coerce.number().int().min(1).max(20),
-  transmission: z.enum(["manual", "automatic"]),
+  transmission: z.enum(["manual", "automatic", "semi-automatic"]),
   fuel_type: z.enum(["gasoline", "diesel", "hybrid", "electric"]),
   offers_self_drive: z.boolean(), offers_with_driver: z.boolean(),
   daily_rate_self_drive: z.preprocess((value) => value === "" || value == null ? undefined : value, z.coerce.number().positive("Enter a daily rate.").optional()),
@@ -22,7 +26,17 @@ export const applicationSchema = z.object({
   pickup_location: z.string().trim().min(3, "Enter the pickup location.").max(200),
   notes: z.string().trim().max(500).optional(), agree: z.literal(true),
 }).superRefine((v, ctx) => {
-  if (!v.offers_self_drive && !v.offers_with_driver) ctx.addIssue({ code: "custom", path: ["offers_self_drive"], message: "Choose at least one way to rent your car." });
+  if (v.vehicle_type === "motorcycle") {
+    if (!["Scooter", "Standard", "Adventure", "Big bike"].includes(v.car_type)) ctx.addIssue({ code: "custom", path: ["car_type"], message: "Choose a motorcycle type." });
+    if (!["gasoline", "electric"].includes(v.fuel_type)) ctx.addIssue({ code: "custom", path: ["fuel_type"], message: "Choose gasoline or electric for a motorcycle." });
+    if (v.seats > 2) ctx.addIssue({ code: "custom", path: ["seats"], message: "Motorcycles can have 1 or 2 passengers." });
+    if (v.offers_with_driver) ctx.addIssue({ code: "custom", path: ["offers_with_driver"], message: "Motorcycles are self-drive only." });
+  } else {
+    if (!["Sedan", "SUV", "MPV", "Van", "Pickup", "Coupe", "Other"].includes(v.car_type)) ctx.addIssue({ code: "custom", path: ["car_type"], message: "Choose a vehicle type." });
+    if (v.seats > 20) ctx.addIssue({ code: "custom", path: ["seats"], message: "Enter a valid number of seats." });
+    if (v.helmets_included !== 0) ctx.addIssue({ code: "custom", path: ["helmets_included"], message: "Cars cannot include motorcycle helmets." });
+  }
+  if (!v.offers_self_drive && !v.offers_with_driver) ctx.addIssue({ code: "custom", path: ["offers_self_drive"], message: "Choose at least one way to rent your vehicle." });
   if (v.offers_self_drive && !v.daily_rate_self_drive) ctx.addIssue({ code: "custom", path: ["daily_rate_self_drive"], message: "Enter a daily rate." });
   if (v.offers_with_driver && !v.daily_rate_with_driver) ctx.addIssue({ code: "custom", path: ["daily_rate_with_driver"], message: "Enter a daily rate." });
 });

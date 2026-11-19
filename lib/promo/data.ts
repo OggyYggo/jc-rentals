@@ -18,7 +18,7 @@ export const getPublicPromoCar = cache(async (carId: string) => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("cars")
-    .select("id,owner_id,brand,model,year,seats,transmission,car_type,is_active,allows_self_drive,allows_with_driver,short_code,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
+    .select("id,owner_id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,is_active,allows_self_drive,allows_with_driver,short_code,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
     .eq("id", carId)
     .eq("is_active", true)
     .maybeSingle();
@@ -44,7 +44,7 @@ export async function loadCarForPromo(carId: string) {
 
   const { data: car } = await supabase
     .from("cars")
-    .select("id,owner_id,brand,model,year,seats,transmission,car_type,is_active,allows_self_drive,allows_with_driver,short_code,owner:owners(business_name),car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
+    .select("id,owner_id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,is_active,allows_self_drive,allows_with_driver,short_code,owner:owners(business_name),car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
     .eq("id", carId)
     .eq("is_active", true)
     .maybeSingle();

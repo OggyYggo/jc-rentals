@@ -97,7 +97,7 @@ function stackLayout({ car, photo, qr, link, logo }: TemplateProps, w: number, s
   const { rates, startingRate, rateLabels } = rateSummary(car);
   const label = carLabel(car);
   const modes = [car.allows_self_drive ? "Self-drive" : null, car.allows_with_driver ? "With driver" : null].filter(Boolean).join(" · ");
-  const specs = [car.seats ? `${car.seats} seats` : null, car.transmission].filter(Boolean).join(" · ");
+  const specs = [car.seats ? `${car.seats} ${car.vehicle_type === "motorcycle" ? "passengers" : "seats"}` : null, car.transmission, car.vehicle_type === "motorcycle" && car.engine_cc ? `${car.engine_cc} cc` : null, car.vehicle_type === "motorcycle" && car.helmets_included ? `${car.helmets_included} helmets included` : null].filter(Boolean).join(" · ");
   const inner = w - s.margin * 2;
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: C.bg, fontFamily: BODY }}>
@@ -186,7 +186,7 @@ export function squarePromoTemplate({ car, photo, qr, logo }: TemplateProps): Re
         {spacer()}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: C.white }}>
           <span style={{ display: "flex", fontSize: fit(title, 54, 42, 18), lineHeight: 1.1 }}>{title}</span>
-          <span style={{ display: "flex", marginTop: 6, fontSize: 24, color: "#CFE3FF" }}>{[car.year, car.car_type, car.allows_self_drive ? "Self-drive" : null, car.allows_with_driver ? "With driver" : null].filter(Boolean).join(" · ")}</span>
+          <span style={{ display: "flex", marginTop: 6, fontSize: 24, color: "#CFE3FF" }}>{[car.year, car.car_type, car.vehicle_type === "motorcycle" && car.seats ? `${car.seats} passengers` : null, car.vehicle_type === "motorcycle" && car.engine_cc ? `${car.engine_cc} cc` : null, car.vehicle_type === "motorcycle" && car.helmets_included ? `${car.helmets_included} helmets` : null, car.allows_self_drive ? "Self-drive" : null, car.allows_with_driver ? "With driver" : null].filter(Boolean).join(" / ")}</span>
         </div>
         {spacer()}
       </div>
@@ -205,7 +205,7 @@ export function generalBrandTemplate(qr: string, link: string, logo?: string | n
         {spacer()}
         {brandHeader(logo, 100, 60, 30)}
         {spacer()}
-        <div style={{ display: "flex", fontFamily: HEAD, fontSize: 92, fontWeight: 700, color: C.white, lineHeight: 1.05, textAlign: "center" }}>Book a car in Bohol</div>
+        <div style={{ display: "flex", fontFamily: HEAD, fontSize: 92, fontWeight: 700, color: C.white, lineHeight: 1.05, textAlign: "center" }}>Book a car or motorcycle in Bohol</div>
         {spacer()}
         <div style={{ display: "flex", fontSize: 36, color: "#CFE3FF" }}>Self-drive or with a local driver.</div>
         {spacer()}

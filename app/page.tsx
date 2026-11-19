@@ -15,9 +15,9 @@ import { RideWithDriver } from "@/components/home/RideWithDriver";
 import { FindCarLink } from "@/components/home/FindCarLink";
 import { FeaturedCarsGrid } from "@/components/home/FeaturedCarsGrid";
 
-export const metadata = { title: "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver", description: "Rent a car in Bohol from local owners. Drive yourself or hire a car with a driver. Book online in minutes." };
+export const metadata = { title: "Kuyog Bohol: Car and Motorcycle Rental in Bohol, Self-Drive and With Driver", description: "Rent a car or motorcycle in Bohol from local owners. Choose self-drive or a car with a driver. Book online in minutes." };
 const steps = [
-  { Icon: CalendarCheck, title: "Choose your car", desc: "Pick your dates, Self-drive or With driver, and a car." },
+  { Icon: CalendarCheck, title: "Choose your vehicle", desc: "Pick your dates, Self-drive or With driver, and a car." },
   { Icon: BadgeCheck, title: "Pay a small deposit", desc: "Scan the QR and upload your proof of payment." },
   { Icon: MessageSquare, title: "Pick up and go", desc: "Meet the owner or driver, pay the balance, and enjoy Bohol." },
 ];
@@ -36,7 +36,7 @@ const trustItems: [LucideIcon, string][] = [
   [FileText, "Documents kept private"],
 ];
 const perks: [LucideIcon, string, string][] = [
-  [Users, "Local owners", "Cars come from owners based right here in Bohol."],
+  [Users, "Local owners", "Vehicles come from owners based right here in Bohol."],
   [CarFront, "Two ways to travel", "Drive yourself or ride with a local driver."],
   [CircleDollarSign, "Clear pricing", "See exactly what is included before you book — no surprises."],
   [ShieldCheck, "Private documents", "Your license and ID are stored securely and only shared when needed."],
@@ -50,9 +50,9 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#0F2342]/80 via-[#0A3D91]/35 to-[#0F2342]/5 md:bg-[#0F2342]/60"/>
       <div aria-hidden="true" className="absolute inset-0 bg-[#0A3D91]/15"/>
       <div className="relative z-10 mx-auto w-full max-w-6xl text-center text-white">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.15em] backdrop-blur-md">CAR RENTAL IN BOHOL</span>
-        <h1 className="mx-auto mt-6 max-w-[900px] text-[46px] font-semibold leading-[1.04] tracking-tight md:text-6xl lg:text-[76px]">Explore Bohol your way.</h1>
-        <p className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Drive yourself or ride with a local driver. Book in minutes.</p>
+        <span className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.15em] backdrop-blur-md">CAR & MOTORCYCLE RENTAL IN BOHOL</span>
+        <h1 className="mx-auto mt-6 max-w-[900px] text-[46px] font-semibold leading-[1.04] tracking-tight md:text-6xl lg:text-[76px]">Rent a car or motorcycle in Bohol.</h1>
+        <p className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Choose a self-drive car, a car with a driver, or a self-drive motorcycle. Book in minutes.</p>
         <div className="mx-auto mt-8 grid max-w-[300px] grid-cols-2 justify-center gap-x-5 gap-y-3 text-left text-sm font-semibold text-white/95 sm:flex sm:max-w-none sm:flex-wrap sm:gap-x-8 sm:text-center">
           <span className="flex items-center gap-2"><Users size={20} strokeWidth={1.8}/> Local owners</span>
           <span className="flex items-center gap-2"><CircleDollarSign size={20} strokeWidth={1.8}/> Clear pricing</span>
@@ -104,7 +104,7 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
     <section id="faq" className="bg-[#F5FAFF] px-5 py-16 sm:px-8 md:py-24">
       <div className="mx-auto max-w-6xl">
         <p className="mb-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Why Kuyog Bohol</p>
-        <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Rent a car the easy way</h2>
+        <h2 className="text-center text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Rent the right vehicle the easy way</h2>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {perks.map(([Icon,title,desc])=><article key={title} className="public-card rounded-2xl border border-[#D6E6F7] bg-white p-6"><div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EAF4FF] text-[#0B63CE]"><Icon size={22} strokeWidth={1.8}/></div><h3 className="font-semibold text-[#0F2342]">{title}</h3><p className="mt-2 text-sm leading-6 text-[#51657F]">{desc}</p></article>)}
         </div>
@@ -118,11 +118,11 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
         <div aria-hidden="true" className="absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-[#0B63CE]/30 blur-3xl"/>
         <div className="relative flex flex-col items-center justify-between gap-6 sm:flex-row sm:text-left">
           <div className="max-w-xl">
-            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB]">For local car owners</p>
-            <h2 className="text-2xl font-bold md:text-3xl">Own a car in Bohol? List it on Kuyog Bohol.</h2>
-            <p className="mt-3 text-sm leading-6 text-white/75">Reach travelers across the island and turn your car into extra income.</p>
+            <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#CFE6FB]">For local vehicle owners</p>
+            <h2 className="text-2xl font-bold md:text-3xl">Own a car or motorcycle in Bohol? List it on Kuyog Bohol.</h2>
+            <p className="mt-3 text-sm leading-6 text-white/75">Reach travelers across the island and turn your vehicle into extra income.</p>
           </div>
-          <Link href="/apply" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#0A3D91] transition-transform hover:scale-[1.03]">Apply to list your car<ArrowRight size={15}/></Link>
+          <Link href="/apply" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-semibold text-[#0A3D91] transition-transform hover:scale-[1.03]">Apply to list your vehicle<ArrowRight size={15}/></Link>
         </div>
       </div>
     </section>
@@ -147,8 +147,8 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
             <p className="mt-4 max-w-xs text-sm leading-6 text-white/70">Car rental in Bohol — self-drive or with a local driver. Booked online, driven by locals.</p>
           </div>
           <div className="flex flex-wrap gap-x-10 gap-y-6 text-sm">
-            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/#cars">Cars</Link><Link href="/#trips">With a driver</Link><Link href="/#how">How it works</Link></div>
-            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/apply">Apply to list your car</Link><Link href="/contact">Contact</Link></div>
+            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Explore</span><Link href="/#cars">Vehicles</Link><Link href="/#trips">With a driver</Link><Link href="/#how">How it works</Link></div>
+            <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Company</span><Link href="/apply">Apply to list your vehicle</Link><Link href="/contact">Contact</Link></div>
             <div className="flex flex-col gap-2.5"><span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/50">Legal</span><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></div>
           </div>
         </div>
@@ -170,11 +170,11 @@ async function FeaturedCars({ mode }: { mode: "all" | "self" | "driver" }) {
   if (isSupabaseConfigured()) {
     await io();
     const db = await createClient();
-    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
+    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
     cars = data ?? [];
   }
 
-  return <section id="cars" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all cars<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <FeaturedCarsGrid cars={cars} mode={mode}/> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Cars are being added. Check back soon.</h3><Link href="/apply" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Apply to list your car</Link></div>}</div></section>;
+  return <section id="cars" className="scroll-mt-24 bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured vehicles</h2></div><Link href="/cars" className="group inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-[#0B63CE] hover:text-[#0A3D91]">View all vehicles<ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5"/></Link></div>{cars.length ? <FeaturedCarsGrid cars={cars} mode={mode}/> : <div className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#EAF4FF] text-[#0B63CE]"><CarFront/></div><h3 className="mt-4 font-semibold text-[#0F2342]">Vehicles are being added. Check back soon.</h3><Link href="/apply" className="mt-3 inline-block text-sm font-semibold text-[#0B63CE]">Apply to list your vehicle</Link></div>}</div></section>;
 }
 
 async function RideWithDriverData() {
@@ -194,5 +194,5 @@ async function RideWithDriverData() {
 }
 
 function FeaturedCarsFallback({ mode }: { mode: "all" | "self" | "driver" }) {
-  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured cars</h2></div><div role="status" className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center text-sm text-[#51657F]">Loading {mode === "driver" ? "cars with a driver" : mode === "self" ? "self-drive cars" : "cars"}…</div></div></section>;
+  return <section id="cars" className="bg-white px-5 py-16 sm:px-8 md:py-24"><div className="mx-auto max-w-6xl"><div><p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#0B63CE]">Ready when you are</p><h2 className="text-3xl font-bold tracking-tight text-[#0F2342] md:text-4xl">Featured vehicles</h2></div><div role="status" className="mt-10 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center text-sm text-[#51657F]">Loading {mode === "driver" ? "cars with a driver" : mode === "self" ? "self-drive vehicles" : "vehicles"}…</div></div></section>;
 }

@@ -1,6 +1,6 @@
 export type PricingPlan = {
   id: string; code: string; name: string; tagline: string | null; price_php: number;
-  max_active_cars: number; commission_rate: number; support_level: string;
+  max_active_vehicles: number; commission_rate: number; support_level: string;
   features: string[]; is_featured: boolean; sort_order: number;
 };
 

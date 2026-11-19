@@ -47,14 +47,16 @@ export async function startApplication(input: unknown, captchaToken: string, fil
   const validPlanCode = /^[a-z][a-z0-9_]{1,30}$/.test(requestedPlan) ? requestedPlan : "starter";
   const { data: selectedPlan } = await admin.from("plans").select("code").eq("code", validPlanCode).eq("is_public", true).eq("is_active", true).maybeSingle();
   const preferredPlan = selectedPlan?.code ?? "starter";
-  if (!Array.isArray(files) || files.length < 7 || files.length > 12 || files.some((file) => !file || !UPLOADS.includes(file.kind))) return { ok: false as const, error: "Add 3 to 8 car photos and all four required documents." };
+  if (!Array.isArray(files) || files.length < 7 || files.length > 12 || files.some((file) => !file || !UPLOADS.includes(file.kind))) return { ok: false as const, error: "Add 3 to 8 vehicle photos and all four required documents." };
   const photos = files.filter((file) => file.kind === "car_photos");
   if (photos.length < 3 || photos.length > 8 || ["orcr", "license", "valid_id", "payment_qr"].some((kind) => files.filter((file) => file.kind === kind).length !== 1) || files.some((file) => !isValidFile(file, file.kind))) {
-    return { ok: false as const, error: "Check your files. Add 3 to 8 car photos and one valid file for each required document." };
+    return { ok: false as const, error: "Check your files. Add 3 to 8 vehicle photos and one valid file for each required document." };
   }
   const rows = files.map((file) => ({ ...file, path: `${randomUUID()}.${file.name.split(".").pop()?.toLowerCase()}` }));
   const cancelToken = randomUUID();
   const { data: application, error: insertError } = await admin.from("owner_applications").insert({
+    vehicle_type: parsed.data.vehicle_type, car_type: parsed.data.car_type ?? null, engine_cc: parsed.data.vehicle_type === "motorcycle" ? parsed.data.engine_cc ?? null : null,
+    helmets_included: parsed.data.vehicle_type === "motorcycle" ? parsed.data.helmets_included : 0,
     full_name: parsed.data.full_name, email: parsed.data.email, phone: parsed.data.phone, address: parsed.data.address,
     business_name: `${parsed.data.car_make} ${parsed.data.car_model}`, car_make: parsed.data.car_make, car_model: parsed.data.car_model,
     car_year: parsed.data.car_year, plate_number: parsed.data.plate_number, seats: parsed.data.seats, transmission: parsed.data.transmission,
@@ -126,11 +128,11 @@ export async function finalizeApplication(applicationId: string, cancelToken: st
   const preferredPlanName = preferredPlanRow?.name ?? "Starter";
   if (apiKey && from) {
     const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "https://kuyogbohol.com";
-    const emailHtml = `<div style="font-family:Arial,sans-serif;background:#EAF4FF;padding:32px;color:#0F2342"><div style="max-width:560px;margin:auto;background:white;border-radius:18px;padding:32px"><h1>We received your application</h1><p>Hi ${escapeHtml(application.full_name)},</p><p>Thank you for applying to list your car with Kuyog Bohol. We will review it and reply by email.</p><p>Your chosen plan: <strong>${escapeHtml(preferredPlanName)}</strong>. You pay nothing now; if you chose a paid plan, payment is only after approval.</p><p><a href="${origin}/apply" style="color:#0B63CE">Visit Kuyog Bohol</a></p></div></div>`;
+    const emailHtml = `<div style="font-family:Arial,sans-serif;background:#EAF4FF;padding:32px;color:#0F2342"><div style="max-width:560px;margin:auto;background:white;border-radius:18px;padding:32px"><h1>We received your application</h1><p>Hi ${escapeHtml(application.full_name)},</p><p>Thank you for applying to list your vehicle with Kuyog Bohol. We will review it and reply by email.</p><p>Your chosen plan: <strong>${escapeHtml(preferredPlanName)}</strong>. You pay nothing now; if you chose a paid plan, payment is only after approval.</p><p><a href="${origin}/apply" style="color:#0B63CE">Visit Kuyog Bohol</a></p></div></div>`;
     const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [application.email], subject: "We received your application", html: emailHtml }) }).catch((error) => { console.error("Application email failed", error instanceof Error ? error.message : "unknown"); return null; });
     if (response && !response.ok) console.error("Application email failed", response.status);
   }
-  await admin.rpc("notify_admins", { p_type: "application_received", p_title: `New application from ${application.full_name}, plan: ${preferredPlanName}`, p_body: "A car owner submitted an application.", p_url: "/admin/owner-applications", p_channels: ["in_app"], p_critical: false, p_dedupe: `application:${applicationId}` }).then(({ error }) => { if (error) console.error("Application notification failed", error.message); });
+  await admin.rpc("notify_admins", { p_type: "application_received", p_title: `New application from ${application.full_name}, plan: ${preferredPlanName}`, p_body: "A vehicle owner submitted an application.", p_url: "/admin/owner-applications", p_channels: ["in_app"], p_critical: false, p_dedupe: `application:${applicationId}` }).then(({ error }) => { if (error) console.error("Application notification failed", error.message); });
   const cookieStore = await cookies();
   cookieStore.set("apply_email", `${application.email}.${sign(application.email)}`, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/apply/received", maxAge: 600 });
   redirect("/apply/received");
@@ -153,10 +155,10 @@ export async function getApplicationPlanSummary() {
   const { data: application } = await admin.from("owner_applications").select("preferred_plan").eq("email", email).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const code = application?.preferred_plan ?? "starter";
   const [{ data: plan }, { data: starter }] = await Promise.all([
-    admin.from("plans").select("code,name,price_php,max_active_cars,commission_rate").eq("code", code).eq("is_public", true).eq("is_active", true).maybeSingle(),
-    admin.from("plans").select("max_active_cars").eq("code", "starter").maybeSingle(),
+    admin.from("plans").select("code,name,price_php,max_active_vehicles,commission_rate").eq("code", code).eq("is_public", true).eq("is_active", true).maybeSingle(),
+    admin.from("plans").select("max_active_vehicles").eq("code", "starter").maybeSingle(),
   ]);
-  return { plan, starterMaxCars: starter?.max_active_cars ?? null };
+  return { plan, starterMaxVehicles: starter?.max_active_vehicles ?? null };
 }
 
 function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char); }

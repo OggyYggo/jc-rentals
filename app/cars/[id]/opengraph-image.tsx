@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import sharp from "sharp";
 import { getPublicPromoCar } from "@/lib/promo/data";
 
-export const alt = "Car rental in Bohol from Kuyog Bohol";
+export const alt = "Car and motorcycle rental in Bohol from Kuyog Bohol";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -32,9 +32,9 @@ export default async function Image({ params }: { params: Promise<{ id: string }
         {photo && <img src={photo} width="680" height="630" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ display: "flex", flex: 1, flexDirection: "column", justifyContent: "center", padding: "45px 48px" }}>
-        <div style={{ display: "flex", color: "#0B63CE", fontSize: 20, fontWeight: 700, letterSpacing: 3 }}>CAR RENTAL IN BOHOL</div>
+        <div style={{ display: "flex", color: "#0B63CE", fontSize: 20, fontWeight: 700, letterSpacing: 3 }}>{car.vehicle_type === "motorcycle" ? "MOTORCYCLE RENTAL IN BOHOL" : "CAR RENTAL IN BOHOL"}</div>
         <div style={{ display: "flex", marginTop: 24, fontSize: 49, lineHeight: 1.1, fontWeight: 700 }}>{car.brand} {car.model}</div>
-        <div style={{ display: "flex", marginTop: 12, color: "#51657F", fontSize: 22 }}>{[car.year, car.car_type].filter(Boolean).join(" · ")}</div>
+        <div style={{ display: "flex", marginTop: 12, color: "#51657F", fontSize: 22 }}>{[car.year, car.car_type, car.vehicle_type === "motorcycle" && car.seats ? `${car.seats} passengers` : null, car.vehicle_type === "motorcycle" && car.engine_cc ? `${car.engine_cc} cc` : null, car.vehicle_type === "motorcycle" && car.helmets_included ? `${car.helmets_included} helmets included` : null].filter(Boolean).join(" / ")}</div>
         {from !== null && <div style={{ display: "flex", alignSelf: "flex-start", marginTop: 30, borderRadius: 999, padding: "14px 20px", background: "#0B63CE", color: "white", fontSize: 24, fontWeight: 700 }}>From ₱{from.toLocaleString()} / day</div>}
         <div style={{ display: "flex", marginTop: 30, color: "#0A3D91", fontSize: 20, fontWeight: 700 }}>Kuyog Bohol · Book online</div>
       </div>

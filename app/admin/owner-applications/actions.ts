@@ -59,23 +59,24 @@ export async function approveOwnerApplication(id: string) {
     const { error: ownerPlanError } = await admin.from("owner_plans").upsert({ owner_id: owner.id, plan_id: starterPlan.id, status: "active", expires_at: null }, { onConflict: "owner_id", ignoreDuplicates: true });
     if (ownerPlanError) return { error: "The owner was created, but their Starter plan could not be initialized. Contact support before retrying." };
   }
-  const { data: car, error: carError } = await admin.from("cars").insert({
+  const { data: car, error: carError } = await admin.from("vehicles").insert({
+    vehicle_type: application.vehicle_type ?? "car", engine_cc: application.engine_cc ?? null, helmets_included: application.helmets_included ?? 0,
     owner_id: owner.id, brand: application.car_make, model: application.car_model, year: application.car_year,
     plate_number: application.plate_number, seats: application.seats, transmission: application.transmission,
-    fuel_type: application.fuel_type, is_active: false, allows_self_drive: application.offers_self_drive,
+    car_type: application.car_type ?? null, fuel_type: application.fuel_type, is_active: false, allows_self_drive: application.offers_self_drive,
     allows_with_driver: application.offers_with_driver, description: application.message || "",
   }).select("id").single();
-  if (carError || !car) return { error: "The owner was created, but the draft car could not be created. Contact support before retrying." };
+  if (carError || !car) return { error: "The owner was created, but the draft vehicle could not be created. Contact support before retrying." };
   const rates = [
     ...(application.offers_self_drive && application.daily_rate_self_drive ? [{ car_id: car.id, mode: "self_drive", daily_rate: application.daily_rate_self_drive }] : []),
     ...(application.offers_with_driver && application.daily_rate_with_driver ? [{ car_id: car.id, mode: "with_driver", daily_rate: application.daily_rate_with_driver }] : []),
   ];
   if (rates.length) {
     const { error } = await admin.from("car_rates").insert(rates);
-    if (error) return { error: "The owner was created, but the draft car rates could not be saved. Contact support before retrying." };
+    if (error) return { error: "The owner was created, but the draft vehicle rates could not be saved. Contact support before retrying." };
   }
   const { error: updateError } = await admin.from("owner_applications").update({ status: "approved", user_id: userId, reviewed_by: user.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");
-  if (updateError) return { error: "The owner account and draft car were created, but the application status could not be updated." };
+  if (updateError) return { error: "The owner account and draft vehicle were created, but the application status could not be updated." };
   revalidatePath("/admin/owner-applications");
   return { ok: true, existingAccount: Boolean(existing) };
 }

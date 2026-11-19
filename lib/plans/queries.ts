@@ -12,7 +12,7 @@ export async function getPublicPlans(): Promise<{ plans: PricingPlan[]; unavaila
   });
   const { data, error } = await supabase
     .from("plans")
-    .select("id,code,name,tagline,price_php,max_active_cars,commission_rate,support_level,features,is_featured,sort_order")
+    .select("id,code,name,tagline,price_php,max_active_vehicles,commission_rate,support_level,features,is_featured,sort_order")
     .eq("is_public", true)
     .eq("is_active", true)
     .order("sort_order");

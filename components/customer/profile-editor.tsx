@@ -12,18 +12,20 @@ type ProfileEditorProps = {
   hasLicense: boolean;
   hasId: boolean;
   verification: string;
+  declaredClasses: string[];
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
-export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, verification }: ProfileEditorProps) {
+export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, verification, declaredClasses }: ProfileEditorProps) {
   const [name, setName] = useState(fullName);
   const [phoneNumber, setPhoneNumber] = useState(phone);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
   const [licensePresent, setLicensePresent] = useState(hasLicense);
   const [idPresent, setIdPresent] = useState(hasId);
+  const [classes, setClasses] = useState<string[]>(declaredClasses);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -54,6 +56,7 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
       const { data: updated, error: profileError } = await supabase.from("profiles").update({
         full_name: name.trim(),
         phone: phoneNumber.trim() || null,
+        license_declared_classes: classes,
       }).eq("id", userId).select("id").single();
       if (profileError) throw profileError;
       if (!updated) throw new Error("Your profile could not be found. Please sign out and sign in again.");
@@ -86,6 +89,7 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
               <DocumentUpload label="Driver’s license" present={licensePresent} file={licenseFile} onChange={setLicenseFile} />
               <DocumentUpload label="Government ID" present={idPresent} file={idFile} onChange={setIdFile} />
             </div>
+            <fieldset className="mt-4 rounded-xl bg-[#f5f8ff] p-4"><legend className="px-1 text-xs font-semibold text-[#34445b]">My license covers</legend><div className="mt-2 flex flex-wrap gap-4">{[["car","Car"],["motorcycle","Motorcycle"]].map(([value,label])=><label key={value} className="flex items-center gap-2 text-xs text-[#526178]"><input type="checkbox" checked={classes.includes(value)} onChange={(event)=>setClasses((current)=>event.target.checked?[...new Set([...current,value])]:current.filter((item)=>item!==value))} className="h-4 w-4 accent-[#2457d6]"/>{label}</label>)}</div><p className="mt-2 text-[11px] leading-5 text-[#7b8797]">We confirm this when we review your license. Upload a clear photo of the front and back. Motorcycles need a license valid for motorcycles. Check the current rules on the <a className="font-semibold text-[#2457d6] underline" href="https://lto.gov.ph/wp-content/uploads/2023/09/14-CC2024-DL-CODES.pdf" target="_blank" rel="noreferrer">Land Transportation Office website</a>.</p></fieldset>
             <div className="mt-3 flex items-center gap-2 text-[11px] text-[#8490a0]"><ShieldCheck size={13} className="text-[#5680db]"/> Private storage · PDF, JPG, PNG, or WebP · Up to 10 MB each</div>
             {verification !== "none" && <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#edf2ff] px-2.5 py-1 text-[10px] font-medium capitalize text-[#4568b6]"><FileCheck2 size={12}/> Verification {verification}</p>}
           </div>

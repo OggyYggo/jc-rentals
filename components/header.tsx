@@ -47,10 +47,10 @@ export function Header() {
           <span className={`text-[15px] font-semibold tracking-tight ${isPublic ? "text-[#0F2342]" : "text-[#23372a]"}`}>Kuyog Bohol</span>
         </Link>
         <nav className={`hidden items-center gap-5 text-[15px] font-medium lg:flex ${isPublic ? "text-[#0F2342]" : "text-[#67766b]"}`}>
-          <Link href="/cars" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Cars</Link>
+          <Link href="/cars" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Vehicles</Link>
           <Link href="/#trips" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Popular Trips</Link>
           <Link href="/#how" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>How it works</Link>
-          <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>List your car</Link>
+          <Link href="/apply" className={`transition-colors ${isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>List your vehicle</Link>
           <Link href="/contact" aria-current={pathname === "/contact" ? "page" : undefined} className={`relative transition-colors ${pathname === "/contact" ? "font-semibold text-[#0B63CE] after:absolute after:-bottom-2 after:left-0 after:h-0.5 after:w-full after:bg-[#0B63CE]" : isPublic ? "hover:text-[#0B63CE]" : "hover:text-[#2457d6]"}`}>Contact</Link>
         </nav>
 
@@ -72,10 +72,10 @@ export function Header() {
             <Menu size={20} className="group-open:hidden"/><X size={20} className="hidden group-open:block"/>
           </summary>
           <nav aria-label="Mobile navigation" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 grid w-64 gap-1 rounded-xl border border-[#D6E6F7] bg-white p-2 text-sm text-[#0F2342] shadow-xl">
-            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/cars">Cars</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/cars">Vehicles</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#trips">With a driver</Link>
             <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/#how">How it works</Link>
-            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/apply">Apply to list your car</Link>
+            <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/apply">Apply to list your vehicle</Link>
             <Link onClick={closeMobileMenu} aria-current={pathname === "/contact" ? "page" : undefined} className={`rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF] ${pathname === "/contact" ? "font-semibold text-[#0B63CE]" : ""}`} href="/contact">Contact</Link>
             {userName ? <>
               <span className="flex items-center gap-3 rounded-xl border border-[#D6E6F7] bg-[#F5FAFF] px-3 py-3">
