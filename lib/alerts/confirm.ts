@@ -56,7 +56,7 @@ export async function promptReason({
     cancelButtonText: "Cancel",
     confirmButtonText: confirmText,
     input: "textarea",
-    inputLabel: label,
+    inputLabel: label ? label + " · Do not include ID numbers or bank details." : "Do not include ID numbers or bank details.",
     inputPlaceholder: placeholder,
     inputAttributes: { maxlength: String(maxLength) },
     inputValidator: (value) => reasonError(value, minLength, maxLength, required),

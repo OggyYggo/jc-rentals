@@ -7,7 +7,7 @@ import { getAdminContext } from "@/lib/admin-context";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function approveOwnerApplication(id: string) {
-  const { user } = await getAdminContext();
+  const { supabase } = await getAdminContext();
   const admin = createAdminClient();
   if (!admin) return { error: "Supabase admin access is not configured." };
   const { data: application, error: loadError } = await admin.from("owner_applications").select("*").eq("id", id).eq("status", "pending").single();
@@ -51,33 +51,8 @@ export async function approveOwnerApplication(id: string) {
     userId = invited.user.id;
   }
 
-  const { error: profileError } = await admin.from("profiles").upsert({ id: userId, full_name: application.full_name, phone: application.phone, role: "owner" });
-  if (profileError) return { error: "The account exists, but the owner profile could not be created. Contact support before retrying." };
-  const { data: owner, error: ownerError } = await admin.from("owners").upsert({ profile_id: userId, business_name: application.business_name, contact_phone: application.phone, payment_qr_path: application.payment_qr_path ?? null }, { onConflict: "profile_id" }).select("id").single();
-  if (ownerError || !owner) return { error: "The profile exists, but the owner record could not be created. Contact support before retrying." };
-  const { data: starterPlan } = await admin.from("plans").select("id").eq("code", "starter").single();
-  if (starterPlan) {
-    const { error: ownerPlanError } = await admin.from("owner_plans").upsert({ owner_id: owner.id, plan_id: starterPlan.id, status: "active", expires_at: null }, { onConflict: "owner_id", ignoreDuplicates: true });
-    if (ownerPlanError) return { error: "The owner was created, but their Starter plan could not be initialized. Contact support before retrying." };
-  }
-  const { data: car, error: carError } = await admin.from("vehicles").insert({
-    vehicle_type: application.vehicle_type ?? "car", engine_cc: application.engine_cc ?? null, helmets_included: application.helmets_included ?? 0,
-    owner_id: owner.id, brand: application.car_make, model: application.car_model, year: application.car_year,
-    plate_number: application.plate_number, seats: application.seats, transmission: application.transmission,
-    car_type: application.car_type ?? null, fuel_type: application.fuel_type, is_active: false, allows_self_drive: application.offers_self_drive,
-    allows_with_driver: application.offers_with_driver, description: application.message || "",
-  }).select("id").single();
-  if (carError || !car) return { error: "The owner was created, but the draft vehicle could not be created. Contact support before retrying." };
-  const rates = [
-    ...(application.offers_self_drive && application.daily_rate_self_drive ? [{ car_id: car.id, mode: "self_drive", daily_rate: application.daily_rate_self_drive }] : []),
-    ...(application.offers_with_driver && application.daily_rate_with_driver ? [{ car_id: car.id, mode: "with_driver", daily_rate: application.daily_rate_with_driver }] : []),
-  ];
-  if (rates.length) {
-    const { error } = await admin.from("car_rates").insert(rates);
-    if (error) return { error: "The owner was created, but the draft vehicle rates could not be saved. Contact support before retrying." };
-  }
-  const { error: updateError } = await admin.from("owner_applications").update({ status: "approved", user_id: userId, reviewed_by: user.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");
-  if (updateError) return { error: "The owner account and draft vehicle were created, but the application status could not be updated." };
+  const { error: approvalError } = await supabase.rpc("admin_complete_owner_application", { p_application_id: id, p_user_id: userId });
+  if (approvalError) return { error: "Could not complete the application approval. Check that it is still pending and try again." };
   revalidatePath("/admin/owner-applications");
   return { ok: true, existingAccount: Boolean(existing) };
 }
@@ -85,12 +60,12 @@ export async function approveOwnerApplication(id: string) {
 function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char); }
 
 export async function updateOwnerApplication(id: string, status: "needs_changes" | "rejected", note: string) {
-  const { user, supabase } = await getAdminContext();
+  const { supabase } = await getAdminContext();
   const cleanNote = note.trim();
   if (status !== "needs_changes" && status !== "rejected") return { error: "Could not update this application." };
   const validationError = reasonError(cleanNote);
   if (validationError) return { error: validationError };
-  const { error } = await supabase.from("owner_applications").update({ status, admin_note: cleanNote, reviewed_by: user.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("status", "pending");
+  const { error } = await supabase.rpc("admin_request_application_changes", { p_application_id: id, p_status: status, p_reason: cleanNote });
   if (error) return { error: "Could not update this application." };
   revalidatePath("/admin/owner-applications");
   return { ok: true };

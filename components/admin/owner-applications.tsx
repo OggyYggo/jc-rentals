@@ -1,5 +1,8 @@
 "use client";
 
+import { EntityHistory } from "@/components/admin/audit/EntityHistory";
+import { DocumentLink } from "@/components/admin/audit/DocumentLink";
+
 import { runWithAlerts } from "@/lib/alerts/run";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +11,7 @@ import { approveOwnerApplication, updateOwnerApplication } from "@/app/admin/own
 
 export type OwnerApplication = {
   id: string;
+  documents: Record<"license" | "id" | "registration", boolean>;
   full_name: string;
   business_name: string;
   email: string;
@@ -67,7 +71,7 @@ export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
 
   return <div className="space-y-4">
     <label className="flex items-center gap-3 text-sm font-medium text-[#53637a]">Filter applications<select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)} className="h-10 rounded-lg border border-[#dfe6ef] bg-white px-3 text-sm"><option value="all">All plans</option><option value="paid">Wants a paid plan</option><option value="starter">Starter</option></select></label>
-    {filteredRows.map((row) => <article key={row.id} className="rounded-xl border border-[#e7ecf3] bg-white p-5">
+    {filteredRows.map((row) => <article id={`record-${row.id}`} key={row.id} className="rounded-xl border border-[#e7ecf3] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="font-semibold text-[#33445b]">{row.business_name} <span className="ml-2 rounded-full bg-[#edf4ff] px-2 py-1 text-[10px] capitalize text-[#315fae]">{row.vehicle_type ?? "car"}</span></h2><p className="mt-1 text-sm text-[#65738a]">{row.full_name} · {row.car_year ? `${row.car_year} ` : ""}{row.car_make} {row.car_model}</p></div>
         <div className="flex items-center gap-2"><span className="rounded-full bg-[#edf4ff] px-2.5 py-1 text-xs font-semibold text-[#315fae]">Wants {(row.preferred_plan ?? "starter").replace(/^./, (letter) => letter.toUpperCase())}</span><AdminStatus status={row.status}/></div>
@@ -79,6 +83,11 @@ export function OwnerApplications({ rows }: { rows: OwnerApplication[] }) {
       {row.admin_note && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Review note: {row.admin_note}</p>}
       <p className="mt-3 text-xs text-[#8b97a8]">Submitted {new Date(row.created_at).toLocaleString("en-PH")}</p>
       {row.status === "pending" && <div className="mt-4 flex flex-wrap gap-2"><button disabled={busyId === row.id} onClick={() => review(row, "approved")} className="rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-60">{busyId === row.id ? "Working…" : "Approve and invite"}</button><button disabled={busyId === row.id} onClick={() => review(row, "needs_changes")} className="rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-800 disabled:opacity-60">Request changes</button><button disabled={busyId === row.id} onClick={() => review(row, "rejected")} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-60">Reject</button></div>}
+      <div className="mt-3 flex flex-wrap gap-3 text-sm">
+        {([["license", "Driver’s license"], ["id", "ID"], ["registration", "Vehicle registration"]] as const).map(([kind, label]) =>
+          row.documents[kind] && <DocumentLink key={kind} entity="application" id={row.id} kind={kind}>{label}</DocumentLink>)}
+      </div>
+      <EntityHistory entity="application" id={row.id}/>
     </article>)}
   </div>;
 }
