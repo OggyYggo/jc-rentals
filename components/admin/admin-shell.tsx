@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, CarFront, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Search, Settings2, ScrollText, ShieldCheck, Store, Users, X, Megaphone } from "lucide-react";
+import { CalendarDays, CarFront, ChevronDown, CircleDollarSign, LayoutDashboard, Menu, Search, Settings2, ScrollText, Star, ShieldCheck, Store, Users, X, Megaphone } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications/bell";
 
@@ -21,17 +21,18 @@ const navItems = [
   { href: "/admin/fees", label: "Fees & credits", icon: CircleDollarSign },
   { href: "/admin/commissions", label: "Commissions", icon: CircleDollarSign },
   { href: "/admin/promotions", label: "Promotions", icon: Megaphone },
+  { href: "/admin/reviews", label: "Reviews", icon: Star },
   { href: "/admin/settings", label: "Platform settings", icon: Settings2 },
   { href: "/admin/audit-log", label: "Audit log", icon: ScrollText },
 ];
 
-export function AdminShell({ children, email, fullName, userId }: { children: ReactNode; email: string; fullName: string; userId: string }) {
+export function AdminShell({ children, email, fullName, userId, reviewReports }: { children: ReactNode; email: string; fullName: string; userId: string; reviewReports: number }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   function navigation(mobile = false) {
     return <nav className="space-y-1">{navItems.map(({ href, label, icon: Icon, exact }) => {
       const active = exact ? pathname === href : pathname.startsWith(href);
-      return <Link key={href} href={href} onClick={() => mobile && setMobileOpen(false)} className={`flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition ${active ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#65738a] hover:bg-[#f4f6fa] hover:text-[#34445b]"}`}><Icon size={17} strokeWidth={1.8}/>{label}</Link>;
+      return <Link key={href} href={href} onClick={() => mobile && setMobileOpen(false)} className={`flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition ${active ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#65738a] hover:bg-[#f4f6fa] hover:text-[#34445b]"}`}><Icon size={17} strokeWidth={1.8}/>{label}{href === "/admin/reviews" && reviewReports > 0 && <span className="ml-auto rounded bg-blue-50 px-2 text-xs">{reviewReports}</span>}</Link>;
     })}</nav>;
   }
 

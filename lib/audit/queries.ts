@@ -9,7 +9,7 @@ export const auditExportLimit = 5000;
 function entityClause(entity: Entity, id: string) {
   const own = `and(entity_type.eq.${entity},entity_id.eq.${id})`;
   if (entity === "booking") return `${own},and(entity_type.eq.payment,metadata->>booking_id.eq.${id})`;
-  if (entity === "car") return `${own},and(entity_type.eq.car_rate,metadata->>car_id.eq.${id})`;
+  if (entity === "car") return `${own},and(entity_type.in.(car_rate,review),metadata->>car_id.eq.${id})`;
   if (entity === "owner") return `${own},metadata->>owner_id.eq.${id}`;
   return own;
 }

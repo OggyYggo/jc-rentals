@@ -69,6 +69,7 @@ export function recordHref(row: AuditRow) {
     case "owner": case "owner_plan": return "/admin/owners/" + id;
     case "customer": return "/admin/customers#record-" + id;
     case "booking": return "/admin/bookings#record-" + id;
+    case "review": return "/admin/reviews";
     case "car": return "/admin/cars#record-" + id;
     case "application": return "/admin/owner-applications#record-" + id;
     case "payment": return row.metadata.booking_id ? "/admin/bookings#record-" + encodeURIComponent(row.metadata.booking_id) : "/admin/payments";

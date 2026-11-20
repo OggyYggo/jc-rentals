@@ -15,7 +15,7 @@ export default async function AdminOverviewPage() {
   const { supabase } = await getAdminContext();
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus] = await Promise.all([
+  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, reports] = await Promise.all([
     supabase.from("owners").select("id", { count: "exact", head: true }),
     supabase.from("cars").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer"),
@@ -24,6 +24,7 @@ export default async function AdminOverviewPage() {
     supabase.from("bookings").select("id, reference, created_at, total_price, status, customer:profiles!bookings_customer_id_fkey(full_name), owner:owners!bookings_owner_id_fkey(business_name), car:cars!bookings_car_id_fkey(brand, model)").order("created_at", { ascending: false }).limit(6),
     recentActivity(supabase),
     alertBadge(supabase),
+    supabase.from("review_reports").select("id", { count: "exact", head: true }).eq("status","open"),
   ]);
   const monthlyBookings = monthBookings.data ?? [];
   const gross = monthlyBookings.reduce((sum, booking) => sum + Number(booking.total_price), 0);
@@ -39,6 +40,7 @@ export default async function AdminOverviewPage() {
       <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><h2 className="text-sm font-semibold text-[#33445b]">Admin shortcuts</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Common platform tasks</p><div className="mt-4 space-y-2">{[{href:"/admin/customers",label:"Review customer verification",note:`${pending.count ?? 0} pending`,icon:FileCheck2},{href:"/admin/owners",label:"Manage rental owners",note:`${owners.count ?? 0} owners`,icon:Store},{href:"/admin/commissions",label:"View monthly commissions",note:"Reports and CSV export",icon:CircleDollarSign}].map(({href,label,note,icon:Icon})=><Link href={href} key={href} className="flex items-center gap-3 rounded-lg border border-[#edf0f4] p-3 transition hover:bg-[#f8faff]"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf2ff] text-[#4c6fc9]"><Icon size={15}/></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold text-[#4b5b72]">{label}</span><span className="mt-0.5 block text-[9px] text-[#8b97a8]">{note}</span></span><ArrowRight size={13} className="text-[#91a0b4]"/></Link>)}</div></article>
     </section>
     <Link href="/admin/settings#email-alerts" className="mt-5 inline-block rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">Email alerts · {emailStatus}</Link>
+    {!reports.error && <Link href="/admin/reviews" className="ml-2 mt-5 inline-block rounded-md border bg-white px-3 py-2 text-xs font-medium">Reviews waiting · {reports.count ?? 0} open reports</Link>}
     <RecentActivity entries={activity} now={now.getTime()}/>
   </>;
 }

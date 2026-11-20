@@ -5,8 +5,9 @@ import { getAdminContext } from "@/lib/admin-context";
 export const instant = false;
 
 async function AdminLayoutContent({ children }: { children: ReactNode }) {
-  const { user, profile } = await getAdminContext();
-  return <AdminShell userId={user.id} email={user.email ?? "Admin"} fullName={profile?.full_name ?? ""}>{children}</AdminShell>;
+  const { user, profile, supabase } = await getAdminContext();
+  const { count } = await supabase.from("review_reports").select("id", { count: "exact", head: true }).eq("status","open");
+  return <AdminShell reviewReports={count ?? 0} userId={user.id} email={user.email ?? "Admin"} fullName={profile?.full_name ?? ""}>{children}</AdminShell>;
 }
 
 function AdminLoading() {

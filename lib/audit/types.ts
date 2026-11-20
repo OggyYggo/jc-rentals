@@ -1,7 +1,7 @@
 export const entities = [
   "owner", "customer", "booking", "car", "application", "payment", "topup", "invoice",
   "setting", "promo", "car_rate", "driver", "pickup_location", "plan", "owner_plan",
-  "plan_payment", "contact", "audit",
+  "plan_payment", "contact", "audit", "review",
 ] as const;
 
 export const roles = ["admin", "owner", "customer", "system"] as const;
