@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { contactSchema, contactTopicLabels } from "@/lib/contact/schema";
 import type { ContactActionState } from "@/lib/contact/types";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { queueSubmissionAlert } from "@/lib/admin-alerts/delivery";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
@@ -140,6 +141,7 @@ export async function submitContactMessage(
   const apiKey = process.env.RESEND_API_KEY;
   const topicLabel = contactTopicLabels[parsed.data.topic];
   const supportEmailValid = contactSchema.shape.email.safeParse(supportInbox).success;
+  const alertQueued = queueSubmissionAlert(admin, "contact.message", row.id);
   const sent = await Promise.all([
     supportEmailValid && from && apiKey
       ? sendEmail({
@@ -172,6 +174,7 @@ export async function submitContactMessage(
     }),
   ]);
 
+  await alertQueued;
   const emailStatus = sent.every(Boolean) ? "sent" : sent.some(Boolean) ? "partial" : "failed";
   if (!sent[0] && supportEmailValid) console.error("Contact support email could not be delivered");
   if (!sent[1]) console.error("Contact visitor confirmation email could not be delivered");

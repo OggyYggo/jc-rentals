@@ -4,6 +4,7 @@ import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { queueSubmissionAlert } from "@/lib/admin-alerts/delivery";
 import { applicationSchema } from "@/lib/apply/schema";
 import { DOC_TYPES, IMAGE_TYPES, MAX_FILE_BYTES, UPLOADS, type UploadKind } from "@/lib/apply/constants";
 
@@ -132,6 +133,7 @@ export async function finalizeApplication(applicationId: string, cancelToken: st
     const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [application.email], subject: "We received your application", html: emailHtml }) }).catch((error) => { console.error("Application email failed", error instanceof Error ? error.message : "unknown"); return null; });
     if (response && !response.ok) console.error("Application email failed", response.status);
   }
+  await queueSubmissionAlert(admin, "application.submitted", applicationId);
   await admin.rpc("notify_admins", { p_type: "application_received", p_title: `New application from ${application.full_name}, plan: ${preferredPlanName}`, p_body: "A vehicle owner submitted an application.", p_url: "/admin/owner-applications", p_channels: ["in_app"], p_critical: false, p_dedupe: `application:${applicationId}` }).then(({ error }) => { if (error) console.error("Application notification failed", error.message); });
   const cookieStore = await cookies();
   cookieStore.set("apply_email", `${application.email}.${sign(application.email)}`, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/apply/received", maxAge: 600 });
