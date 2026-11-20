@@ -56,7 +56,9 @@ end;
 $$;
 
 create function public.admin_request_application_changes(p_application_id uuid, p_status text, p_reason text)
-returns void language plpgsql security definer set search_path = '' set app.audit_reason = '' as $$
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
 begin
   if not public.is_admin() then raise exception 'Administrator access required.'; end if;
   if p_status is null or p_status not in ('needs_changes', 'rejected') then
@@ -67,6 +69,7 @@ begin
   update public.owner_applications set status = p_status, admin_note = p_reason, reviewed_by = auth.uid(),
     reviewed_at = now(), updated_at = now() where id = p_application_id and status = 'pending';
   if not found then raise exception 'This application is no longer pending.'; end if;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end;
 $$;
 

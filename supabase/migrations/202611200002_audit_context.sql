@@ -1,9 +1,10 @@
--- Scope each audit context setting to the RPC or cron call, including nested writes.
+-- Set audit context during the call and restore it before returning. If an error escapes, PostgreSQL rolls back the transaction-local change.
 
 create or replace function public.reject_booking_payment(p_payment_id uuid, p_reason text)
-returns void language plpgsql security definer set search_path = '' set app.audit_reason = ''
+returns void language plpgsql security definer set search_path = ''
 as $$
 declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
   payment_row public.payments%rowtype;
   booking_row public.bookings%rowtype;
   owner_row public.owners%rowtype;
@@ -20,13 +21,15 @@ begin
   update public.bookings set status = case when payment_due_at <= now() then 'expired'::public.booking_status else 'awaiting_payment'::public.booking_status end,
     deposit_refund_status = case when payment_due_at <= now() then 'owed' else deposit_refund_status end
   where id = booking_row.id;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end;
 $$;
 
 create or replace function public.cancel_booking(p_booking_id uuid, p_reason text)
-returns void language plpgsql security definer set search_path = '' set app.audit_reason = ''
+returns void language plpgsql security definer set search_path = ''
 as $$
 declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
   booking_row public.bookings%rowtype;
   owner_row public.owners%rowtype;
 begin
@@ -62,13 +65,15 @@ begin
         and p.rejection_reason = 'Booking cancelled; refund any received transfer to the customer.'
     ) then 'owed' else 'none' end
   where id = booking_row.id;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end;
 $$;
 
 create or replace function public.admin_review_owner_topup(p_ledger_id uuid, p_approve boolean, p_reason text default null)
-returns void language plpgsql security definer set search_path = '' set app.audit_reason = ''
+returns void language plpgsql security definer set search_path = ''
 as $$
 declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
   ledger_row public.owner_credit_ledger%rowtype;
 begin
   perform set_config('app.audit_reason', coalesce(case when not p_approve then p_reason end, ''), true);
@@ -80,13 +85,16 @@ begin
     note = case when p_approve then 'Top-up verified.' else p_reason end,
     reviewed_by = auth.uid(), reviewed_at = now()
   where id = p_ledger_id;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end;
 $$;
 
 create or replace function public.admin_review_plan_payment(p_payment uuid,p_approve boolean,p_reason text default null)
-returns void language plpgsql security definer set search_path=public set app.audit_reason = ''
+returns void language plpgsql security definer set search_path=public
 as $$
-declare v_payment public.plan_payments%rowtype; v_profile uuid; v_code text;
+declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
+  v_payment public.plan_payments%rowtype; v_profile uuid; v_code text;
 begin
   perform set_config('app.audit_reason', coalesce(case when not p_approve then p_reason end, ''), true);
  if not public.is_admin() then raise exception 'Administrator access required.'; end if;
@@ -101,11 +109,14 @@ begin
   select profile_id into v_profile from public.owners where id=v_payment.owner_id;
   perform public.notify(v_profile,'plan_payment_rejected','Plan payment needs attention',p_reason,'/owner/plan',null,'{in_app,email}',false,'plan-payment-rejected:'||p_payment);
  end if;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end $$;
 
 create or replace function public.decline_pending_booking(p_booking_id uuid, p_reason text)
-returns void language plpgsql security definer set search_path = '' set app.audit_reason = ''
+returns void language plpgsql security definer set search_path = ''
 as $$
+declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
 begin
   perform set_config('app.audit_reason', coalesce(p_reason, ''), true);
   p_reason := public.require_dashboard_reason(p_reason);
@@ -115,12 +126,15 @@ begin
   where b.id = p_booking_id and b.owner_id = o.id and o.is_active
     and (o.profile_id = auth.uid() or public.is_admin()) and b.status = 'pending';
   if not found then raise exception 'This booking is no longer pending or is unavailable.'; end if;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end;
 $$;
 
 create or replace function public.admin_reject_customer_verification(p_customer_id uuid, p_reason text)
-returns void language plpgsql security definer set search_path = '' set app.audit_reason = ''
+returns void language plpgsql security definer set search_path = ''
 as $$
+declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
 begin
   perform set_config('app.audit_reason', coalesce(p_reason, ''), true);
   if not public.is_admin() then raise exception 'Administrator access required.'; end if;
@@ -129,13 +143,16 @@ begin
   set verification = 'rejected', verification_rejection_reason = p_reason
   where id = p_customer_id and role = 'customer';
   if not found then raise exception 'Customer profile not found.'; end if;
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end;
 $$;
 
 create or replace function public.admin_set_owner_plan_override(p_owner uuid,p_car_limit int,p_commission numeric,p_note text)
-returns void language plpgsql security definer set search_path=public set app.audit_reason = ''
+returns void language plpgsql security definer set search_path=public
 as $$
-declare v_code text;
+declare
+  previous_audit_context text := current_setting('app.audit_reason', true);
+  v_code text;
 begin
   perform set_config('app.audit_reason', coalesce(p_note, ''), true);
  if not public.is_admin() then raise exception 'Administrator access required.'; end if;
@@ -147,12 +164,15 @@ begin
  select code into v_code from public.plans p join public.owner_plans op on op.plan_id=p.id where op.owner_id=p_owner;
  perform public.sync_owner_plan(p_owner);
  insert into public.owner_plan_events(owner_id,event,to_plan,detail,actor) values(p_owner,'override_set',v_code,jsonb_build_object('car_limit',p_car_limit,'commission',p_commission,'note',p_note),auth.uid());
+  perform set_config('app.audit_reason', coalesce(previous_audit_context, ''), true);
 end $$;
 
 create or replace function public.expire_unpaid_bookings()
-returns integer language plpgsql security definer set search_path = '' set app.audit_actor = ''
+returns integer language plpgsql security definer set search_path = ''
 as $$
-declare affected integer;
+declare
+  previous_audit_context text := current_setting('app.audit_actor', true);
+  affected integer;
 begin
   perform set_config('app.audit_actor', coalesce('cron:expire_unpaid_bookings', ''), true);
   update public.payments set status = 'rejected',
@@ -164,13 +184,16 @@ begin
     deposit_refund_status = case when status = 'payment_review' then 'owed' else deposit_refund_status end
   where status in ('awaiting_payment', 'payment_review') and payment_due_at <= now();
   get diagnostics affected = row_count;
+  perform set_config('app.audit_actor', coalesce(previous_audit_context, ''), true);
   return affected;
 end;
 $$;
 
-create or replace function public.expire_owner_plans() returns void language plpgsql security definer set search_path=public set app.audit_actor = ''
+create or replace function public.expire_owner_plans() returns void language plpgsql security definer set search_path=public
 as $$
-declare r record; v_grace int; v_limit int; v_active int; v_hidden int;
+declare
+  previous_audit_context text := current_setting('app.audit_actor', true);
+  r record; v_grace int; v_limit int; v_active int; v_hidden int;
 begin
   perform set_config('app.audit_actor', coalesce('cron:expire_owner_plans', ''), true);
  select coalesce((value#>>'{}')::int,3) into v_grace from public.settings where key='plan_grace_days'; v_grace:=coalesce(v_grace,3);
@@ -186,4 +209,5 @@ begin
   perform public.sync_owner_plan(r.owner_id);
   insert into public.owner_plan_events(owner_id,event,from_plan,to_plan,detail) values(r.owner_id,'expired',r.code,'starter',jsonb_build_object('cars_hidden',v_hidden));
  end loop;
+  perform set_config('app.audit_actor', coalesce(previous_audit_context, ''), true);
 end $$;
