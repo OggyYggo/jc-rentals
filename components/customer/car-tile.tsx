@@ -4,7 +4,11 @@ import { carPhotoUrl } from "@/lib/car-photo";
 import type { CarSearch } from "@/lib/cars/searchParams";
 import { CarPhotoCarousel } from "@/components/customer/car-photo-carousel";
 
+import { RatingBadge } from "@/components/reviews/ReviewContent";
+
 type Car = {
+  rating_avg?: number;
+  rating_count?: number;
   id: string;
   brand: string;
   model: string;
@@ -48,6 +52,7 @@ export function CarTile({ car, available, mode, searchParams }: { car: Car; avai
     <Link href={href} className="block p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#0B63CE]">
       <h3 className="text-lg font-semibold text-[#0F2342]">{car.brand} {car.model}</h3>
       <p className="mt-1 text-xs text-[#51657F]">{[car.year, car.car_type].filter(Boolean).join(" · ")}</p>
+      <RatingBadge average={car.rating_avg} count={car.rating_count}/>
       <div className="mt-4 flex flex-wrap gap-2 text-xs text-[#0A3D91]">
         {car.seats && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2"><Users size={14} />{car.seats} {car.vehicle_type === "motorcycle" ? "passengers" : "seats"}</span>}
         {car.engine_cc && <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2">{car.engine_cc} cc</span>}

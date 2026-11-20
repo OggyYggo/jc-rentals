@@ -12,6 +12,7 @@ export const instant = false;
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 type Rate = { mode: string; daily_rate: number };
 type Car = {
+  rating_avg?: number; rating_count?: number;
   id: string; owner_id?: string; brand: string; model: string; year?: number; seats?: number; transmission?: string; car_type?: string; vehicle_type?: "car" | "motorcycle"; engine_cc?: number | null; helmets_included?: number;
   allows_self_drive: boolean; allows_with_driver: boolean;
   car_photos?: { path: string; thumb_path?: string | null; sort_order: number }[];
@@ -37,7 +38,7 @@ export default async function CarsPage({ searchParams }: Props) {
   try {
     const db = await createClient();
     let inventory = db.from("cars")
-      .select("id,owner_id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
+      .select("id,owner_id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,rating_avg,rating_count,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)")
       .eq("is_active", true);
     if (search.vehicle) inventory = inventory.eq("vehicle_type", search.vehicle);
     const { data, error } = await inventory.order("created_at", { ascending: false });
@@ -50,6 +51,7 @@ export default async function CarsPage({ searchParams }: Props) {
   }
 
   cars = cars.filter((car) => {
+    if (search.rating && ((car.rating_count ?? 0) < 3 || Number(car.rating_avg) < search.rating)) return false;
     if (search.type && car.car_type?.toLowerCase() !== search.type.toLowerCase()) return false;
     if (search.seats && Number(car.seats ?? 0) < search.seats) return false;
     if (search.transmission && car.transmission?.toLowerCase() !== search.transmission.toLowerCase()) return false;
@@ -94,6 +96,10 @@ export default async function CarsPage({ searchParams }: Props) {
   const counts = { all: allCars.length, self: resultForMode("self").length, driver: resultForMode("driver").length };
   let shownCars = activeMode ? resultForMode(activeMode) : allCars;
   if (search.sort !== "recommended") shownCars = [...shownCars].sort((a, b) => {
+    if (search.sort === "rating") {
+      const score = (car: Car) => (car.rating_count ?? 0) >= 3 ? Number(car.rating_avg) : 0;
+      return score(b) - score(a) || (b.rating_count ?? 0) - (a.rating_count ?? 0);
+    }
     const aPrice = priceFor(a, activeMode) ?? Math.min(priceFor(a, "self") ?? Infinity, priceFor(a, "driver") ?? Infinity);
     const bPrice = priceFor(b, activeMode) ?? Math.min(priceFor(b, "self") ?? Infinity, priceFor(b, "driver") ?? Infinity);
     return search.sort === "price_asc" ? aPrice - bPrice : bPrice - aPrice;

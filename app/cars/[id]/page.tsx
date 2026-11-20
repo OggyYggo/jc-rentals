@@ -43,6 +43,10 @@ export default function CarDetail(props: Props) {
   return <Suspense fallback={null}><CarDetailContent {...props} /></Suspense>;
 }
 
+import { PublicReviews } from "@/components/reviews/PublicReviews";
+import { RatingBadge } from "@/components/reviews/ReviewContent";
+import { publicReviewPage } from "@/lib/reviews/public";
+
 async function CarDetailContent({ params, searchParams }: Props) {
   await connection();
   const { id } = await params;
@@ -65,6 +69,18 @@ async function CarDetailContent({ params, searchParams }: Props) {
     car = result.data;
   } catch {}
   if (!car) notFound();
+  const [reviewPage, distribution, reviewTags, reviewOwner] = await Promise.all([
+    publicReviewPage(db, id, "newest"),
+    db.from("public_review_distribution").select("rating,total").eq("car_id", id),
+    db.from("public_review_tags").select("tag,total").eq("car_id", id).order("total", { ascending: false }),
+    db.from("public_review_owners").select("business_name,rating_avg,rating_count").eq("car_id", id).maybeSingle(),
+  ]);
+  const reviewCount = Number(car.rating_count ?? 0);
+  const reviewAverage = Number(car.rating_avg ?? 0);
+  const reviewJson = JSON.stringify({
+    "@context": "https://schema.org", "@type": "Product", name: `${car.brand} ${car.model}`,
+    aggregateRating: { "@type": "AggregateRating", ratingValue: reviewAverage, reviewCount },
+  }).replace(/</g, "\\u003c");
   const mode = requestedMode === "with_driver" && car.allows_with_driver ? "with_driver" : requestedMode === "self_drive" && car.allows_self_drive ? "self_drive" : car.allows_with_driver ? "with_driver" : "self_drive";
   const modeUnavailable = mode !== requestedMode;
 
@@ -186,12 +202,12 @@ async function CarDetailContent({ params, searchParams }: Props) {
     redirect(`/account/bookings/${createdBooking.id}/pay`);
   }
 
-  return <><main className="theme-public min-h-screen bg-white px-5 py-8 text-[#0F2342] sm:px-8 md:py-12"><div className="mx-auto max-w-6xl">
+  return <>{reviewCount >= 3 && <script type="application/ld+json">{reviewJson}</script>}<main className="theme-public min-h-screen bg-white px-5 py-8 text-[#0F2342] sm:px-8 md:py-12"><div className="mx-auto max-w-6xl">
     {invalidSearchDates && <p role="status" className="mb-4 rounded-xl bg-[#fff7e8] px-4 py-3 text-sm text-[#76551b]">Please choose valid dates.</p>}
     <Link href={carListHref} className="text-sm font-semibold text-[#0B63CE]">← All vehicles</Link>
     <div className="mt-4 flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-3xl font-semibold md:text-4xl">{car.brand} {car.model}</h1>{car.vehicle_type === "motorcycle" && <span className="rounded-full bg-[#0A3D91] px-3 py-1 text-xs font-semibold text-white">Motorcycle</span>}<p className="mt-2 text-sm text-[#51657F]">{[car.year,car.car_type].filter(Boolean).join(" · ")}</p></div><div className="flex flex-wrap gap-2">{specs.map(([Icon,label]:any)=><span key={label} className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2 text-xs text-[#0A3D91]"><Icon size={14}/>{label}</span>)}</div></div>
     <div className="mt-6 grid items-start gap-7 lg:grid-cols-[1.45fr_0.85fr]">
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <div className="relative aspect-[16/9] overflow-hidden rounded-2xl bg-[#EAF4FF]">{photoUrls.length ? <CarPhotoCarousel photos={photoUrls} alt={`${car.brand} ${car.model}`} priority/> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={60} strokeWidth={1.2}/></div>}</div>
 
         <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold text-[#0F2342]">Choose a rental mode</h2><div className="flex rounded-full bg-[#EAF4FF] p-1">{[["self_drive","Self-drive",car.allows_self_drive],["with_driver","With driver",car.allows_with_driver]].filter(([, ,enabled])=>enabled).map(([value,label])=>{const canonicalMode = value === "with_driver" ? "driver" : "self"; const params = new URLSearchParams(); if(start)params.set("from",start);if(end)params.set("to",end);params.set("mode",canonicalMode);if(pickup)params.set("pickup",pickup);return <Link key={String(value)} href={`/cars/${id}?${params}`} className={`rounded-full px-4 py-2 text-xs font-semibold ${value===mode?"bg-[#0B63CE] text-white":"text-[#0A3D91]"}`}>{String(label)}</Link>})}</div></div>
@@ -202,6 +218,16 @@ async function CarDetailContent({ params, searchParams }: Props) {
         <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><div className="mb-3 flex items-center gap-2"><CalendarDays size={18} className="text-[#0B63CE]"/><h2 className="font-semibold">Availability</h2></div><AvailabilityCalendar today={today} blockedDates={unavailable}/></section>
 
         <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><h2 className="font-semibold text-[#0F2342]">Rental terms</h2>{mode === "self_drive" ? <div className="mt-3 space-y-2 text-sm leading-6 text-[#51657F]"><p>{rate?.license_required ? "A valid driver’s license is required." : "A driver’s license is not required."}</p>{rate?.minimum_age && <p>Minimum driver age: {rate.minimum_age}.</p>}{rate?.fuel_policy && <p>Fuel: {rate.fuel_policy}.</p>}{rate?.mileage_limit && <p>Mileage: {rate.mileage_limit}.</p>}{rate?.deposit_amount > 0 && <p>Refundable security deposit: ₱{Number(rate.deposit_amount).toLocaleString()}.</p>}</div> : <div className="mt-3 space-y-2 text-sm leading-6 text-[#51657F]"><p>{rate?.license_required ? "A driver’s license is required." : "No driver’s license is needed."}</p>{rate?.included_hours && <p>{rate.included_hours} hours included{rate.overtime_per_hour ? `; overtime ₱${Number(rate.overtime_per_hour).toLocaleString()} per hour` : ""}.</p>}<p>Fuel {rate?.fuel_included ? "included" : "not included"}; driver meals {rate?.driver_meals_included ? "included" : "not included"}; accommodation {rate?.accommodation_included ? "included" : "not included"}.</p>{rate?.coverage_area && <p>Coverage area: {rate.coverage_area}.</p>}{rate?.notes && <p>{rate.notes}</p>}<p>Share your pickup location and itinerary when arranging the booking.</p></div>}</section>
+        {car.description && <section className="rounded-2xl border border-blue-100 p-5">
+          <h2 className="font-semibold">About this vehicle</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm">{car.description}</p>
+        </section>}
+        {reviewOwner.data && <section className="rounded-2xl border border-blue-100 p-5">
+          <h2 className="font-semibold">Rental owner</h2><p className="mt-2 break-words">{reviewOwner.data.business_name}</p>
+          <RatingBadge average={Number(reviewOwner.data.rating_avg)} count={Number(reviewOwner.data.rating_count)}/>
+        </section>}
+        <PublicReviews key={id + ":" + reviewCount + ":" + reviewAverage} carId={id} count={reviewCount} average={reviewAverage}
+          owner={reviewOwner.data?.business_name ?? "the rental owner"} canReport={customerVerification !== null}
+          distribution={distribution.data ?? []} tags={reviewTags.data ?? []} initial={reviewPage}/>
       </div>
 
       <aside className="h-fit rounded-2xl border border-[#D6E6F7] bg-white p-5 shadow-[0_14px_38px_-28px_rgba(10,61,145,.5)] lg:sticky lg:top-24"><h2 className="font-semibold text-[#0F2342]">Booking summary</h2><form action={`/cars/${id}`} className="mt-4 grid grid-cols-2 gap-3 text-xs"><input type="hidden" name="mode" value={mode === "with_driver" ? "driver" : "self"}/>{pickup && <input type="hidden" name="pickup" value={pickup}/>}<label className="font-semibold text-[#0F2342]">Pickup<input required name="from" type="date" min={today} defaultValue={start} className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] bg-white px-2 text-sm font-normal"/></label><label className="font-semibold text-[#0F2342]">Return<input required name="to" type="date" min={start||today} defaultValue={end} className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] bg-white px-2 text-sm font-normal"/></label><button className="col-span-2 min-h-11 rounded-full border border-[#0B63CE] text-sm font-semibold text-[#0B63CE]">Update dates</button></form>

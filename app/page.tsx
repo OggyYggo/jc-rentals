@@ -182,7 +182,7 @@ async function FeaturedCars({ mode }: { mode: "all" | "self" | "driver" }) {
   if (isSupabaseConfigured()) {
     await io();
     const db = await createClient();
-    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
+    const { data } = await db.from("cars").select("id,brand,model,year,seats,transmission,car_type,vehicle_type,engine_cc,helmets_included,rating_avg,rating_count,allows_self_drive,allows_with_driver,car_photos(path,thumb_path,sort_order),car_rates(mode,daily_rate)").eq("is_active", true).order("created_at", { ascending: false }).limit(6);
     cars = data ?? [];
   }
 
