@@ -1,3 +1,4 @@
+import { EntityHistory } from "@/components/admin/audit/EntityHistory";
 import { notFound } from "next/navigation";
 import { AdminHeading } from "@/components/admin/ui";
 import { getAdminContext } from "@/lib/admin-context";
@@ -43,5 +44,6 @@ export default async function AdminOwnerPaymentPage({ params }: { params: Promis
   return <>
     <AdminHeading eyebrow="Owners" title={owner.business_name} description="Review the payment account and configure booking eligibility, payment terms, and deposits." />
     <AdminOwnerPaymentTerms owner={owner as never} qrUrl={qrUrl} readiness={readiness} />
+    <EntityHistory entity="owner" id={id}/>
   </>;
 }
