@@ -134,6 +134,8 @@ supabase/migrations/     # SQL migrations (run in order)
 
 Deploy to Vercel with the same environment variables configured in project settings. Add the production `/auth/callback` URL to Supabase's allowed redirect URLs.
 
+For ratings and reviews, apply migrations `202611200007` through `202611200009` before deploying the app. Enable `pg_cron` before applying the review prompt migration so it can register the hourly trip completion and reminder jobs.
+
 ### Admin email alerts
 
 1. Apply migrations `202611200004` through `202611200006` after the audit log migrations.
