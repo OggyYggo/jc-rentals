@@ -1,7 +1,10 @@
 "use client";
 
 import { runWithAlerts } from "@/lib/alerts/run";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ReviewDialog } from "@/components/reviews/ReviewDialog";
+import { Rating } from "@/components/reviews/ReviewContent";
+import type { MyReview } from "@/lib/reviews/model";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, CarFront, CircleCheck, CircleX, Clock3, LoaderCircle, MapPin, RotateCw } from "lucide-react";
@@ -10,6 +13,9 @@ import { createClient } from "@/lib/supabase/client";
 export type CustomerBooking = {
   id: string;
   reference: string;
+  review?: MyReview;
+  reviewable?: boolean;
+  editable?: boolean;
   mode: "self_drive" | "with_driver";
   start_date: string;
   end_date: string;
@@ -51,8 +57,12 @@ function canCancel(booking: CustomerBooking, todayManila: string) {
   return ["awaiting_payment", "payment_review", "confirmed"].includes(booking.status) && booking.start_date > todayManila;
 }
 
-export function BookingList({ bookings, todayManila }: { bookings: CustomerBooking[]; todayManila: string }) {
+export function BookingList({ bookings, todayManila, reviewTarget }: { bookings: CustomerBooking[]; todayManila: string; reviewTarget?: string }) {
   const router = useRouter();
+  const initial = bookings.find(booking => booking.id === reviewTarget && booking.reviewable);
+  const [activeReview, setActiveReview] = useState<{ booking: string; review?: MyReview } | null>(
+    initial ? { booking: initial.id } : null);
+  const openedBy = useRef<HTMLButtonElement>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   function cancelBooking(booking: CustomerBooking) {
@@ -80,13 +90,30 @@ export function BookingList({ bookings, todayManila }: { bookings: CustomerBooki
 
   return <div className="space-y-4">{bookings.map((booking) => {
     const cancelAllowed = canCancel(booking, todayManila);
-    return <article key={booking.id} className="overflow-hidden rounded-2xl border border-[#e3e8ef] bg-white shadow-sm">
+    return <article id={`trip-${booking.id}`} key={booking.id} className="overflow-hidden rounded-2xl border border-[#e3e8ef] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f4] px-4 py-3.5 sm:px-5"><div><p className="text-[10px] font-medium uppercase tracking-wide text-[#8b97a7]">Booking reference</p><p className="mt-0.5 text-xs font-semibold text-[#43536a]">{booking.reference}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ${statusStyles[booking.status] ?? "bg-[#f2f4f7] text-[#68778c]"}`}>{booking.status.replaceAll("_", " ")}</span></div>
       <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-5"><div className="flex min-w-0 gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f1f4fa] text-[#5e75a8]"><CarFront size={21}/></span><div className="min-w-0"><h2 className="truncate text-sm font-semibold text-[#2d3e55]">{booking.car ? `${booking.car.year ? `${booking.car.year} ` : ""}${booking.car.brand} ${booking.car.model}` : "Rental vehicle"}</h2><p className="mt-1 text-[11px] text-[#7d8998]">{booking.mode === "self_drive" ? "Self drive" : "With driver"}{booking.car?.car_type ? ` · ${booking.car.car_type}` : ""}</p><div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] text-[#637188]"><span className="inline-flex items-center gap-1.5"><CalendarDays size={12} className="text-[#7890ca]"/>{formatDate(booking.start_date)} – {formatDate(booking.end_date)}</span><span className="inline-flex items-center gap-1.5"><MapPin size={12} className="text-[#7890ca]"/>{booking.pickup_location || "Pickup location to be confirmed"}{booking.pickup_time ? ` · ${booking.pickup_time.slice(0, 5)}` : ""}</span></div>{booking.itinerary_notes && <p className="mt-2 whitespace-pre-wrap text-[10px] leading-4 text-[#637188]">Itinerary: {booking.itinerary_notes}</p>}</div></div>
         <div className="flex items-center justify-between gap-4 border-t border-[#edf0f4] pt-3 sm:block sm:border-0 sm:pt-0 sm:text-right"><div><p className="text-[10px] text-[#8995a5]">Rental total</p><p className="mt-0.5 text-sm font-semibold text-[#2d3e55]">{formatPrice(Number(booking.total_price))}</p><p className="mt-0.5 text-[10px] text-[#8995a5]">{formatPrice(Number(booking.daily_rate))} / day · {booking.payment}</p></div>{cancelAllowed ? <button onClick={() => cancelBooking(booking)} disabled={cancellingId === booking.id} className="mt-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[#eadede] px-3 text-[10px] font-semibold text-[#9a4b4b] transition hover:bg-[#fff6f6] disabled:opacity-60">{cancellingId === booking.id ? <LoaderCircle size={12} className="animate-spin"/> : <CircleX size={12}/>}Cancel booking</button> : <p className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#8995a5]">{booking.status === "completed" ? <CircleCheck size={12}/> : <Clock3 size={12}/>} {booking.status === "completed" ? "Rental completed" : "Cancellation unavailable"}</p>}</div>
       </div>
+      {(booking.review || booking.reviewable) && <div className="space-y-2 border-t px-4 py-3 text-sm">
+        {booking.review && <>
+          <p>Your review <Rating rating={booking.review.rating}/></p>
+          {booking.review.is_hidden && <p className="text-amber-800">This review was hidden by moderators.</p>}
+          {booking.review.comment && <p className="whitespace-pre-wrap break-words">{booking.review.comment}</p>}
+          {booking.review.owner_reply && <p className="border-l-2 pl-2 whitespace-pre-wrap break-words">Owner reply: {booking.review.owner_reply}</p>}
+        </>}
+        {(booking.reviewable || booking.editable) && <button className="rounded-lg border px-3 py-2 font-semibold text-blue-800"
+          onClick={event => {
+            openedBy.current = event.currentTarget;
+            setActiveReview({booking: booking.id, review: booking.review});
+          }}>{booking.review ? "Edit review" : "Rate your trip"}</button>}
+      </div>}
       {["awaiting_payment", "payment_review"].includes(booking.status) && <div className="border-t border-[#edf0f4] px-4 py-3 text-right sm:px-5"><a href={`/account/bookings/${booking.id}/pay`} className="inline-flex h-8 items-center rounded-lg bg-[#2457d6] px-3 text-[10px] font-semibold text-white">{booking.status === "payment_review" ? "View payment" : "Pay deposit"}</a></div>}
       <div className="border-t border-[#edf0f4] px-4 py-2.5 text-right sm:px-5"><Link href={`/contact?topic=booking&ref=${encodeURIComponent(booking.reference)}`} className="text-[11px] font-medium text-[#2457d6] underline">Need help with this booking?</Link></div>
     </article>;
-  })}<div className="flex items-center gap-2 px-1 text-[10px] leading-5 text-[#8b97a7]"><RotateCw size={12}/>Booking status updates as your rental progresses.</div></div>;
+  })}{activeReview && <ReviewDialog booking={activeReview.booking} review={activeReview.review} saved={router.refresh}
+    close={() => {
+      setActiveReview(null);
+      requestAnimationFrame(() => openedBy.current?.focus());
+    }}/>}<div className="flex items-center gap-2 px-1 text-[10px] leading-5 text-[#8b97a7]"><RotateCw size={12}/>Booking status updates as your rental progresses.</div></div>;
 }

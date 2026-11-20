@@ -1,3 +1,4 @@
+import type { MyReview } from "@/lib/reviews/model";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { BookingList, type CustomerBooking } from "@/components/customer/booking-list";
@@ -7,7 +8,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
 export const instant = false;
 
-export default async function CustomerBookingsPage() {
+export default async function CustomerBookingsPage({ searchParams }: { searchParams: Promise<{ review?: string | string[] }> }) {
   if (!isSupabaseConfigured()) return <SupabaseSetupNotice />;
   await connection();
   const supabase = await createClient();
@@ -20,7 +21,21 @@ export default async function CustomerBookingsPage() {
     return <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><h2 className="font-semibold">Bookings are temporarily unavailable</h2><p className="mt-2 leading-6">The payment database may not be set up yet. An administrator should apply the payment status migration and then rerun the payment QR module migration in Supabase.</p><p className="mt-2 text-xs text-amber-800">If both migrations have already completed, check the Vercel function logs for the bookings query error.</p></div>;
   }
 
+  const { data: reviews, error: reviewError } = await supabase.from("reviews")
+    .select("id,booking_id,rating,owner_rating,tags,comment,owner_reply,created_at,edited_at,is_hidden").eq("customer_id", user.id);
+  const { data: dates } = await supabase.from("bookings").select("id,completed_at,car_id,owner_id").eq("customer_id", user.id).eq("status", "completed");
+  const byBooking = new Map((reviews ?? []).map(row => [row.booking_id, row as MyReview]));
+  const completed = new Map((dates ?? []).map(row => [row.id, row]));
+  const reviewTarget = (await searchParams).review;
+  const now = new Date().getTime();
   const todayManila = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  const bookings = (data ?? []).map((booking) => ({ ...booking, pickup_time: null, pickup_location: null, itinerary_notes: null, car: null })) as unknown as CustomerBooking[];
-  return <div><div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">My bookings</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">View your rental details and keep track of each booking.</p></div><BookingList bookings={bookings} todayManila={todayManila}/></div>;
+  const bookings = (data ?? []).map((booking) => {
+    const review = byBooking.get(booking.id);
+    const trip = completed.get(booking.id);
+    const completion = trip?.completed_at ?? new Date(Date.parse(booking.end_date + "T00:00:00+08:00") + 86_400_000).toISOString();
+    return { ...booking, pickup_time: null, pickup_location: null, itinerary_notes: null, car: null, review,
+      reviewable: !reviewError && !!trip?.owner_id && !review && Date.parse(completion) >= now - 60 * 86_400_000,
+      editable: !!review && !review.edited_at && Date.parse(review.created_at) >= now - 7 * 86_400_000 };
+  }) as unknown as CustomerBooking[];
+  return <div><div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">My bookings</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">View your rental details and keep track of each booking.</p></div><BookingList key={typeof reviewTarget === "string" ? reviewTarget : "bookings"} bookings={bookings} todayManila={todayManila} reviewTarget={typeof reviewTarget === "string" ? reviewTarget : undefined}/></div>;
 }
