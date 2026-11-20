@@ -6,8 +6,11 @@ export const instant = false;
 
 async function OwnerLayoutContent({ children }: { children: ReactNode }) {
   const { user, owner, supabase } = await getOwnerContext();
-  const { count } = await supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("status", "payment_review");
-  return <OwnerShell userId={user.id} email={user.email ?? "Owner"} businessName={owner.business_name} pendingBookings={count ?? 0}>{children}</OwnerShell>;
+  const [{ count }, { data: reviews }] = await Promise.all([
+    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("status", "payment_review"),
+    supabase.rpc("owner_review_counts").maybeSingle<{ unanswered: number }>(),
+  ]);
+  return <OwnerShell userId={user.id} email={user.email ?? "Owner"} businessName={owner.business_name} pendingBookings={count ?? 0} unansweredReviews={reviews?.unanswered ?? 0}>{children}</OwnerShell>;
 }
 
 function OwnerLoading() {

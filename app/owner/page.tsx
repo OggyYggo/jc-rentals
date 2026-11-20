@@ -19,10 +19,11 @@ export const instant = false;
 
 export default async function OwnerOverviewPage() {
   const { supabase, owner } = await getOwnerContext();
-  const [{ data: cars }, { data: bookings }, { data: contacts }] = await Promise.all([
+  const [{ data: cars }, { data: bookings }, { data: contacts }, { data: reviewSummary }] = await Promise.all([
     supabase.from("cars").select("id, brand, model, year, is_active, allows_self_drive, allows_with_driver").eq("owner_id", owner.id),
     supabase.from("bookings").select("id, reference, start_date, end_date, total_price, owner_earnings, status, created_at, customer_id, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
+    supabase.rpc("owner_review_counts").maybeSingle<{ rating_avg: number; rating_count: number; unanswered: number }>(),
   ]);
 
   const contactByBooking = new Map((contacts ?? []).map((contact) => [contact.booking_id, contact]));
@@ -50,6 +51,11 @@ export default async function OwnerOverviewPage() {
   return <>
     <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex gap-2"><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
 
+    {reviewSummary && <Link href="/owner/reviews" className="mb-4 block rounded-xl border bg-white p-4 text-sm">
+      <p className="font-semibold">Trip reviews</p>
+      <p className="mt-1">{reviewSummary.rating_count ? `Rating ${Number(reviewSummary.rating_avg).toFixed(1)} / 5 · ` : ""}{reviewSummary.rating_count} reviews · {reviewSummary.unanswered} to reply</p>
+      {reviewSummary.unanswered > 0 && reviewSummary.unanswered === reviewSummary.rating_count && <p className="mt-1 text-blue-800 underline">Reply to your first review</p>}
+    </Link>}
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard title="Total vehicles" value={String(carList.length)} note={`${carList.filter((car) => car.is_active).length} active in fleet`} icon={CarFront} tone="blue"/>
       <StatCard title="Booking requests" value={String(pendingCount).padStart(2, "0")} note="Waiting for your response" icon={ClipboardList} tone="orange"/>
