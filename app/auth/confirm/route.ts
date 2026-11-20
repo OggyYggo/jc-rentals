@@ -27,5 +27,6 @@ export async function GET(request: NextRequest) {
   if (type === "invite" && profile?.role === "owner") return NextResponse.redirect(new URL("/owner/welcome", request.url));
   if (profile?.role === "admin") return NextResponse.redirect(new URL("/admin", request.url));
   if (profile?.role === "owner") return NextResponse.redirect(new URL("/owner", request.url));
+  if (type === "email") return NextResponse.redirect(new URL("/account/welcome", request.url));
   return NextResponse.redirect(new URL(allowedNext.has(next) ? next : "/", request.url));
 }

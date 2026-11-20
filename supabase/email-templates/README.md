@@ -13,4 +13,4 @@ Paste each HTML file into Supabase Dashboard → Authentication → Emails, then
 
 The logo URL uses `{{ .SiteURL }}/icon-192.png`. Set the Supabase Auth Site URL to the public app origin and add production, preview, and local app URLs to Redirect URLs. Configure Supabase SMTP with the verified Resend sending domain before sending to real users.
 
-The links use `/auth/confirm`, which verifies Supabase token hashes and only redirects to allowed local paths. Invite links go to `/owner/welcome`; recovery links go to `/auth/reset-password`.
+The links use `/auth/confirm`, which verifies Supabase token hashes and only redirects to allowed local paths. Signup confirmation opens the customer welcome page at `/account/welcome`. If you use the default confirmation template with an exact redirect allowlist, add `https://<app-origin>/auth/callback?next=/account/welcome` for each environment. Invite links go to `/owner/welcome`; recovery links go to `/auth/reset-password`.

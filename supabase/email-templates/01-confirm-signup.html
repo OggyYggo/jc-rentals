@@ -44,13 +44,13 @@
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 4px 0;">
               <tr>
                 <td align="center" bgcolor="#0B63CE" style="background-color:#0B63CE;border-radius:999px;">
-                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/" target="_blank" style="display:inline-block;padding:15px 32px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Confirm my email</a>
+                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email" target="_blank" style="display:inline-block;padding:15px 32px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">Confirm my email</a>
                 </td>
               </tr>
             </table>
             <p style="margin:24px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#51657F;">
               Button not working? Copy this link into your browser:<br>
-              <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/" target="_blank" style="color:#0B63CE;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/</a>
+              <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email" target="_blank" style="color:#0B63CE;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email</a>
             </p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:26px;">
               <tr><td bgcolor="#EAF4FF" style="background-color:#EAF4FF;border-radius:12px;padding:14px 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#51657F;">This link works once and expires after a short time. If it expires, sign in and ask for a new one.</td></tr>

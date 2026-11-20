@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         if (profile?.role === "owner") return returnTo("/owner");
         if (profile?.role === "admin") return returnTo("/admin");
       }
+      if (params.get("next") === "/account/welcome") return returnTo("/account/welcome");
       return returnTo(accountReturnPath(params.get("next") ?? request.cookies.get(googleNextCookie)?.value));
     }
   }

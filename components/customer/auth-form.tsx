@@ -37,12 +37,12 @@ export function AuthForm({ mode, configured, next = "/account/bookings", initial
           password,
           options: {
             data: { full_name: fullName.trim() },
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/profile`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome`,
           },
         });
         if (authError) throw authError;
         if (!data.session) {
-          setMessage("Check your email to confirm your account, then sign in.");
+          setMessage("Open the confirmation link in your email to finish setting up your account.");
           setShowResendConfirmation(true);
           return;
         }
@@ -83,7 +83,7 @@ export function AuthForm({ mode, configured, next = "/account/bookings", initial
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/profile` },
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome` },
       });
       if (resendError) throw resendError;
       setMessage("A new confirmation email has been sent. Check your inbox and spam folder.");
