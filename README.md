@@ -133,3 +133,29 @@ supabase/migrations/     # SQL migrations (run in order)
 ## Deployment
 
 Deploy to Vercel with the same environment variables configured in project settings. Add the production `/auth/callback` URL to Supabase's allowed redirect URLs.
+
+### Admin email alerts
+
+1. Apply migrations `202611200004` through `202611200006` after the audit log migrations.
+2. Set `ADMIN_ALERT_EMAIL` to the shared inbox in Vercel. **Admin → Settings → Email alerts** can override it with up to five addresses. Set `EMAIL_FROM` to an address on a domain verified with Resend, and configure `RESEND_API_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SITE_URL`, `NOTIFY_WEBHOOK_SECRET`, and `CRON_SECRET`. Resend's test sender only delivers to the Resend account email. [Resend sender setup](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)
+3. In Supabase, create an **INSERT** Database Webhook on `public.admin_alert_queue`. POST to `/api/admin-alerts/dispatch` on the production site and set the `x-webhook-secret` header to the value of `NOTIFY_WEBHOOK_SECRET`. The endpoint checks the stored queue state before sending.
+4. Enable `pg_cron` and `pg_net` in Supabase. In Vault, create secrets named `admin_alert_dispatch_url` (the full production dispatch URL) and `admin_alert_webhook_secret` (the same webhook secret). Schedule retries with the following statement in the SQL editor.
+
+   ```sql
+   select cron.schedule('admin-alerts-sweep', '*/5 * * * *', $job$
+     select net.http_post(
+       url := (select decrypted_secret from vault.decrypted_secrets
+               where name = 'admin_alert_dispatch_url') || '?sweep=1',
+       headers := jsonb_build_object(
+         'Content-Type', 'application/json',
+         'x-webhook-secret', (select decrypted_secret from vault.decrypted_secrets
+                              where name = 'admin_alert_webhook_secret')
+       ),
+       body := '{}'::jsonb,
+       timeout_milliseconds := 60000
+     );
+   $job$);
+   ```
+
+5. Vercel schedules the digest at 00:00 UTC (8:00 AM Manila) via `vercel.json`. Hobby cron can invoke it within the scheduled hour. If exact-minute delivery is required on Hobby, schedule a Supabase `pg_cron` job at `0 0 * * *` that GETs the digest URL through `pg_net` with the `Authorization: Bearer` header populated from the Vault copy of `CRON_SECRET`. [Vercel Cron scheduling limits](https://vercel.com/docs/schedules/cron-jobs/usage-and-pricing)
+6. Enable two-step verification on the shared inbox. Add a Gmail filter for the verified sender, then use **Send test email** in Settings and confirm it arrives.
