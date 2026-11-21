@@ -84,8 +84,10 @@ $$;
 
 select set_config('request.jwt.claim.sub','a0000000-0000-4000-8000-000000000003',true);
 select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
-insert into public.bookings(car_id,customer_id,mode,start_date,end_date)
- values ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000003','self_drive',current_date+2,current_date+3);
+set local role service_role;
+select public.create_policy_accepted_booking('a0000000-0000-4000-8000-000000000003','c0000000-0000-4000-8000-000000000001',
+ 'self_drive',current_date+2,current_date+3,null,null,null,'2026-11-21',null,null,null);
+set local role authenticated;
 insert into storage.objects(bucket_id,name)
  select 'payment-proofs', customer_id || '/' || id || '/proof.webp' from public.bookings
  where customer_id = 'a0000000-0000-4000-8000-000000000003';
@@ -110,8 +112,10 @@ $$;
 
 select set_config('request.jwt.claim.sub','a0000000-0000-4000-8000-000000000003',true);
 select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
-insert into public.bookings(car_id,customer_id,mode,start_date,end_date)
- values ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000003','self_drive',current_date+5,current_date+6);
+set local role service_role;
+select public.create_policy_accepted_booking('a0000000-0000-4000-8000-000000000003','c0000000-0000-4000-8000-000000000001',
+ 'self_drive',current_date+5,current_date+6,null,null,null,'2026-11-21',null,null,null);
+set local role authenticated;
 insert into storage.objects(bucket_id,name)
  select 'payment-proofs', customer_id || '/' || id || '/proof.webp' from public.bookings
  where customer_id = 'a0000000-0000-4000-8000-000000000003' and start_date = current_date+5;
