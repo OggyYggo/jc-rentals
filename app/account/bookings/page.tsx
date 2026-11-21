@@ -16,7 +16,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, daily_rate, total_price, deposit_amount, rental_starts_at, cancel_free_until, cancel_fee_percent, amount_paid_online, cancel_fee_amount, refund_amount, deposit_refund_status, status, payment, created_at").eq("customer_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, daily_rate, total_price, deposit_amount, rental_starts_at, cancel_free_until, cancel_fee_percent, amount_paid_online, cancel_fee_amount, refund_amount, deposit_refund_status, status, payment, created_at, car:cars!bookings_car_id_fkey(brand,model,year,car_type)").eq("customer_id", user.id).order("created_at", { ascending: false });
   if (error) {
     console.error("Customer bookings query failed:", String(error), { message: error.message, code: error.code, details: error.details, hint: error.hint });
     return <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><h2 className="font-semibold">Bookings are temporarily unavailable</h2><p className="mt-2 leading-6">The payment database may not be set up yet. An administrator should apply the payment status migration and then rerun the payment QR module migration in Supabase.</p><p className="mt-2 text-xs text-amber-800">If both migrations have already completed, check the Vercel function logs for the bookings query error.</p></div>;
@@ -26,6 +26,10 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
     .select("id,booking_id,rating,owner_rating,tags,comment,owner_reply,created_at,edited_at,is_hidden").eq("customer_id", user.id);
   const { data: dates, error: datesError } = await supabase.from("bookings").select("id,status,returned_at,completed_at,owner_id").eq("customer_id", user.id).in("status", ["returned", "completed"]);
   if (reviewError || datesError) console.error("Customer review eligibility query failed:", reviewError ?? datesError);
+  const { data: refunds, error: refundError } = await supabase.from("booking_refunds")
+    .select("booking_id,amount,status,due_at").eq("customer_id", user.id);
+  if (refundError) throw new Error("Could not load booking refunds.");
+  const refundsByBooking = new Map((refunds ?? []).map(row => [row.booking_id, row]));
   const byBooking = new Map((reviews ?? []).map(row => [row.booking_id, row as MyReview]));
   const returnedTrips = new Map((dates ?? []).map(row => [row.id, row]));
   const reviewTarget = (await searchParams).review;
@@ -36,7 +40,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
     const trip = returnedTrips.get(booking.id);
     const tripEnd = trip?.status === "completed" ? trip.completed_at : trip?.returned_at;
     const reviewWindowStart = tripEnd ? Date.parse(tripEnd) : Date.parse(booking.end_date + "T00:00:00+08:00") + 86_400_000;
-    return { ...booking, pickup_time: null, pickup_location: null, itinerary_notes: null, car: null, review,
+    return { ...booking, pickup_time: null, pickup_location: null, itinerary_notes: null, refund: refundsByBooking.get(booking.id), review,
       reviewable: !reviewError && !!trip?.owner_id && !review && reviewWindowStart >= now - 60 * 86_400_000,
       editable: !!review && !review.edited_at && Date.parse(review.created_at) >= now - 7 * 86_400_000 };
   }) as unknown as CustomerBooking[];

@@ -510,3 +510,129 @@ drop policy "Customers can read cars in own bookings" on public.cars;
 create policy "Customers can read cars in own bookings" on public.cars for select to authenticated using (
   exists (select 1 from public.bookings b where b.car_id = cars.id and b.customer_id = (select auth.uid()))
 );
+
+create table public.booking_refunds (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null unique references public.bookings(id) on delete cascade,
+  owner_id uuid not null references public.owners(id),
+  customer_id uuid not null references public.profiles(id),
+  amount numeric(10,2) not null check (amount > 0),
+  status text not null default 'owed' check (status in ('owed','refunded','disputed','waived')),
+  due_at timestamptz not null,
+  refunded_at timestamptz,
+  refund_reference text check (char_length(refund_reference) <= 80),
+  refund_proof_path text,
+  note text check (char_length(note) <= 300),
+  created_at timestamptz not null default now()
+);
+alter table public.booking_refunds enable row level security;
+revoke all on public.booking_refunds from public, anon, authenticated;
+grant select on public.booking_refunds to authenticated;
+create policy "Read related refunds" on public.booking_refunds for select to authenticated
+using (customer_id = (select auth.uid()) or (select public.is_admin()) or exists (
+  select 1 from public.owners o where o.id = booking_refunds.owner_id and o.profile_id = (select auth.uid())));
+create index booking_refunds_due_idx on public.booking_refunds (due_at) where status = 'owed';
+
+insert into public.booking_refunds (booking_id,owner_id,customer_id,amount,status,due_at,refunded_at,refund_reference,created_at)
+select id,owner_id,customer_id,coalesce(nullif(refund_amount,0),nullif(amount_paid_online,0),amount_due_now),
+  deposit_refund_status,coalesce(cancelled_at,now()) + interval '3 days',refunded_at,refund_reference,coalesce(cancelled_at,now())
+from public.bookings where deposit_refund_status in ('owed','refunded')
+  and coalesce(nullif(refund_amount,0),nullif(amount_paid_online,0),amount_due_now) > 0;
+
+create function public.track_booking_refund()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  owner_user uuid;
+begin
+  if new.deposit_refund_status = 'owed' and old.deposit_refund_status is distinct from 'owed' then
+    insert into public.booking_refunds (booking_id,owner_id,customer_id,amount,due_at)
+    select new.id,new.owner_id,new.customer_id,amount,
+      now() + make_interval(days => coalesce((select (value #>> '{}')::integer from public.settings where key = 'refund_due_days'),3))
+    from (select coalesce(nullif(new.refund_amount,0),nullif(new.amount_paid_online,0),new.amount_due_now) as amount) r
+    where amount > 0 on conflict (booking_id) do nothing;
+    if found then
+      select profile_id into owner_user from public.owners where id = new.owner_id;
+      perform public.notify(owner_user,'refund_owed','Refund to reconcile',
+        'Check the transfer and record the refund by the deadline shown in your payment dashboard.',
+        '/owner/payments?tab=refunds',new.id,'{in_app,email}',true,'refund-owed:'||new.id);
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger track_booking_refund after update of deposit_refund_status on public.bookings
+for each row execute function public.track_booking_refund();
+
+create function public.sync_booking_refund()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status = old.status then return new; end if;
+  update public.bookings set
+    deposit_refund_status = case new.status when 'refunded' then 'refunded' when 'waived' then 'none' else 'owed' end,
+    refunded_at = new.refunded_at, refund_reference = new.refund_reference,
+    payment = case when new.status = 'refunded' and amount_paid_online > 0 then
+      case when cancel_fee_amount > 0 then 'partial'::public.payment_status else 'refunded'::public.payment_status end
+      else payment end
+  where id = new.booking_id;
+  return new;
+end;
+$$;
+create trigger sync_booking_refund after update of status on public.booking_refunds
+for each row execute function public.sync_booking_refund();
+
+insert into storage.buckets (id,name,public,file_size_limit,allowed_mime_types)
+values ('refund-proofs','refund-proofs',false,5242880,array['image/jpeg','image/png','image/webp']);
+update storage.buckets set file_size_limit = 5242880 where id = 'payment-proofs';
+
+create policy "Upload refund proof" on storage.objects for insert to authenticated with check (
+  bucket_id = 'refund-proofs' and (storage.foldername(name))[1] = (select auth.uid())::text
+  and exists (select 1 from public.booking_refunds r join public.owners o on o.id = r.owner_id
+    where r.booking_id::text = (storage.foldername(name))[2] and r.status in ('owed','disputed')
+      and (o.profile_id = (select auth.uid()) or (select public.is_admin()))));
+create policy "Read related refund proof" on storage.objects for select to authenticated using (
+  bucket_id = 'refund-proofs' and exists (select 1 from public.booking_refunds r where r.refund_proof_path = name));
+create function public.mark_booking_refunded(p_booking_id uuid, p_reference text, p_proof_path text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  r public.booking_refunds%rowtype;
+begin
+  perform id from public.bookings where id = p_booking_id for update;
+  select * into r from public.booking_refunds where booking_id = p_booking_id for update;
+  if auth.uid() is null or not (public.is_admin() or exists (
+    select 1 from public.owners where id = r.owner_id and profile_id = auth.uid()
+  )) then raise exception 'Not allowed.'; end if;
+  if r.status is distinct from 'owed' and r.status is distinct from 'disputed' then raise exception 'Refund is not pending.'; end if;
+  if coalesce(length(trim(p_reference)),0) not between 1 and 80 then raise exception 'Enter a refund reference.'; end if;
+  if p_proof_path is null or p_proof_path not like auth.uid()::text || '/' || p_booking_id::text || '/%'
+    or not exists (select 1 from storage.objects where bucket_id = 'refund-proofs' and name = p_proof_path)
+    then raise exception 'Upload refund proof first.'; end if;
+  update public.booking_refunds set status = 'refunded', refunded_at = now(),
+    refund_reference = trim(p_reference), refund_proof_path = p_proof_path where id = r.id;
+end;
+$$;
+
+create or replace function public.mark_deposit_refunded(p_booking_id uuid, p_reference text default null)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  raise exception 'REFUND_PROOF_REQUIRED';
+end;
+$$;
+
+create function public.admin_waive_booking_refund(p_booking_id uuid, p_reason text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  reason text := public.require_dashboard_reason(p_reason);
+begin
+  if auth.uid() is null or not public.is_admin() then raise exception 'Not allowed.'; end if;
+  perform id from public.bookings where id = p_booking_id for update;
+  update public.booking_refunds set status = 'waived', note = reason
+    where booking_id = p_booking_id and status in ('owed','disputed');
+  if not found then raise exception 'Refund is not pending.'; end if;
+  perform public.audit_write('refund.waived','booking',p_booking_id::text,null,'Waived a booking refund','{}',reason);
+end;
+$$;
+
+revoke all on function public.track_booking_refund(), public.sync_booking_refund(),
+  public.mark_deposit_refunded(uuid,text), public.mark_booking_refunded(uuid,text,text),
+  public.admin_waive_booking_refund(uuid,text) from public, anon, authenticated;
+grant execute on function public.mark_booking_refunded(uuid,text,text), public.admin_waive_booking_refund(uuid,text) to authenticated;

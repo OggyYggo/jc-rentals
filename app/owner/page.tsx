@@ -55,7 +55,7 @@ export default async function OwnerOverviewPage() {
 
   return <>
     {owner.fee_mode === "credits" && creditState && <CreditBanner state={creditState} />}
-    <Link href="/owner/bookings#refunds" className="mb-4 block rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold">Refunds to send · {refundCount ?? 0}</Link>
+    <Link href="/owner/payments?tab=refunds" className="mb-4 block rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold">Refunds to send · {refundCount ?? 0}</Link>
     <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex gap-2"><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
 
     {reviewSummary && <Link href="/owner/reviews" className="mb-4 block rounded-xl border bg-white p-4 text-sm">

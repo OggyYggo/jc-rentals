@@ -1,37 +1,42 @@
 "use client";
 
+import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { runWithAlerts } from "@/lib/alerts/run";
-import { refundMoney, refundOwnerCopy } from "@/lib/cancellation";
+import { paymentDate, paymentPeso } from "@/lib/payment-format";
+import { paymentImage } from "@/lib/payment-image";
 import { createClient } from "@/lib/supabase/client";
 
-export type RefundBooking = {
+export type RefundRow = {
   id: string;
-  reference: string;
-  cancelled_at: string | null;
-  refund_amount: number;
-  deposit_refund_status: string;
-  customer: { full_name: string } | null;
-  owner?: { business_name: string } | null;
+  booking_id: string;
+  amount: number;
+  due_at: string;
+  status: string;
+  refund_proof_path: string | null;
+  booking: { reference: string } | null;
 };
 
-export function RefundQueue({ bookings, now }: { bookings: RefundBooking[]; now: number }) {
+export function RefundQueue({ refunds, userId, admin = false }: { refunds: RefundRow[]; userId: string; admin?: boolean }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null);
-  const owed = bookings.filter(booking => booking.deposit_refund_status === "owed");
+  const [listRef] = useAutoAnimate<HTMLElement>({ duration: 180 });
+  const [busy, setBusy] = useState(false);
 
-  function markRefunded(booking: RefundBooking) {
-    const amount = Number(booking.refund_amount);
+  function recordRefund(refund: RefundRow, form: FormData) {
     return runWithAlerts({
-      reason: {
-        title: `Mark refund sent for ${booking.reference}?`,
-        text: (amount > 0 ? `Confirm you sent ${refundMoney(amount)}. ` : "Verify the original transfer and the amount sent. ") + refundOwnerCopy,
-        label: "Refund reference (optional)", required: false, minLength: 0, maxLength: 80, confirmText: "Mark as refunded",
-      },
-      setPending: pending => setBusy(pending ? booking.id : null),
-      run: async reference => {
-        const { error } = await createClient().rpc("mark_deposit_refunded", { p_booking_id: booking.id, p_reference: reference || null });
+      confirm: { title: "Record this refund?", text: `Confirm the ${paymentPeso(refund.amount)} refund has been sent.`, confirmText: "Mark refunded" },
+      setPending: setBusy,
+      run: async () => {
+        const image = await paymentImage(form.get("proof") as File);
+        const reference = String(form.get("reference") ?? "").trim();
+        if (!reference) throw new Error("Enter the refund reference.");
+        const db = createClient();
+        const path = `${userId}/${refund.booking_id}/${crypto.randomUUID()}.webp`;
+        const bucket = db.storage.from("refund-proofs");
+        const { error: uploadError } = await bucket.upload(path, image, { contentType: image.type });
+        if (uploadError) throw uploadError;
+        const { error } = await db.rpc("mark_booking_refunded", { p_booking_id: refund.booking_id, p_reference: reference, p_proof_path: path });
         if (error) throw error;
       },
       success: "Refund recorded",
@@ -39,25 +44,50 @@ export function RefundQueue({ bookings, now }: { bookings: RefundBooking[]; now:
     });
   }
 
-  return <section id="refunds" className="mb-5 scroll-mt-20 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-    <h2 className="font-semibold">Refunds to send</h2>
-    <p className="text-sm text-slate-600">{owed.length ? refundOwnerCopy : "No refunds pending."}</p>
-    <ul className="divide-y divide-slate-100">
-      {owed.map(booking => {
-        const hours = booking.cancelled_at ? Math.max(0, Math.floor((now - Date.parse(booking.cancelled_at)) / 3_600_000)) : null;
-        return <li key={booking.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-          <div className="min-w-0 space-y-1">
-            <p className="break-words font-medium">{booking.reference} · {booking.customer?.full_name ?? "Customer"}{booking.owner && ` · ${booking.owner.business_name}`}</p>
-            <p>{Number(booking.refund_amount) > 0 ? refundMoney(Number(booking.refund_amount)) : "Verify transferred amount"}
-              {hours !== null && ` · ${hours >= 24 ? Math.floor(hours / 24) + "d" : hours + "h"} since cancellation`}</p>
-            {hours !== null && hours >= 72 && <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">Overdue</span>}
-          </div>
-          <button type="button" disabled={busy !== null} onClick={() => markRefunded(booking)}
-            className="rounded-lg border border-emerald-200 px-3 py-2 text-emerald-800 disabled:opacity-50">
-            {busy === booking.id ? "Recording…" : "Mark as refunded"}
-          </button>
-        </li>;
-      })}
-    </ul>
+  function waive(bookingId: string) {
+    return runWithAlerts({
+      reason: { title: "Waive this refund?", label: "Audit reason", confirmText: "Mark refund waived" },
+      run: async (reason) => {
+        const { error } = await createClient().rpc("admin_waive_booking_refund", { p_booking_id: bookingId, p_reason: reason });
+        if (error) throw error;
+      },
+      success: "Refund waived",
+      refresh: router.refresh,
+      setPending: setBusy,
+    });
+  }
+
+  function viewProof(path: string) {
+    return runWithAlerts({
+      run: async () => {
+        const { data, error } = await createClient().storage.from("refund-proofs").createSignedUrl(path, 120);
+        if (error) throw error;
+        window.location.assign(data.signedUrl);
+      },
+    });
+  }
+
+  if (!refunds.length) return <p className="rounded-xl border bg-white p-5 text-sm">No refunds in this queue.</p>;
+  return <section ref={listRef} id="refunds" className="space-y-3">
+    {refunds.map((refund) => {
+      const actionable = refund.status === "owed" || refund.status === "disputed";
+      const proofPath = refund.refund_proof_path;
+      return <article key={refund.id} className="rounded-xl border bg-white p-5 text-sm">
+        <h2 className="font-semibold">{refund.booking?.reference ?? refund.booking_id} · {paymentPeso(refund.amount)}</h2>
+        <p className="mt-1 capitalize">{refund.status} · Due {paymentDate(refund.due_at)} Manila time</p>
+        {proofPath && <button className="mt-2 min-h-11 text-blue-700 underline" onClick={() => viewProof(proofPath)}>View refund proof</button>}
+        {actionable && <>
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            if (!busy) void recordRefund(refund, new FormData(event.currentTarget));
+          }} className="mt-3 grid gap-2 sm:grid-cols-2">
+            <label>Refund reference<input name="reference" required maxLength={80} className="mt-1 w-full rounded border p-2" /></label>
+            <label>Transfer screenshot<input name="proof" required type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 w-full rounded border p-2" /></label>
+            <button disabled={busy} className="w-fit rounded-lg bg-emerald-700 px-4 py-3 text-white disabled:opacity-50">Mark refunded</button>
+          </form>
+          {admin && <button disabled={busy} onClick={() => waive(refund.booking_id)} className="mt-2 min-h-11 text-red-800 underline">Mark refund waived</button>}
+        </>}
+      </article>;
+    })}
   </section>;
 }
