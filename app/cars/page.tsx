@@ -61,7 +61,7 @@ export default async function CarsPage({ searchParams }: Props) {
   if (search.pickup && cars.length) {
     try {
       const db = await createClient();
-      const { data, error } = await db.from("pickup_locations").select("owner_id").ilike("name", `%${search.pickup}%`);
+      const { data, error } = await db.from("public_pickup_search").select("owner_id").ilike("name", `%${search.pickup}%`);
       if (error) throw error;
       const matchingOwners = new Set((data ?? []).map((location) => location.owner_id));
       // Free-form pickup entries (for example, a hotel or airport) may not

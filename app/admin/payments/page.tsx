@@ -89,8 +89,15 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
     if (owner) history = history.eq("owner_id", owner);
     if (before) history = history.lte("paid_at", before);
     const { data, error } = await history.returns<History[]>();
-    if (error) throw new Error("Could not load payment history.");
+    const { data: performance, error: performanceError } = await (owner
+      ? supabase.from("owner_payment_stats").select("*").eq("owner_id", owner).maybeSingle()
+      : Promise.resolve({ data: null, error: null }));
+    if (error || performanceError) throw new Error("Could not load payment history.");
     content = <>
+      {performance && <p className="mb-3 rounded-lg border bg-white p-3 text-sm">
+        Owner performance · {performance.confirmed} confirmed · {performance.no_response} without response · {performance.refunds_overdue} overdue refunds
+        {performance.median_seconds_to_act !== null && ` · Median review ${Math.round(performance.median_seconds_to_act / 60)} min`}
+      </p>}
       <PendingReview owner={owner} before={before} />
       <h2 className="my-3 font-semibold">Recent payment activity</h2>
       <div className="overflow-x-auto rounded-xl border bg-white">

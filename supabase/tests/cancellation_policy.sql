@@ -99,8 +99,9 @@ select pg_temp.expect_cancellation_error(
 select pg_temp.assert_cancellation(1,'auto','free',0,1200);
 select pg_temp.assert_cancellation(2,'auto','late',600,600);
 select pg_temp.assert_cancellation(10,'auto','free',0,0);
-insert into public.payments(booking_id,amount,method,reference_no,proof_path)
- select id,amount_due_now,'gcash','CANCELLATION-REJECT',customer_id || '/' || id || '/proof.pdf'
+insert into storage.objects(bucket_id,name)
+ select 'payment-proofs',customer_id || '/' || id || '/proof.webp' from public.bookings where id=pg_temp.booking_id(12);
+select public.submit_booking_payment(id,'CANCELLATION-REJECT',customer_id || '/' || id || '/proof.webp')
  from public.bookings where id=pg_temp.booking_id(12);
 
 select pg_temp.cancellation_claim(2);
@@ -109,12 +110,14 @@ select pg_temp.expect_cancellation_error(
 select pg_temp.assert_cancellation(3,'auto','owner',0,1200);
 select pg_temp.assert_cancellation(4,'no_show','no_show',600,600);
 select public.reject_booking_payment(id,'Could not verify payment') from public.payments where reference_no='CANCELLATION-REJECT';
-select public.mark_deposit_refunded(pg_temp.booking_id(1));
-select public.mark_deposit_refunded(pg_temp.booking_id(2),'  Refund fixture  ');
+insert into storage.objects(bucket_id,name)
+select 'refund-proofs',auth.uid() || '/' || pg_temp.booking_id(n) || '/refund.webp' from generate_series(1,2) n;
+select public.mark_booking_refunded(pg_temp.booking_id(1),'First refund',auth.uid() || '/' || pg_temp.booking_id(1) || '/refund.webp');
+select public.mark_booking_refunded(pg_temp.booking_id(2),'  Refund fixture  ',auth.uid() || '/' || pg_temp.booking_id(2) || '/refund.webp');
 select pg_temp.expect_cancellation_error(
- $$select public.mark_deposit_refunded(pg_temp.booking_id(2))$$,'This booking has no refund waiting to be marked.');
+ $$select public.mark_booking_refunded(pg_temp.booking_id(2),'Already sent',null)$$,'Refund is not pending.');
 select pg_temp.expect_cancellation_error(
- $$select public.mark_deposit_refunded(pg_temp.booking_id(4),repeat('x',81))$$,'Use at most 80 characters for the refund reference.');
+ $$select public.mark_booking_refunded(pg_temp.booking_id(4),repeat('x',81),null)$$,'Enter a refund reference.');
 do $$ begin
   assert not has_column_privilege('authenticated','public.owners','cancellation_free_hours','UPDATE');
   assert not has_column_privilege('authenticated','public.bookings','refund_amount','UPDATE');
@@ -127,16 +130,16 @@ insert into public.bookings(id,car_id,customer_id,mode,start_date,end_date)
  'self_drive',current_date+42,current_date+43);
 do $$ begin
   if to_regprocedure('public.send_refund_reminders()') is not null then
-    update public.bookings set cancelled_at=now()-interval '24 hours' where id=pg_temp.booking_id(4);
+    update public.booking_refunds set due_at=now()+interval '12 hours' where booking_id=pg_temp.booking_id(4);
     perform public.send_refund_reminders();
     perform public.send_refund_reminders();
-    update public.bookings set cancelled_at=now()-interval '72 hours' where id=pg_temp.booking_id(4);
+    update public.booking_refunds set due_at=now()-interval '72 hours' where booking_id=pg_temp.booking_id(4);
     perform public.send_refund_reminders();
     perform public.send_refund_reminders();
     assert (select count(*)=2 from public.notifications where booking_id=pg_temp.booking_id(4) and type='refund_reminder');
     assert exists(select 1 from public.notifications where booking_id=pg_temp.booking_id(2) and type='refund_sent');
   end if;
-  assert (select status='cancelled' and cancel_fee_amount=0 and refund_amount=0 from public.bookings where id=pg_temp.booking_id(12));
+  assert (select status='awaiting_payment' and cancel_fee_amount=0 and refund_amount=0 from public.bookings where id=pg_temp.booking_id(12));
   assert (select status='rejected' from public.payments where reference_no='CANCELLATION-REJECT');
   assert (select cancel_fee_percent=50 from public.bookings where id=pg_temp.booking_id(11));
   assert (select cancel_fee_percent=25 and rental_starts_at-cancel_free_until=interval '48 hours'

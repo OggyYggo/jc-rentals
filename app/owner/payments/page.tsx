@@ -8,11 +8,14 @@ import { getOwnerContext } from "@/lib/owner-context";
 export const instant = false;
 
 const tabs = { review: "Needs review", refunds: "Refunds", disputes: "Disputes" };
+type Stats = { confirmed: number; no_response: number; refunds_overdue: number; median_seconds_to_act: number | null };
 
 export default async function OwnerPaymentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { supabase, owner, user } = await getOwnerContext();
   const { tab: requested } = await searchParams;
   const tab = requested === "refunds" || requested === "disputes" ? requested : "review";
+  const { data: stats, error: statsError } = await supabase.rpc("owner_payment_performance", { p_owner_id: owner.id }).maybeSingle<Stats>();
+  if (statsError) throw new Error("Could not load payment performance.");
 
   let content;
   if (tab === "refunds") {
@@ -35,6 +38,12 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
 
   return <>
     <PageHeading eyebrow="Payments" title="Booking payments" description="Check each transfer in your wallet or bank history before confirming it." />
+    <section className="mb-4 rounded-xl border bg-white p-4 text-sm">
+      <h2 className="font-semibold">Payment performance · Last 90 days</h2>
+      <p className="mt-1">{stats?.confirmed ?? 0} confirmed · {stats?.no_response ?? 0} without response · {stats?.refunds_overdue ?? 0} overdue refunds</p>
+      <p>Median review time · {stats?.median_seconds_to_act == null ? "No reviews yet" : `${Math.round(stats.median_seconds_to_act / 60)} minutes`}</p>
+      <p className="mt-1 text-slate-600">Fast confirmations get more bookings.</p>
+    </section>
     <PaymentTabs path="/owner/payments" active={tab} tabs={tabs} />
     {content}
   </>;

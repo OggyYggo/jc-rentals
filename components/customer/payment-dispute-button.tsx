@@ -16,13 +16,13 @@ export function PaymentDisputeButton({ bookingId, kind, availableAt }: {
   bookingId: string; kind: keyof typeof kinds; availableAt?: string;
 }) {
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [readyAt, setReadyAt] = useState<string>();
   useEffect(() => {
     if (!availableAt) return;
-    const timer = window.setTimeout(() => setReady(true), Math.max(0, Date.parse(availableAt) - Date.now()));
+    const timer = window.setTimeout(() => setReadyAt(availableAt), Math.max(0, Date.parse(availableAt) - Date.now()));
     return () => window.clearTimeout(timer);
   }, [availableAt]);
-  if (availableAt && !ready) return null;
+  if (availableAt && readyAt !== availableAt) return null;
 
   function openDispute() {
     return runWithAlerts({

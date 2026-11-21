@@ -47,19 +47,7 @@ Restart the dev server after changing environment variables.
 
 ### 2. Database
 
-Create a Supabase project and run the migrations **in order** in the SQL Editor:
-
-1. `supabase/migrations/202611030001_customer_portal.sql`
-2. `supabase/migrations/202611030002_owner_dashboard.sql`
-3. `supabase/migrations/202611030003_admin_panel.sql`
-4. `supabase/migrations/202611050001_phase3.sql`
-5. `supabase/migrations/202611050002_pricing_rules.sql`
-6. `supabase/migrations/202611050003_database_schema.sql`
-7. `supabase/migrations/202611050004_security_rls.sql`
-8. `supabase/migrations/202611050005_booking_flow.sql`
-9. `supabase/migrations/202611060001_promo_kit.sql`
-
-They create customer, owner, and admin data; booking and calendar rules; private document policies; and platform settings. On a database that already has platform tables, the migrations add missing fields and policies.
+Create a Supabase project and apply every file in `supabase/migrations/` in ascending filename order. For an existing installation, apply the migrations it has yet to run before deploying the app.
 
 ### 3. Authentication
 
@@ -114,6 +102,16 @@ Then visit `/signup`.
 - **Pricing rules** — one rate per car and rental mode. Owners can set self-drive fuel, mileage, minimum-age, license, and refundable deposit terms, plus with-driver included hours, overtime, fuel/meals/accommodation coverage, and area. Booking requests save pickup location and required itinerary notes for with-driver rentals; self-drive requests require a license document. Prices shown in the browser are estimates; a database trigger calculates the final rate, total, deposit, commission, and owner earnings server-side from saved rates.
 - **Booking flow** — requests validate dates and availability on the server, with a database exclusion constraint as the final overlap check. Self-drive requires license and ID documents with verification pending or approved; with-driver requires pickup location, time, and itinerary. Owners see pending request counts, can approve or reject, then record pickup, return, completion, and payment.
 - **Promo kit** — owners can download square posts, stories, a Facebook cover, an A4 poster PDF, and an A6 sticker PDF with QR codes; they can also share a general branded post, captions, and permanent short links. Referral clicks and bookings appear in owner and admin promotion views. Set `NEXT_PUBLIC_SITE_URL` to the final public domain before sharing links or printing promo materials.
+
+### Owner-direct QR payments
+
+Apply the QR hardening migration before releasing the app. Customers continue to pay the owner directly. The application protects bookings during proof review and records owner attestations, payment confirmations, refunds and disputes.
+
+Proof fingerprints are computed from the private Storage object after submission. Owner and admin review screens retry missing fingerprints on demand. The database scheduler runs expiry and reminders every ten minutes when `pg_cron` is enabled. On installations without it, invoke `expire_unpaid_bookings()` and `send_payment_review_reminders()` every ten minutes with a trusted service role.
+
+Payment confirmation links use the existing notification dispatcher. Public verification uses Vercel's forwarded client address to rate-limit requests with a keyed hash. Requests without that header share a rate limit.
+
+Run `supabase/tests/qr_payment_hardening.sql` against a disposable database after applying all migrations.
 
 ## Project structure
 

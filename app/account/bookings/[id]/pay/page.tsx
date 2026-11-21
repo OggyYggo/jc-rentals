@@ -24,10 +24,11 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
     .select("id,reference,owner_id,status,mode,deposit_amount,payment_due_at,payment_resubmit_due_at,review_due_at,amount_due_now,balance_at_pickup,total_price,cancel_free_until,cancel_fee_percent,amount_paid_online")
     .eq("id", id).eq("customer_id", user.id).maybeSingle();
   if (!booking) notFound();
-  const [{ data: proof }, { data: receipt }, { data: disputes }, { data: refund }] = await Promise.all([
+  const [{ data: proof }, { data: receipt }, { data: disputes }, { data: pickup }, { data: refund }] = await Promise.all([
     db.from("payments").select("paid_at,status,rejection_reason").eq("booking_id", id).eq("method", "owner_qr").order("paid_at", { ascending: false }).limit(1).maybeSingle(),
     db.from("payment_receipts").select("id,receipt_no,public_code,status,created_at,details").eq("booking_id", id).maybeSingle<Receipt>(),
     db.from("customer_payment_disputes").select("*").eq("booking_id", id).order("created_at").returns<Dispute[]>(),
+    db.rpc("customer_booking_pickup", { p_booking_id: id }).maybeSingle<{ pickup_location: string | null; pickup_time: string | null; contact_phone: string | null }>(),
     db.from("booking_refunds").select("status,amount,due_at,refund_reference").eq("booking_id", id).maybeSingle(),
   ]);
   const now = new Date().getTime();
@@ -94,6 +95,11 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
       {booking.review_due_at && <p>Review deadline · {paymentDate(booking.review_due_at)} Manila time</p>}
     </section>}
     {!available && booking.status === "awaiting_payment" && <p className="mt-4 text-sm">The payment window has passed.</p>}
+    {pickup && <section className="mt-4 rounded-xl border bg-white p-4 text-sm">
+      <h2 className="font-semibold">Pickup details</h2>
+      <p>{pickup.pickup_location || "Arrange pickup with the rental owner"}{pickup.pickup_time && ` · ${pickup.pickup_time.slice(0, 5)} Manila time`}</p>
+      {pickup.contact_phone && <p>Owner contact · <a className="text-blue-800 underline" href={`tel:${pickup.contact_phone.replace(/[^+0-9]/g, "")}`}>{pickup.contact_phone}</a></p>}
+    </section>}
     {receipt && <BookingPaymentConfirmation receipt={receipt} />}
     {refund && <section className="mt-4 space-y-1 rounded-xl border bg-white p-4 text-sm">
       <h2 className="font-semibold">Refund · {paymentPeso(refund.amount)}</h2>

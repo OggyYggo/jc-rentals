@@ -684,7 +684,8 @@ begin
     values (b.id,auth.uid(),p_kind,trim(p_message)) returning id into dispute_id;
   if first_dispute and b.status = 'payment_review' then
     update public.bookings set review_due_at = greatest(review_due_at,now() + interval '24 hours') where id = b.id;
-  elsif first_dispute and b.status = 'awaiting_payment' then
+  elsif first_dispute and b.status = 'awaiting_payment'
+    and greatest(b.payment_due_at,b.payment_resubmit_due_at) > now() then
     update public.bookings set payment_resubmit_due_at = greatest(payment_resubmit_due_at,now() + interval '24 hours') where id = b.id;
   end if;
   select profile_id into owner_user from public.owners where id = b.owner_id;
@@ -817,6 +818,312 @@ revoke all on function public.issue_payment_receipt(), public.sync_payment_recei
   public.public_payment_confirmation(text) from public, anon, authenticated;
 grant execute on function public.public_payment_confirmation(text) to service_role;
 
+create table public.owner_payment_events (
+  id bigint generated always as identity primary key,
+  owner_id uuid not null references public.owners(id) on delete cascade,
+  booking_id uuid references public.bookings(id) on delete set null,
+  kind text not null check (kind in ('confirmed','rejected','no_response','refund_overdue','refund_done','dispute_opened','dispute_upheld')),
+  seconds_to_act integer,
+  created_at timestamptz not null default now()
+);
+create index owner_payment_events_recent_idx on public.owner_payment_events (owner_id,created_at);
+create unique index owner_payment_refund_overdue_once on public.owner_payment_events (booking_id)
+where kind = 'refund_overdue';
+alter table public.owner_payment_events enable row level security;
+revoke all on public.owner_payment_events from public, anon, authenticated;
+grant select on public.owner_payment_events to authenticated;
+create policy "Admins read payment events" on public.owner_payment_events for select to authenticated using ((select public.is_admin()));
+
+create view public.owner_payment_stats with (security_invoker = true) as
+select owner_id,
+  count(*) filter (where kind = 'confirmed') as confirmed,
+  count(*) filter (where kind = 'no_response') as no_response,
+  count(*) filter (where kind = 'refund_overdue') as refunds_overdue,
+  percentile_cont(0.5) within group (order by seconds_to_act)
+    filter (where kind in ('confirmed','rejected')) as median_seconds_to_act
+from public.owner_payment_events where created_at > now() - interval '90 days' group by owner_id;
+revoke all on public.owner_payment_stats from public, anon, authenticated;
+grant select on public.owner_payment_stats to authenticated;
+
+create function public.owner_payment_performance(p_owner_id uuid)
+returns setof public.owner_payment_stats language sql stable security definer set search_path = '' as $$
+  select * from public.owner_payment_stats where owner_id = p_owner_id and auth.uid() is not null
+    and (public.is_admin() or exists (select 1 from public.owners where id = p_owner_id and profile_id = auth.uid()))
+$$;
+
+create function public.record_payment_performance()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  owner_key uuid;
+  booking_key uuid;
+  event_kind text;
+  elapsed integer;
+begin
+  if tg_table_name = 'payments' then
+    if old.status <> 'pending' or new.status not in ('verified','rejected') then return new; end if;
+    if new.status = 'rejected' and (new.rejection_reason in (
+      'Another proof was verified for this booking.',
+      'Booking cancelled. Reconcile any received transfer with the customer.',
+      'Payment review expired. Reconcile any received transfer with the customer.'
+    )) then return new; end if;
+    owner_key := new.owner_id;
+    booking_key := new.booking_id;
+    event_kind := case when new.status = 'verified' then 'confirmed' else 'rejected' end;
+    elapsed := greatest(0,extract(epoch from now() - new.paid_at)::integer);
+  elsif tg_table_name = 'bookings' then
+    if not ('owner_no_response' = any(new.payment_flags)) or 'owner_no_response' = any(old.payment_flags) then return new; end if;
+    owner_key := new.owner_id;
+    booking_key := new.id;
+    event_kind := 'no_response';
+    perform public.admin_alert('payment.no_response','Payment review expired',
+      'The booking was released and the refund must be reconciled.','/admin/payments','no-response:'||booking_key);
+  elsif tg_table_name = 'booking_refunds' then
+    if new.status <> 'refunded' or old.status = new.status then return new; end if;
+    owner_key := new.owner_id;
+    booking_key := new.booking_id;
+    event_kind := 'refund_done';
+  else
+    if tg_op = 'UPDATE' and (new.status <> 'resolved' or old.status = new.status) then return new; end if;
+    select owner_id into owner_key from public.bookings where id = new.booking_id;
+    booking_key := new.booking_id;
+    event_kind := case when tg_op = 'INSERT' then 'dispute_opened' else 'dispute_upheld' end;
+  end if;
+  insert into public.owner_payment_events(owner_id,booking_id,kind,seconds_to_act)
+  values (owner_key,booking_key,event_kind,elapsed);
+  return new;
+end;
+$$;
+create trigger record_payment_performance after update of status on public.payments
+for each row execute function public.record_payment_performance();
+create trigger record_no_response after update of payment_flags on public.bookings
+for each row execute function public.record_payment_performance();
+create trigger record_refund_performance after update of status on public.booking_refunds
+for each row execute function public.record_payment_performance();
+create trigger record_dispute_performance after insert or update of status on public.payment_disputes
+for each row execute function public.record_payment_performance();
+
+create or replace function public.send_refund_reminders()
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  r record;
+  day_key text := (now() at time zone 'Asia/Manila')::date::text;
+begin
+  for r in select f.*,o.profile_id from public.booking_refunds f join public.owners o on o.id = f.owner_id
+    where f.status = 'owed' and f.due_at <= now() + interval '1 day' for share of f skip locked
+  loop
+    perform public.notify(r.profile_id,'refund_reminder',
+      case when r.due_at <= now() then 'Refund overdue' else 'Refund due soon' end,
+      'Review and record the refund from your payment dashboard.','/owner/payments?tab=refunds',r.booking_id,
+      '{in_app,email}',true,'refund-reminder:'||r.id||':'||case when r.due_at <= now() then day_key else 'due-soon' end);
+    if r.due_at <= now() then
+      insert into public.owner_payment_events(owner_id,booking_id,kind) values (r.owner_id,r.booking_id,'refund_overdue')
+      on conflict do nothing;
+    end if;
+    if r.due_at <= now() - interval '2 days' then
+      perform public.admin_alert('payment.refund_overdue','Booking refund overdue',
+        'An owner refund is two or more days overdue.','/admin/payments','refund-overdue:'||r.id||':'||day_key);
+    end if;
+  end loop;
+end;
+$$;
+
+create function public.send_payment_review_reminders()
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  r record;
+  today date := (now() at time zone 'Asia/Manila')::date;
+begin
+  delete from public.payment_request_limits where bucket < now() - interval '1 day';
+  perform public.send_refund_reminders();
+  for r in select b.id,b.review_due_at,p.id as payment_id,p.paid_at,o.profile_id
+    from public.bookings b join public.payments p on p.booking_id = b.id and p.status = 'pending'
+    join public.owners o on o.id = b.owner_id
+    where b.status = 'payment_review' and b.review_due_at > now() and p.paid_at <= now() - interval '1 hour'
+    for share of b skip locked
+  loop
+    perform public.notify(r.profile_id,'payment_review_reminder','Payment proof waiting',
+      'Check your wallet or bank app and review the proof.','/owner/payments',r.id,'{in_app,push}',true,'review-1h:'||r.payment_id);
+    if r.paid_at <= now() - interval '4 hours' then
+      perform public.notify(r.profile_id,'payment_review_reminder','Payment review still waiting',
+        'Check the transfer and act before the review deadline.','/owner/payments',r.id,'{in_app,push,email}',true,'review-4h:'||r.payment_id);
+    end if;
+    if r.paid_at <= now() - interval '8 hours' then
+      perform public.admin_alert('payment.review_overdue','Payment proof waiting eight hours',
+        'Check the pending proof and follow up with the owner.','/admin/payments','review-8h:'||r.payment_id);
+    end if;
+  end loop;
+
+  for r in select o.id,o.profile_id,s.available,s.low_threshold
+    from public.owners o cross join lateral public.calculate_owner_credit_state(o.id) s
+    where o.is_active and o.fee_mode = 'credits' and (s.available <= 0 or s.available < s.low_threshold)
+  loop
+    perform public.notify(r.profile_id,case when r.available <= 0 then 'credits_empty' else 'credits_low' end,
+      case when r.available <= 0 then 'Owner credits unavailable' else 'Owner credits running low' end,
+      'Check your available balance and top up from your credits dashboard.','/owner/credits',null,
+      '{in_app,email}',false,'credits-low:'||r.id||':'||today);
+  end loop;
+
+  for r in select i.id,i.due_date,o.profile_id from public.commission_invoices i join public.owners o on o.id = i.owner_id
+    where i.status = 'unpaid' and i.due_date <= today + 3
+  loop
+    perform public.notify(r.profile_id,'commission_invoice_due',
+      case when r.due_date < today then 'Commission invoice overdue' else 'Commission invoice due soon' end,
+      'Open your invoices to check the amount and deadline.','/owner/credits#invoices',null,'{in_app,email}',true,
+      'invoice:'||r.id||':'||r.due_date||':'||case when r.due_date < today then 'overdue' else 'due-soon' end);
+  end loop;
+end;
+$$;
+
+revoke all on function public.record_payment_performance(), public.owner_payment_performance(uuid),
+  public.send_payment_review_reminders(), public.send_refund_reminders() from public, anon, authenticated;
+grant execute on function public.owner_payment_performance(uuid) to authenticated;
+grant execute on function public.send_payment_review_reminders(), public.send_refund_reminders(), public.expire_unpaid_bookings() to service_role;
+
+do $$ begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    if exists (select 1 from cron.job where jobname = 'send-refund-reminders') then
+      perform cron.unschedule('send-refund-reminders');
+    end if;
+    perform cron.schedule('send-payment-review-reminders','*/10 * * * *','select public.send_payment_review_reminders()');
+  end if;
+end $$;
+
+create function public.admin_set_payment_hardening_settings(
+  p_window integer,p_review integer,p_resubmit integer,p_refund integer,p_threshold numeric,p_reason text
+)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  reason text := public.require_dashboard_reason(p_reason);
+  prior_reason text := current_setting('app.audit_reason',true);
+begin
+  if auth.uid() is null or not public.is_admin() then raise exception 'Not allowed.'; end if;
+  if not coalesce(p_window between 1 and 168 and p_review between 2 and 72 and p_resubmit between 0 and 24
+    and p_refund between 1 and 30 and p_threshold between 0 and 100000 and p_threshold = round(p_threshold,2),false)
+  then raise exception 'Check the payment setting ranges.'; end if;
+  perform set_config('app.audit_reason', reason, true);
+  insert into public.settings (key,value,updated_by) values
+    ('payment_window_hours',to_jsonb(p_window),auth.uid()), ('payment_review_hours',to_jsonb(p_review),auth.uid()),
+    ('payment_resubmit_grace_hours',to_jsonb(p_resubmit),auth.uid()), ('refund_due_days',to_jsonb(p_refund),auth.uid()),
+    ('credit_low_threshold',to_jsonb(p_threshold),auth.uid())
+  on conflict (key) do update set value = excluded.value, updated_by = excluded.updated_by, updated_at = now()
+  where public.settings.value is distinct from excluded.value;
+  perform set_config('app.audit_reason',coalesce(prior_reason,''),true);
+end;
+$$;
+revoke all on function public.admin_set_payment_hardening_settings(integer,integer,integer,integer,numeric,text) from public, anon, authenticated;
+grant execute on function public.admin_set_payment_hardening_settings(integer,integer,integer,integer,numeric,text) to authenticated;
+
+alter table public.settings add constraint qr_payment_settings_range check (
+  case when key in ('payment_window_hours','payment_review_hours','payment_resubmit_grace_hours','refund_due_days','credit_low_threshold') then
+    case when jsonb_typeof(value) = 'number' then
+      case key
+        when 'payment_window_hours' then (value #>> '{}')::numeric between 1 and 168
+        when 'payment_review_hours' then (value #>> '{}')::numeric between 2 and 72
+        when 'payment_resubmit_grace_hours' then (value #>> '{}')::numeric between 0 and 24
+        when 'refund_due_days' then (value #>> '{}')::numeric between 1 and 30
+        when 'credit_low_threshold' then (value #>> '{}')::numeric between 0 and 100000
+      end and (value #>> '{}')::numeric = round((value #>> '{}')::numeric,case when key = 'credit_low_threshold' then 2 else 0 end)
+    else false end
+  else true end
+) not valid;
+
+create or replace function public.prepare_admin_digest()
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare
+  config public.admin_alert_config;
+  manila_day date := (now() at time zone 'Asia/Manila')::date;
+  midnight timestamptz := manila_day::timestamp at time zone 'Asia/Manila';
+  yesterday timestamptz := (manila_day-1)::timestamp at time zone 'Asia/Manila';
+  batch_id uuid;
+  waiting jsonb;
+  events jsonb;
+  heads jsonb;
+  activity jsonb;
+  attention bigint;
+begin
+  select * into config from public.admin_alert_config where id for update;
+  if config.last_digest_on >= manila_day then return null; end if;
+
+  begin
+    perform public.admin_alert('plan.expiring','Owner plans expiring','A paid owner plan expires within seven days.',
+      '/admin/owners','plan.expiring:' || op.owner_id || ':' || extract(epoch from op.expires_at))
+    from public.owner_plans op join public.plans p on p.id=op.plan_id
+    where op.status='active' and p.code<>'starter' and op.expires_at between now() and now()+interval '7 days';
+  exception when others then
+    raise warning 'Could not enqueue plan expiry alerts (%).', sqlstate;
+  end;
+
+  if config.digest_enabled is not true then return null; end if;
+  select id into batch_id from public.admin_alert_queue where dedupe_key='daily:' || manila_day;
+  if found then return batch_id; end if;
+
+  -- Release an undelivered prior day's events into today's digest.
+  update public.admin_alert_queue entry set digest_batch=null
+  from public.admin_alert_queue previous
+  where entry.digest_batch=previous.id and entry.status='digest'
+    and previous.kind='daily' and previous.digest_on < manila_day
+    and coalesce(previous.lease_until,'-infinity') <= now() and previous.status <> 'sent';
+
+  select coalesce(jsonb_agg(jsonb_build_object('label',label,'path',path,'count',total,'oldest',oldest) order by position),'[]'), coalesce(sum(total),0)
+    into waiting,attention
+  from (
+    select 1 as position,'Owner applications' as label,'/admin/owner-applications' as path,count(*) as total,min(created_at) as oldest from public.owner_applications where status='pending'
+    union all select 2,'Owner payment QRs','/admin/owners',count(*),min(coalesce(qr.created_at,o.created_at))
+      from public.owners o left join lateral (
+        select created_at from public.audit_log where entity_type='owner' and entity_id=o.id::text and changes ? 'payment_qr_path' order by id desc limit 1
+      ) qr on true where o.payment_qr_path is not null and not o.payment_qr_verified and o.archived_at is null
+    union all select 3,'Owner top-ups','/admin/topups',count(*),min(created_at) from public.owner_credit_ledger where type='topup' and status='pending'
+    union all select 4,'Customer documents','/admin/customers',count(*),min(coalesce(docs.created_at,p.created_at))
+      from public.profiles p left join lateral (
+        select created_at from public.audit_log where entity_type='customer' and entity_id=p.id::text and changes ?| array['license_path','id_path'] order by id desc limit 1
+      ) docs on true where p.role='customer' and p.verification='pending' and p.customer_archived_at is null
+    union all select 5,'Booking payments','/admin/payments',count(*),min(paid_at) from public.payments where status='pending'
+    union all select 6,'Plan payments','/admin/plan-payments',count(*),min(created_at) from public.plan_payments where status='pending'
+    union all select 7,'Contact messages','/admin/contact-messages',count(*),min(created_at) from public.contact_messages where status='new'
+    union all select 8,'Review reports','/admin/reviews',count(*),min(created_at) from public.review_reports where status='open'
+    union all select 9,'Overdue refunds','/admin/payments',count(*),min(due_at) from public.booking_refunds
+      where status='owed' and due_at <= now()
+    union all select 10,'Open payment disputes','/admin/payments',count(*),min(created_at) from public.payment_disputes where status='open'
+  ) items where total>0;
+
+  select coalesce(jsonb_agg(jsonb_build_object('label',label,'count',total) order by label),'[]') into heads from (
+    select 'Paid plans expiring within seven days' as label,count(*) as total from public.owner_plans op join public.plans p on p.id=op.plan_id
+      where op.status='active' and p.code<>'starter' and op.expires_at between now() and now()+interval '7 days'
+    union all select 'Owners with low credits',count(*) from public.owners o
+      cross join lateral public.calculate_owner_credit_state(o.id) b
+      where o.is_active and o.fee_mode='credits' and (b.available <= 0 or b.available < b.low_threshold)
+    union all select 'Per-user notifications with delivery problems',count(*) from public.notifications where admin_alert_failure_at>now()-interval '1 day'
+    union all select 'Admin email alerts that failed',count(*) from public.admin_alert_queue where status='failed' and failed_at>now()-interval '1 day'
+  ) totals where total>0;
+
+  select jsonb_build_object(
+    'newBookings',count(*),
+    'bookedValue',coalesce(sum(total_price) filter(where status in ('confirmed','picked_up','returned','completed')),0),
+    'commission',coalesce(sum(commission_amount) filter(where status in ('confirmed','picked_up','returned','completed')),0),
+    'confirmed',(select count(distinct entity_id) from public.audit_log where created_at>=yesterday and created_at<midnight
+      and entity_type='booking' and changes->'status'->>'to'='confirmed'),
+    'cancelled',(select count(distinct entity_id) from public.audit_log where created_at>=yesterday and created_at<midnight
+      and entity_type='booking' and changes->'status'->>'to' in ('cancelled','expired')))
+    into activity from public.bookings where created_at>=yesterday and created_at<midnight;
+
+  batch_id := gen_random_uuid();
+  update public.admin_alert_queue set digest_batch=batch_id where status='digest' and digest_batch is null;
+  select coalesce(jsonb_agg(jsonb_build_object('label',label,'count',total) order by label),'[]') into events
+    from (select r.label,count(*) as total from public.admin_alert_queue q join public.admin_alert_rules r using(event_key)
+      where q.digest_batch=batch_id group by r.label) grouped;
+
+  if attention=0 and events='[]' and heads='[]' and not config.digest_even_if_empty then return null; end if;
+  if attention=0 then
+    select coalesce(sum((item->>'count')::bigint),0) into attention from jsonb_array_elements(heads || events) as items(item);
+  end if;
+  insert into public.admin_alert_queue(id,event_key,title,url,kind,dedupe_key,digest_on,digest_data)
+    values (batch_id,'daily.summary',case when attention=0 then 'Daily summary: all caught up'
+      else 'Daily summary: ' || attention || ' things need attention' end,'/admin','daily','daily:' || manila_day,manila_day,
+      jsonb_build_object('waiting',waiting,'activity',activity,'events',events,'heads',heads));
+  return batch_id;
+end;
+$$;
+
 -- Customers can read their case and its decision; internal owner replies stay
 -- available to the owner and the admin through the underlying table.
 drop policy "Read related disputes" on public.payment_disputes;
@@ -829,3 +1136,110 @@ select id,booking_id,kind,message,status,resolution,created_at
 from public.payment_disputes where opened_by = (select auth.uid());
 revoke all on public.customer_payment_disputes from public, anon, authenticated;
 grant select on public.customer_payment_disputes to authenticated;
+
+create function public.customer_booking_pickup(p_booking_id uuid)
+returns table (pickup_location text,pickup_time time,contact_phone text)
+language sql stable security definer set search_path = '' as $$
+  select coalesce(pickup.address,b.pickup_location),b.pickup_time,o.contact_phone
+  from public.bookings b join public.owners o on o.id = b.owner_id
+  left join public.pickup_locations pickup on pickup.id = b.pickup_location_id and pickup.owner_id = b.owner_id
+  where b.id = p_booking_id and b.customer_id = auth.uid()
+    and b.status in ('confirmed','picked_up','returned','completed')
+    and b.amount_paid_online > 0
+$$;
+revoke all on function public.customer_booking_pickup(uuid) from public, anon, authenticated;
+grant execute on function public.customer_booking_pickup(uuid) to authenticated;
+
+-- Keep pickup search working without making owner-provided addresses public.
+drop policy "Anyone can read active pickup locations" on public.pickup_locations;
+create policy "Admins read pickup locations" on public.pickup_locations for select to authenticated
+using ((select public.is_admin()));
+revoke select on public.pickup_locations from anon;
+create view public.public_pickup_search with (security_barrier = true) as
+select p.owner_id,p.name from public.pickup_locations p join public.owners o on o.id = p.owner_id
+where p.is_active and o.is_active;
+revoke all on public.public_pickup_search from public, anon, authenticated;
+grant select on public.public_pickup_search to anon, authenticated;
+
+create function public.guard_payment_settings_reason()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  setting_key text := case when tg_op = 'DELETE' then old.key else new.key end;
+begin
+  if tg_op = 'UPDATE' and new.key = old.key and new.value is not distinct from old.value then return new; end if;
+  if setting_key in ('payment_window_hours','payment_review_hours','payment_resubmit_grace_hours','refund_due_days','credit_low_threshold')
+    or (tg_op = 'UPDATE' and old.key in ('payment_window_hours','payment_review_hours','payment_resubmit_grace_hours','refund_due_days','credit_low_threshold')) then
+    if auth.uid() is not null and (tg_op = 'DELETE' or nullif(current_setting('app.audit_reason',true),'') is null) then
+      raise exception 'Change payment deadlines through the audited settings form.';
+    end if;
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$$;
+revoke all on function public.guard_payment_settings_reason() from public, anon, authenticated;
+create trigger guard_payment_settings_reason before insert or update or delete on public.settings
+for each row execute function public.guard_payment_settings_reason();
+
+create or replace function public.notify_booking_events()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+ v_owner_user uuid;
+ v_policy text;
+ v_amounts text;
+ v_refund_amount numeric;
+ v_refund_copy constant text := 'The refund is sent by the vehicle owner. Kuyog Bohol helps record and track it.';
+begin
+ select profile_id into v_owner_user from public.owners where id=new.owner_id;
+ if new.cancel_free_until is not null then
+  v_policy := format(' Free cancellation until %s Manila time. The owner keeps %s%% of verified reservation payments after that cutoff.',
+    to_char(new.cancel_free_until at time zone 'Asia/Manila', 'YYYY-MM-DD HH24:MI'), new.cancel_fee_percent);
+ end if;
+ if tg_op='INSERT' then
+  perform public.notify(v_owner_user,'new_booking','New booking request','A customer booked one of your cars.','/owner/bookings',new.id,'{in_app,email,push}',false,'new-booking:'||new.id);
+  perform public.notify(new.customer_id,'booking_created','Booking created','Your booking request was received.' || coalesce(v_policy, ''),'/account/bookings',new.id,'{in_app,email}',false,'booking-created:'||new.id);
+  return new;
+ end if;
+ if new.deposit_refund_status = 'refunded' and old.deposit_refund_status = 'owed' then
+  select amount into v_refund_amount from public.booking_refunds where booking_id = new.id;
+  perform public.notify(new.customer_id,'refund_sent','Refund sent',
+    (case when v_refund_amount > 0 then format('Refund sent: ₱%s. ', v_refund_amount) else 'Your refund was recorded. ' end) || v_refund_copy,
+    '/account/bookings/'||new.id||'/pay',new.id,'{in_app,email}',true,'refund-sent:'||new.id||':'||new.refunded_at::text);
+ end if;
+ if new.status is not distinct from old.status then return new; end if;
+ if new.status='payment_review' then
+  perform public.notify(v_owner_user,'payment_proof_uploaded','Payment proof to verify',format('Check your wallet or bank app for the %s reservation payment. Review by %s Manila time.',
+    to_char(new.amount_due_now,'FM"₱"999,999,990.00'), to_char(new.review_due_at at time zone 'Asia/Manila','YYYY-MM-DD HH24:MI')),'/owner/payments',new.id,'{in_app,email,push}',true,'proof:'||new.id||':'||new.review_due_at::text);
+ elsif new.status='confirmed' then
+  perform public.notify(new.customer_id,'payment_verified','Booking confirmed','Your reservation payment was verified.' || coalesce(v_policy, ''),'/account/bookings',new.id,'{in_app,email,push}',true,'verified:'||new.id);
+ elsif new.status='awaiting_payment' and old.status='payment_review' then
+  perform public.notify(new.customer_id,'payment_rejected','Payment proof needs another upload',case when greatest(new.payment_due_at,new.payment_resubmit_due_at) > now() and
+       (select count(*) from public.payments where booking_id = new.id) < 3
+      then 'The proof needs review. Open payment details for the reason and resubmission deadline.'
+      else 'Open payment details for the reason and contact support if you already paid.' end,
+    '/account/bookings/'||new.id||'/pay',new.id,'{in_app,email,push}',true,'rejected-proof:'||new.id||':'||clock_timestamp()::text);
+ elsif new.status='expired' then
+  if auth.uid() is distinct from new.customer_id then perform public.notify(new.customer_id,'booking_expired','Booking expired',case when old.status = 'payment_review' then 'The review window passed. Open payment details to follow the refund.'
+      else 'The payment deadline passed and the booking was released.' end,'/account/bookings',new.id,'{in_app,email}',false,'expired:'||new.id); end if;
+ elsif new.status='cancelled' then
+  v_amounts := case when new.deposit_refund_status = 'owed' and new.refund_amount = 0
+    then 'The transfer is awaiting reconciliation. Open payment details for the refund status.'
+    else format('Fee kept: ₱%s. Refund: ₱%s.', new.cancel_fee_amount, new.refund_amount) end;
+  perform public.notify(new.customer_id,'booking_cancelled_confirmation','Booking cancelled',
+    v_amounts || case when new.refund_amount > 0 then ' ' || v_refund_copy ||
+      format(' Contact support if you have not received it within %s days.',
+        coalesce((select value #>> '{}' from public.settings where key = 'refund_support_days'), '3'))
+      else '' end,
+    '/account/bookings/'||new.id||'/pay',new.id,'{in_app,email,push}',true,'customer-cancelled:'||new.id);
+  perform public.notify(v_owner_user,'booking_cancelled','Booking cancelled',
+    format('Cancelled by %s (%s). %s', coalesce(new.cancelled_by_role, 'system'), coalesce(replace(new.cancel_kind,'_',' '), 'cancelled'), v_amounts)
+      || case when new.refund_amount > 0 then ' ' || v_refund_copy else '' end,
+    case when new.deposit_refund_status = 'owed' then '/owner/payments?tab=refunds' else '/owner/bookings' end,
+    new.id,'{in_app,email,push}',true,'owner-cancelled:'||new.id);
+ elsif new.status='rejected' then
+  if auth.uid() is distinct from new.customer_id then perform public.notify(new.customer_id,'booking_cancelled','Booking declined','The owner could not accept this booking.','/account/bookings',new.id,'{in_app,email,push}',true,'booking-rejected:'||new.id); end if;
+ end if;
+ return new;
+end $$;
+
+revoke all on function public.notify_booking_events() from public, anon, authenticated;

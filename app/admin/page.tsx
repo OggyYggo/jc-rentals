@@ -16,7 +16,7 @@ export default async function AdminOverviewPage() {
   const { supabase } = await getAdminContext();
   const now = new Date();
   const monthStart = `${manilaMonth(now)}-01T00:00:00+08:00`;
-  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, reports] = await Promise.all([
+  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, payments, disputes, overdueRefunds, reports] = await Promise.all([
     supabase.from("owners").select("id", { count: "exact", head: true }),
     supabase.from("cars").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer"),
@@ -25,6 +25,9 @@ export default async function AdminOverviewPage() {
     supabase.from("bookings").select("id, reference, created_at, total_price, cancel_fee_amount, status, customer:profiles!bookings_customer_id_fkey(full_name), owner:owners!bookings_owner_id_fkey(business_name), car:cars!bookings_car_id_fkey(brand, model)").order("created_at", { ascending: false }).limit(6),
     recentActivity(supabase),
     alertBadge(supabase),
+    supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("payment_disputes").select("id", { count: "exact", head: true }).eq("status", "open"),
+    supabase.from("booking_refunds").select("id", { count: "exact", head: true }).eq("status", "owed").lte("due_at", now.toISOString()),
     supabase.from("review_reports").select("id", { count: "exact", head: true }).eq("status","open"),
   ]);
   const monthlyBookings = monthBookings.data ?? [];
@@ -42,6 +45,7 @@ export default async function AdminOverviewPage() {
     </section>
     <Link href="/admin/settings#email-alerts" className="mt-5 inline-block rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">Email alerts · {emailStatus}</Link>
     {!reports.error && <Link href="/admin/reviews" className="ml-2 mt-5 inline-block rounded-md border bg-white px-3 py-2 text-xs font-medium">Reviews waiting · {reports.count ?? 0} open reports</Link>}
+    {!payments.error && !disputes.error && !overdueRefunds.error && <Link href="/admin/payments" className="mt-4 block rounded-xl border bg-white p-4 text-sm font-semibold">Payments waiting · {payments.count ?? 0} · Disputes open · {disputes.count ?? 0} · Refunds overdue · {overdueRefunds.count ?? 0}</Link>}
     <RecentActivity entries={activity} now={now.getTime()}/>
   </>;
 }
