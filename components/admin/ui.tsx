@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -5,9 +7,16 @@ export function AdminHeading({ eyebrow, title, description, action }: { eyebrow?
   return <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div>{eyebrow && <p className="mb-1 text-[11px] font-medium text-[#8a96a8]">{eyebrow}</p>}<h1 className="text-[22px] font-semibold tracking-tight text-[#25364e]">{title}</h1>{description && <p className="mt-1.5 max-w-2xl text-xs leading-5 text-[#7c899d]">{description}</p>}</div>{action}</div>;
 }
 
-export function AdminStat({ title, value, note, icon: Icon, tone = "blue" }: { title: string; value: string; note: string; icon: LucideIcon; tone?: "blue" | "green" | "orange" | "violet" }) {
+export function AdminStat({ title, value, note, icon: Icon, tone = "blue", href }: { title: string; value: string; note: string; icon: LucideIcon; href?: string; tone?: "blue" | "green" | "orange" | "violet" }) {
   const tones = { blue: "bg-[#edf2ff] text-[#4c6fc9]", green: "bg-[#edf7f1] text-[#39825f]", orange: "bg-[#fff5e8] text-[#bc8232]", violet: "bg-[#f2efff] text-[#785fbb]" };
-  return <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex items-start justify-between gap-2"><p className="text-[11px] font-medium text-[#7d8a9e]">{title}</p><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}><Icon size={16}/></span></div><p className="mt-3 text-[23px] font-semibold tracking-tight text-[#26374e]">{value}</p><p className="mt-1.5 text-[10px] text-[#8995a6]">{note}</p></article>;
+  const style = "block rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-sm sm:p-5";
+  const content = <><div className="flex items-start justify-between gap-2">
+    <p className="text-[11px] font-medium text-[#63738a]">{title}</p>
+    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}><Icon size={16} aria-hidden /></span>
+  </div><p className="mt-3 text-[23px] font-semibold tracking-tight text-[#26374e]">{value}</p>
+  <p className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-[#63738a]">{note}{href && <ArrowUpRight size={15} aria-hidden />}</p></>;
+  return href ? <Link href={href} className={`${style} transition hover:border-blue-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-blue-600`}>{content}</Link>
+    : <article className={style}>{content}</article>;
 }
 
 export function AdminStatus({ status }: { status: string }) {

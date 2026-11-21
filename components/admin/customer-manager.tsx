@@ -17,8 +17,8 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-PH", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Manila" }).format(new Date(value));
 }
 
-export function CustomerManager({ customers, canReject, canReviewClasses, archiveAvailable, canArchive }: { customers: AdminCustomer[]; canReject: boolean; canReviewClasses: boolean; archiveAvailable: boolean; canArchive: boolean }) {
-  const router = useRouter(); const [query, setQuery] = useState(""); const [filter, setFilter] = useState("all"); const [busy, setBusy] = useState(""); const [classDrafts,setClassDrafts]=useState<Record<string,string[]>>({});
+export function CustomerManager({ initialFilter = "all", customers, canReject, canReviewClasses, archiveAvailable, canArchive }: { initialFilter?: string; customers: AdminCustomer[]; canReject: boolean; canReviewClasses: boolean; archiveAvailable: boolean; canArchive: boolean }) {
+  const router = useRouter(); const [query, setQuery] = useState(""); const [filter, setFilter] = useState(initialFilter); const [busy, setBusy] = useState(""); const [classDrafts,setClassDrafts]=useState<Record<string,string[]>>({});
   const [showArchived, setShowArchived] = useState(false);
 
   function setArchived(customer: AdminCustomer, archived: boolean) {

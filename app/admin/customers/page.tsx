@@ -13,7 +13,9 @@ function unavailableColumn(error: { code: string; message: string } | null) {
   return error?.code === "42501" || error?.code === "42703" || error?.code === "PGRST204";
 }
 
-export default async function AdminCustomersPage() {
+export default async function AdminCustomersPage({ searchParams }: { searchParams: Promise<{ verification?: string }> }) {
+  const { verification } = await searchParams;
+  const initialFilter = typeof verification === "string" && ["pending", "approved", "rejected", "none"].includes(verification) ? verification : "all";
   const { supabase } = await getAdminContext();
   const loadCustomers = <Columns extends string>(columns: Columns) =>
     supabase.from("profiles").select(columns).eq("role", "customer").order("created_at", { ascending: false });
@@ -63,7 +65,7 @@ export default async function AdminCustomersPage() {
         {!canReject && <>Rejection requires database migration 202611190004. </>}
         {access.data === true && !archiveAvailable && <>Customer archiving requires database migration 202611190007.</>}
       </p>}
-      <CustomerManager customers={customers} canReject={canReject} canReviewClasses={canReviewClasses} archiveAvailable={archiveAvailable} canArchive={archiveAvailable && access.data === true} />
+      <CustomerManager key={initialFilter} initialFilter={initialFilter} customers={customers} canReject={canReject} canReviewClasses={canReviewClasses} archiveAvailable={archiveAvailable} canArchive={archiveAvailable && access.data === true} />
     </>}
   </>;
 }
