@@ -39,6 +39,19 @@ const safeMessages = new Set([
   "Could not open the document. Please try again.",
   "Copy was blocked by your browser. Select and copy the text instead.",
   "Could not open the share sheet.",
+  "Payment is no longer waiting for review.",
+  "A sent refund is required.",
+  "Refund is not pending.",
+  "Enter a refund reference.",
+  "Upload refund proof first.",
+  "Choose a JPEG, PNG or WebP image up to 5 MB.",
+  "Could not convert this image to WebP.",
+  "Enter a resolution of 10 to 500 characters.",
+  "Disputes are available two hours after submitting proof, or after rejection or expiry.",
+  "This reservation payment is already confirmed.",
+  "Dispute is unavailable.",
+  "Dispute is not open.",
+  "Check the payment setting ranges.",
 ]);
 
 export function friendlyError(error: unknown): { title: string; text: string; action?: { label: string; href: string } } {
@@ -61,6 +74,11 @@ export function friendlyError(error: unknown): { title: string; text: string; ac
   if (/failed to fetch|fetch failed|network\s?error|network request failed|load failed/i.test(message)) {
     return { title: "Connection problem", text: "We could not reach the server. Check your connection and try again." };
   }
+  if (message === "ATTESTATION_MISMATCH") return { title: "Check the transfer details", text: "The amount and transaction reference must both match the proof." };
+  if (message === "ADMIN_NOTE_REQUIRED") return { title: "Reason required", text: "Enter an audit reason of at least ten characters." };
+  if (message === "PAYMENT_REVIEW_EXPIRED") return { title: "Review window closed", text: "Refresh the queue and check the refund status." };
+  if (message.startsWith("Top up your owner credits")) return { title: "Owner credits short", text: message, action: { label: "Top up", href: "/owner/credits" } };
+  if (code === "23505" && message.includes("payment_disputes_one_open")) return { title: "Dispute already open", text: "Support is already reviewing this issue." };
   if (code === "23505" && message.includes("plan_payments_reference_unique")) {
     return { title: "Reference already used", text: "That transaction reference has already been used. Check it and try again." };
   }
