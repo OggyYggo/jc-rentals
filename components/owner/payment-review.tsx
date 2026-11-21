@@ -33,6 +33,12 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
       void db.storage.from("payment-proofs").createSignedUrl(payment.proof_path, 300).then(({ data }) => {
         if (active && data?.signedUrl) setUrls((current) => ({ ...current, [payment.id]: data.signedUrl }));
       });
+      if (!payment.proof_sha256) {
+        void fetch(`/api/payments/${payment.id}/fingerprint`, { method: "POST" })
+          .then(async (response) => {
+            if (response.ok && (await response.json()).updated && active) router.refresh();
+          }).catch(() => {});
+      }
     }
     return () => { active = false; };
   }, [payments, router]);
@@ -60,6 +66,7 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
           if (error) throw error;
           return;
         }
+        if (!payment.proof_sha256) await fetch(`/api/payments/${payment.id}/fingerprint`, { method: "POST" }).catch(() => {});
         const { data, error } = await db.rpc("confirm_booking_payment", {
           p_payment_id: payment.id,
           p_received_amount: admin ? null : Number(inputs[payment.id]?.amount),

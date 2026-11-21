@@ -326,3 +326,73 @@ begin
   return result;
 end;
 $$;
+
+
+
+insert into public.admin_alert_rules (event_key,label,description,mode,default_mode) values
+  ('payment.risk','Payment risk','A payment needs additional review.','digest','digest'),
+  ('payment.credit_short','Owner credits short','A shortage is delaying a payment confirmation.','instant','instant'),
+  ('payment.review_overdue','Payment review overdue','A proof is waiting for owner action.','instant','instant'),
+  ('payment.no_response','Payment review expired','An owner did not act before the review deadline.','instant','instant'),
+  ('payment.dispute','Payment dispute','A payment or refund was disputed.','instant','instant'),
+  ('payment.refund_overdue','Refund overdue','A refund is at least two days overdue.','instant','instant');
+
+create table public.payment_request_limits (
+  scope text not null,
+  caller text not null,
+  bucket timestamptz not null,
+  requests integer not null,
+  primary key (scope, caller, bucket)
+);
+alter table public.payment_request_limits enable row level security;
+revoke all on public.payment_request_limits from public, anon, authenticated;
+
+create function public.take_payment_request(p_scope text, p_caller text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare
+  request_count integer;
+  current_bucket timestamptz := date_trunc('minute', now());
+begin
+  if p_scope not in ('fingerprint','receipt') or p_caller is null or char_length(p_caller) > 64 then
+    return false;
+  end if;
+  insert into public.payment_request_limits as limits values (p_scope,p_caller,current_bucket,1)
+  on conflict (scope,caller,bucket) do update set requests = least(limits.requests + 1,61)
+  returning requests into request_count;
+  return request_count <= case when p_scope = 'fingerprint' then 60 else 25 end;
+end;
+$$;
+
+create index payments_non_rejected_proof_hash on public.payments (proof_sha256)
+where status in ('pending','verified') and proof_sha256 is not null;
+
+create function public.set_payment_proof_hash(p_payment_id uuid, p_sha256 text)
+returns boolean language plpgsql security definer set search_path = '' as $$
+begin
+  if p_sha256 is null or p_sha256 !~ '^[0-9a-f]{64}$' then raise exception 'Invalid proof hash.'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_sha256,0));
+  perform b.id from public.bookings b
+  where exists (select 1 from public.payments p where p.booking_id = b.id
+    and (p.id = p_payment_id or (p.proof_sha256 = p_sha256 and p.status in ('pending','verified'))))
+  order by b.id for update;
+  update public.payments set proof_sha256 = p_sha256
+    where id = p_payment_id and status = 'pending' and proof_sha256 is null;
+  if not found then return false; end if;
+  if exists (select 1 from public.payments where id <> p_payment_id
+      and proof_sha256 = p_sha256 and status in ('pending','verified')) then
+    update public.payments set flags = array_append(flags,'duplicate_proof')
+      where proof_sha256 = p_sha256 and status in ('pending','verified') and not ('duplicate_proof' = any(flags));
+    update public.bookings b set payment_flags = array_append(payment_flags,'duplicate_proof')
+      where not ('duplicate_proof' = any(payment_flags)) and exists (
+        select 1 from public.payments p where p.booking_id = b.id
+          and p.proof_sha256 = p_sha256 and p.status in ('pending','verified')
+      );
+    perform public.admin_alert('payment.risk','Payment screenshot reused',
+      'Matching proof images need review.','/admin/payments','duplicate-proof:'||p_sha256);
+  end if;
+  return true;
+end;
+$$;
+revoke all on function public.take_payment_request(text,text), public.set_payment_proof_hash(uuid,text)
+  from public, anon, authenticated;
+grant execute on function public.take_payment_request(text,text), public.set_payment_proof_hash(uuid,text) to service_role;

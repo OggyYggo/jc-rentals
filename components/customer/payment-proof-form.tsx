@@ -36,6 +36,7 @@ export function PaymentProofForm({ bookingId, customerId, amount }: { bookingId:
       });
       if (submitError) throw submitError;
       setSubmitted(true);
+      await fetch(`/api/payments/${id}/fingerprint`, { method: "POST" }).catch(() => {});
       router.refresh();
     } catch (cause) {
       const message = cause && typeof cause === "object" && "message" in cause ? String(cause.message) : "";
