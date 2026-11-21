@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { BookingCancellationPolicy } from "@/components/customer/cancellation-policy";
 import { PaymentCopyButton } from "@/components/customer/payment-copy-button";
 import { PaymentDisputeButton } from "@/components/customer/payment-dispute-button";
+import { PaymentStatusRefresh } from "@/components/customer/payment-status-refresh";
 import { PaymentProofForm } from "@/components/customer/payment-proof-form";
 import { BookingPaymentConfirmation } from "@/components/customer/payment-confirmation";
 import { DisputeList, type Dispute } from "@/components/payment-disputes";
@@ -48,6 +49,7 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
   const hasDispute = (kind: string) => disputes?.some((dispute) => dispute.kind === kind && dispute.status === "open");
 
   return <main className="mx-auto max-w-2xl px-4 py-8">
+    <PaymentStatusRefresh status={booking.status} />
     <Link href="/account/bookings" className="text-sm font-semibold text-blue-800">← My bookings</Link>
     <h1 className="mt-4 text-2xl font-bold">{available && !proof ? "Pay your booking deposit" : "Booking payment"}</h1>
     <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
@@ -89,6 +91,12 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
       <BookingCancellationPolicy booking={booking} now={now} />
       <PaymentProofForm bookingId={id} customerId={user.id} amount={Number(booking.amount_due_now)} />
     </section>}
+    {booking.status === "confirmed" && <section role="status" className="mt-4 space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+      <h2 className="font-semibold">Payment confirmed</h2>
+      <p>Reservation payment received · {paymentPeso(booking.amount_paid_online)}</p>
+      <p>Balance at pickup · {paymentPeso(booking.balance_at_pickup)}</p>
+    </section>}
+    {["cancelled", "completed", "expired"].includes(booking.status) && <p role="status" className="mt-4 text-sm">This booking is {booking.status}. You can still view its payment and refund records here.</p>}
     {inReview && <section className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">
       <h2 className="font-semibold">The owner is checking your payment</h2>
       <p>You will get an email and notification.</p>
