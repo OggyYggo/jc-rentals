@@ -1,10 +1,11 @@
 "use client";
 
 import { EntityHistory } from "@/components/admin/audit/EntityHistory";
-import { DocumentLink } from "@/components/admin/audit/DocumentLink";
+import { CustomerReviewDialog } from "@/components/admin/customer-review-dialog";
+import type { DocumentKind } from "@/components/admin/DocumentViewer";
 
 import { runWithAlerts } from "@/lib/alerts/run";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AdminStatus } from "@/components/admin/ui";
@@ -68,33 +69,34 @@ export function CustomerManager({ initialFilter = "all", customers, canReject, c
     });
   }
 
-  function setVerification(customer: AdminCustomer, status: "approved" | "rejected") {
-    const approve = status === "approved";
-    return runWithAlerts({
-      confirm: approve ? { title: "Approve customer verification?", text: customer.full_name, confirmText: "Approve verification" } : undefined,
-      reason: approve ? undefined : { title: "Reject customer verification?", label: "Reason for rejection", confirmText: "Reject verification" },
-      setPending: (pending) => setBusy(pending ? customer.id : ""),
-      run: async (reason) => {
-        const db = createClient();
-        const { error } = approve
-          ? await db.rpc("admin_set_customer_verification", { customer_uuid: customer.id, next_status: status })
-          : await db.rpc("admin_reject_customer_verification", { p_customer_id: customer.id, p_reason: reason });
-        if (error) throw error;
-      },
-      success: approve ? "Customer verification approved" : "Customer verification rejected",
-      refresh: router.refresh,
-    });
-  }
+  const [dialog, setDialog] = useState<{ id: string; kind: DocumentKind; review: boolean } | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const selected = dialog ? customers.find(customer => customer.id === dialog.id) : undefined;
+  const openDialog = (button: HTMLButtonElement, customer: AdminCustomer, kind: DocumentKind, review: boolean) => {
+    trigger.current = button;
+    setDialog({ id: customer.id, kind, review });
+  };
 
   return <div className="space-y-4">
     {archiveAvailable && <div role="group" aria-label="Customer list" className="flex gap-2">
       <button type="button" aria-pressed={!showArchived} onClick={() => switchList(false)} className={customerViewClass}>Current customers</button>
       <button type="button" aria-pressed={showArchived} onClick={() => switchList(true)} className={customerViewClass}>Archived customers</button>
     </div>}
-    <div className="flex flex-wrap gap-3"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search customers..." className="h-9 w-full max-w-xs rounded-lg border border-[#dfe5ec] px-3 text-xs outline-none focus:border-[#94a9e9]"/><select value={filter} onChange={e => setFilter(e.target.value)} className="h-9 rounded-lg border border-[#dfe5ec] bg-white px-3 text-xs"><option value="all">All verification</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="none">Not submitted</option></select></div><div className="overflow-x-auto rounded-xl border border-[#e7ecf3] bg-white"><table className="w-full min-w-[800px] text-left text-xs"><thead className="bg-[#f9fafc] text-[9px] uppercase text-[#8d99aa]"><tr>{["Customer", "Joined", "Documents", "License classes", "Verification", "Review"].map(x => <th key={x} className="px-4 py-3">{x}</th>)}</tr></thead><tbody className="divide-y divide-[#f0f2f6]">{shown.map(c => <tr id={`record-${c.id}`} key={c.id} className="text-[#68778c]"><td className="px-4 py-3"><p className="font-semibold text-[#43536a]">{c.full_name || "Unnamed customer"}</p><p>{c.phone || c.id}</p><EntityHistory entity="customer" id={c.id}/></td><td className="px-4 py-3">{formatDate(c.created_at)}</td><td className="px-4 py-3"><div className="flex gap-2"><DocumentLink entity="customer" id={c.id} kind="license" disabled={!c.license_path}>License</DocumentLink><DocumentLink entity="customer" id={c.id} kind="id" disabled={!c.id_path}>ID</DocumentLink></div></td><td className="px-4 py-3">{canReviewClasses ? <><p className="mb-1 text-[10px]">Declared: {(c.license_declared_classes??[]).join(", ")||"None"}</p><p className="mb-2 text-[10px] font-semibold text-[#43536a]">Confirmed: {(c.license_classes??[]).join(", ")||"None"}</p>{(c.license_declared_classes??[]).includes("motorcycle") && !(c.license_classes??[]).includes("motorcycle") && <p className="mb-2 text-[10px] text-amber-800">Customer declared motorcycle use; review the license before confirming.</p>}{["car","motorcycle"].map((value)=><label key={value} className="mr-2 inline-flex items-center gap-1 text-[10px]"><input type="checkbox" disabled={showArchived} checked={classesFor(c).includes(value)} onChange={(e)=>toggleClass(c,value,e.target.checked)}/>{value}</label>)}<button disabled={showArchived || busy===c.id} onClick={()=>saveLicenseClasses(c)} className="mt-2 block rounded bg-[#edf2ff] px-2 py-1 text-[10px] text-[#4568bd]">Save classes</button></> : <span>Unavailable</span>}</td><td className="px-4 py-3"><AdminStatus status={c.verification}/>{c.verification === "rejected" && c.verification_rejection_reason && <p className="mt-1 whitespace-pre-wrap break-words">{c.verification_rejection_reason}</p>}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{showArchived ? <>
+    <div className="flex flex-wrap gap-3"><input aria-label="Search customers" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search customers..." className="h-9 w-full max-w-xs rounded-lg border border-[#dfe5ec] px-3 text-xs outline-none focus:border-[#94a9e9]"/><select id="customer-verification-filter" aria-label="Verification status" value={filter} onChange={e => setFilter(e.target.value)} className="h-9 rounded-lg border border-[#dfe5ec] bg-white px-3 text-xs"><option value="all">All verification</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="none">Not submitted</option></select></div><div className="overflow-x-auto rounded-xl border border-[#e7ecf3] bg-white"><table className="w-full min-w-[800px] text-left text-xs"><thead className="bg-[#f9fafc] text-[9px] uppercase text-[#8d99aa]"><tr>{["Customer", "Joined", "Documents", "License classes", "Verification", "Review"].map(x => <th key={x} className="px-4 py-3">{x}</th>)}</tr></thead><tbody className="divide-y divide-[#f0f2f6]">{shown.map(c => <tr id={`record-${c.id}`} key={c.id} className="text-[#68778c]"><td className="px-4 py-3"><p className="font-semibold text-[#43536a]">{c.full_name || "Unnamed customer"}</p><p>{c.phone || c.id}</p><EntityHistory entity="customer" id={c.id}/></td><td className="px-4 py-3">{formatDate(c.created_at)}</td><td className="px-4 py-3"><div className="flex gap-2">{c.license_path ? <button type="button" className="min-h-9 text-blue-800 underline" onClick={event => openDialog(event.currentTarget, c, "license", false)}>License</button> : <span className="self-center">No license</span>}
+      {c.id_path ? <button type="button" className="min-h-9 text-blue-800 underline" onClick={event => openDialog(event.currentTarget, c, "id", false)}>ID</button> : <span className="self-center">No ID</span>}</div></td><td className="px-4 py-3">{canReviewClasses ? <><p className="mb-1 text-[10px]">Declared: {(c.license_declared_classes??[]).join(", ")||"None"}</p><p className="mb-2 text-[10px] font-semibold text-[#43536a]">Confirmed: {(c.license_classes??[]).join(", ")||"None"}</p>{(c.license_declared_classes??[]).includes("motorcycle") && !(c.license_classes??[]).includes("motorcycle") && <p className="mb-2 text-[10px] text-amber-800">Customer declared motorcycle use; review the license before confirming.</p>}{["car","motorcycle"].map((value)=><label key={value} className="mr-2 inline-flex items-center gap-1 text-[10px]"><input type="checkbox" disabled={showArchived} checked={classesFor(c).includes(value)} onChange={(e)=>toggleClass(c,value,e.target.checked)}/>{value}</label>)}<button disabled={showArchived || busy===c.id} onClick={()=>saveLicenseClasses(c)} className="mt-2 block rounded bg-[#edf2ff] px-2 py-1 text-[10px] text-[#4568bd]">Save classes</button></> : <span>Unavailable</span>}</td><td className="px-4 py-3"><AdminStatus status={c.verification}/>{c.verification === "rejected" && c.verification_rejection_reason && <p className="mt-1 whitespace-pre-wrap break-words">{c.verification_rejection_reason}</p>}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{showArchived ? <>
         {c.customer_archived_at && <span className="w-full text-[10px]">Archived {formatDate(c.customer_archived_at)}</span>}
         {canArchive && <button type="button" disabled={!!busy} onClick={() => setArchived(c, false)} className="rounded-md border border-[#dbe4fb] px-2 py-1 text-[10px] font-semibold text-[#4568bd] disabled:opacity-40">Restore customer</button>}
-      </> : <><button disabled={busy === c.id || c.verification === "approved" || !c.license_path || !c.id_path} onClick={() => setVerification(c,"approved")} className="rounded-md bg-[#edf7f1] px-2 py-1 text-[10px] text-[#347f59] disabled:opacity-40">Approve</button><button disabled={!canReject || busy === c.id || c.verification === "rejected"} onClick={() => setVerification(c,"rejected")} className="rounded-md bg-[#fff0f0] px-2 py-1 text-[10px] text-[#a94a4a] disabled:opacity-40">Reject</button>
+      </> : <>{c.license_path || c.id_path || c.verification === "pending" ? <button type="button"
+        onClick={event => openDialog(event.currentTarget, c, c.license_path || !c.id_path ? "license" : "id", true)}
+        className="min-h-9 rounded-lg bg-blue-700 px-3 text-sm font-semibold text-white focus-visible:ring-2 focus-visible:ring-blue-600">Review</button>
+        : <span className="self-center">No documents</span>}
       {canArchive && <button type="button" disabled={!!busy} onClick={() => setArchived(c, true)} className="rounded-md border border-red-200 px-2 py-1 text-[10px] font-semibold text-red-700 disabled:opacity-40">Archive customer</button>}
-      </>}</div></td></tr>)}</tbody></table>{!shown.length && <p className="p-8 text-center text-xs text-[#8793a3]">No customers match this filter.</p>}</div></div>;
+      </>}</div></td></tr>)}</tbody></table>{!shown.length && <p className="p-8 text-center text-xs text-[#8793a3]">No customers match this filter.</p>}</div>
+      {dialog && selected && <CustomerReviewDialog key={selected.id} customer={selected} joined={formatDate(selected.created_at)}
+        initialKind={dialog.kind} review={dialog.review} canReject={canReject} returnFocus={trigger}
+        onClose={decided => {
+          setDialog(null);
+          requestAnimationFrame(() => (trigger.current?.isConnected && !(decided && filter !== "all") ? trigger.current : document.getElementById("customer-verification-filter"))?.focus());
+        }} />}
+    </div>;
 }

@@ -15,7 +15,7 @@ const contentSecurityPolicy = [
   `img-src 'self' data: blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
   `connect-src 'self' ${supabaseOrigin} ${supabaseRealtimeOrigin} https://challenges.cloudflare.com`,
-  "frame-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' blob: https://challenges.cloudflare.com",
 ].join("; ");
 
 const securityHeaders = [
