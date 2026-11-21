@@ -1,17 +1,18 @@
 import { PageHeading } from "@/components/owner/ui";
 import { OwnerPaymentReview } from "@/components/owner/payment-review";
 import { RefundQueue, type RefundRow } from "@/components/owner/refund-queue";
+import { DisputeList, type Dispute } from "@/components/payment-disputes";
 import { PaymentTabs } from "@/components/payment-tabs";
 import { getOwnerContext } from "@/lib/owner-context";
 
 export const instant = false;
 
-const tabs = { review: "Needs review", refunds: "Refunds" };
+const tabs = { review: "Needs review", refunds: "Refunds", disputes: "Disputes" };
 
 export default async function OwnerPaymentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { supabase, owner, user } = await getOwnerContext();
   const { tab: requested } = await searchParams;
-  const tab = requested === "refunds" ? requested : "review";
+  const tab = requested === "refunds" || requested === "disputes" ? requested : "review";
 
   let content;
   if (tab === "refunds") {
@@ -19,6 +20,11 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
       .select("id,booking_id,amount,due_at,status,refund_proof_path,booking:bookings(reference)").eq("owner_id", owner.id).order("due_at").returns<RefundRow[]>();
     if (error) throw new Error("Could not load refunds.");
     content = <RefundQueue refunds={data ?? []} userId={user.id} />;
+  } else if (tab === "disputes") {
+    const { data, error } = await supabase.from("payment_disputes").select("*,booking:bookings(reference)")
+      .order("created_at", { ascending: false }).returns<Dispute[]>();
+    if (error) throw new Error("Could not load disputes.");
+    content = <DisputeList disputes={data ?? []} role="owner" />;
   } else {
     const { data, error } = await supabase.from("payments")
       .select("id,booking_id,amount,reference_no,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")

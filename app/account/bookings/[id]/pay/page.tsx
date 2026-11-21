@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { BookingCancellationPolicy } from "@/components/customer/cancellation-policy";
 import { PaymentCopyButton } from "@/components/customer/payment-copy-button";
+import { PaymentDisputeButton } from "@/components/customer/payment-dispute-button";
 import { PaymentProofForm } from "@/components/customer/payment-proof-form";
+import { DisputeList, type Dispute } from "@/components/payment-disputes";
 import { paymentDate, paymentPeso, safetyDepositCopy } from "@/lib/payment-format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -20,8 +22,9 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
     .select("id,reference,owner_id,status,mode,deposit_amount,payment_due_at,payment_resubmit_due_at,review_due_at,amount_due_now,balance_at_pickup,total_price,cancel_free_until,cancel_fee_percent,amount_paid_online")
     .eq("id", id).eq("customer_id", user.id).maybeSingle();
   if (!booking) notFound();
-  const [{ data: proof }, { data: refund }] = await Promise.all([
+  const [{ data: proof }, { data: disputes }, { data: refund }] = await Promise.all([
     db.from("payments").select("paid_at,status,rejection_reason").eq("booking_id", id).eq("method", "owner_qr").order("paid_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("customer_payment_disputes").select("*").eq("booking_id", id).order("created_at").returns<Dispute[]>(),
     db.from("booking_refunds").select("status,amount,due_at,refund_reference").eq("booking_id", id).maybeSingle(),
   ]);
   const now = new Date().getTime();
@@ -36,6 +39,9 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
     ? (await admin.storage.from("owner-qr").createSignedUrl(owner.payment_qr_path, 300)).data?.signedUrl
     : null;
   const inReview = booking.status === "payment_review";
+  const paymentDispute = inReview || (booking.status === "awaiting_payment" && (!available || proof?.status === "rejected")) || booking.status === "expired";
+  const refundDispute = refund?.status === "refunded";
+  const hasDispute = (kind: string) => disputes?.some((dispute) => dispute.kind === kind && dispute.status === "open");
 
   return <main className="mx-auto max-w-2xl px-4 py-8">
     <Link href="/account/bookings" className="text-sm font-semibold text-blue-800">← My bookings</Link>
@@ -89,7 +95,11 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
       <h2 className="font-semibold">Refund · {paymentPeso(refund.amount)}</h2>
       <p className="capitalize">{refund.status}{refund.status === "owed" && ` · Due ${paymentDate(refund.due_at)} Manila time`}</p>
       {refund.refund_reference && <p className="break-words">Refund reference · {refund.refund_reference}</p>}
+      {refundDispute && !hasDispute("refund_not_received") && <PaymentDisputeButton bookingId={id} kind="refund_not_received" />}
     </section>}
+    {paymentDispute && !hasDispute("paid_not_confirmed") && <PaymentDisputeButton bookingId={id} kind="paid_not_confirmed"
+      availableAt={inReview && proof?.paid_at ? new Date(Date.parse(proof.paid_at) + 7_200_000).toISOString() : undefined} />}
+    <DisputeList disputes={disputes ?? []} role="customer" />
     <Link href={`/contact?topic=payment&ref=${encodeURIComponent(booking.reference)}`} className="mt-5 inline-block text-sm font-semibold text-blue-800 underline">Need help with this payment?</Link>
   </main>;
 }

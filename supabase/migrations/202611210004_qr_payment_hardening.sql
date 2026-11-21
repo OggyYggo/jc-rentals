@@ -636,3 +636,119 @@ revoke all on function public.track_booking_refund(), public.sync_booking_refund
   public.mark_deposit_refunded(uuid,text), public.mark_booking_refunded(uuid,text,text),
   public.admin_waive_booking_refund(uuid,text) from public, anon, authenticated;
 grant execute on function public.mark_booking_refunded(uuid,text,text), public.admin_waive_booking_refund(uuid,text) to authenticated;
+
+create table public.payment_disputes (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null references public.bookings(id) on delete cascade,
+  opened_by uuid not null references public.profiles(id),
+  kind text not null check (kind in ('paid_not_confirmed','wrong_amount','refund_not_received','other')),
+  message text not null check (char_length(message) between 10 and 1000),
+  owner_reply text check (char_length(owner_reply) <= 300),
+  status text not null default 'open' check (status in ('open','resolved','rejected')),
+  resolution text check (char_length(resolution) <= 500),
+  resolved_by uuid references public.profiles(id),
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index payment_disputes_one_open on public.payment_disputes (booking_id,kind) where status = 'open';
+alter table public.payment_disputes enable row level security;
+revoke all on public.payment_disputes from public, anon, authenticated;
+grant select on public.payment_disputes to authenticated;
+create policy "Read related disputes" on public.payment_disputes for select to authenticated
+using (opened_by = (select auth.uid()) or (select public.is_admin()) or exists (
+  select 1 from public.bookings b join public.owners o on o.id = b.owner_id
+  where b.id = payment_disputes.booking_id and o.profile_id = (select auth.uid())));
+
+create function public.open_payment_dispute(p_booking uuid, p_kind text, p_message text)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare
+  b public.bookings%rowtype;
+  owner_user uuid;
+  dispute_id uuid;
+  first_dispute boolean;
+begin
+  select * into b from public.bookings where id = p_booking and customer_id = auth.uid() for update;
+  if not found then raise exception 'Not allowed.'; end if;
+  if p_kind = 'refund_not_received' then
+    update public.booking_refunds set status = 'disputed' where booking_id = b.id and status = 'refunded';
+    if not found then raise exception 'A sent refund is required.'; end if;
+  elsif p_kind = 'paid_not_confirmed' and b.status in ('confirmed','picked_up','returned','completed') then
+    raise exception 'This reservation payment is already confirmed.';
+  elsif not exists (select 1 from public.payments where booking_id = b.id and method = 'owner_qr'
+    and (status = 'rejected' or status = 'verified' or paid_at <= now() - interval '2 hours'))
+    and not (b.status = 'expired' or (b.status = 'awaiting_payment' and greatest(b.payment_due_at,b.payment_resubmit_due_at) <= now())) then
+    raise exception 'Disputes are available two hours after submitting proof, or after rejection or expiry.';
+  end if;
+  first_dispute := not exists (select 1 from public.payment_disputes where booking_id = b.id);
+  insert into public.payment_disputes (booking_id,opened_by,kind,message)
+    values (b.id,auth.uid(),p_kind,trim(p_message)) returning id into dispute_id;
+  if first_dispute and b.status = 'payment_review' then
+    update public.bookings set review_due_at = greatest(review_due_at,now() + interval '24 hours') where id = b.id;
+  elsif first_dispute and b.status = 'awaiting_payment' then
+    update public.bookings set payment_resubmit_due_at = greatest(payment_resubmit_due_at,now() + interval '24 hours') where id = b.id;
+  end if;
+  select profile_id into owner_user from public.owners where id = b.owner_id;
+  perform public.notify(owner_user,'payment_dispute','Payment dispute opened',
+    'A customer has asked support to review a payment.','/owner/payments?tab=disputes',b.id,'{in_app,email}',true,'dispute:'||dispute_id);
+  perform public.notify(b.customer_id,'payment_dispute','Payment dispute opened',
+    'Support will review your dispute.','/account/bookings#trip-'||b.id,b.id,'{in_app,email}',true,'dispute:'||dispute_id);
+  perform public.notify_admins('payment_dispute','Payment dispute opened','A payment or refund needs review.',
+    '/admin/payments','{in_app}',true,'dispute:'||dispute_id);
+  perform public.admin_alert('payment.dispute','Payment dispute opened','A payment or refund needs review.',
+    '/admin/payments','dispute:'||dispute_id);
+  return dispute_id;
+end;
+$$;
+
+create function public.owner_reply_payment_dispute(p_dispute_id uuid, p_reply text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if coalesce(length(trim(p_reply)),0) not between 1 and 300 then raise exception 'Enter a reply of at most 300 characters.'; end if;
+  update public.payment_disputes d set owner_reply = trim(p_reply)
+  from public.bookings b join public.owners o on o.id = b.owner_id
+  where d.id = p_dispute_id and d.status = 'open' and d.booking_id = b.id and o.profile_id = auth.uid();
+  if not found then raise exception 'Dispute is unavailable.'; end if;
+end;
+$$;
+
+create function public.admin_resolve_payment_dispute(p_dispute_id uuid, p_upheld boolean, p_resolution text)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  d public.payment_disputes%rowtype;
+  owner_user uuid;
+begin
+  if auth.uid() is null or not public.is_admin() then raise exception 'Not allowed.'; end if;
+  if p_upheld is null or coalesce(length(trim(p_resolution)),0) not between 10 and 500 then raise exception 'Enter a resolution of 10 to 500 characters.'; end if;
+  update public.payment_disputes set status = case when p_upheld then 'resolved' else 'rejected' end,
+    resolution = trim(p_resolution), resolved_by = auth.uid(), resolved_at = now()
+  where id = p_dispute_id and status = 'open' returning * into d;
+  if not found then raise exception 'Dispute is not open.'; end if;
+  perform public.audit_write('payment.dispute_resolved','booking',d.booking_id::text,null,'Resolved a payment dispute',
+    jsonb_build_object('status',d.status),p_resolution);
+  select o.profile_id into owner_user from public.bookings b join public.owners o on o.id = b.owner_id where b.id = d.booking_id;
+  perform public.notify(owner_user,'payment_dispute_resolved','Payment dispute resolved',
+    'Support recorded a decision. Open the dispute to read it.','/owner/payments?tab=disputes',d.booking_id,'{in_app,email}',true,'dispute-resolved:'||d.id);
+  perform public.notify(d.opened_by,'payment_dispute_resolved','Payment dispute resolved',
+    'Support recorded a decision. Open the dispute to read it.','/account/bookings#trip-'||d.booking_id,d.booking_id,'{in_app,email}',true,'dispute-resolved:'||d.id);
+  perform public.notify_admins('payment_dispute_resolved','Payment dispute resolved',
+    'A decision was recorded.','/admin/payments','{in_app}',false,'dispute-resolved:'||d.id);
+end;
+$$;
+
+revoke all on function public.open_payment_dispute(uuid,text,text), public.owner_reply_payment_dispute(uuid,text),
+  public.admin_resolve_payment_dispute(uuid,boolean,text) from public, anon, authenticated;
+grant execute on function public.open_payment_dispute(uuid,text,text), public.owner_reply_payment_dispute(uuid,text),
+  public.admin_resolve_payment_dispute(uuid,boolean,text) to authenticated;
+
+-- Customers can read their case and its decision; internal owner replies stay
+-- available to the owner and the admin through the underlying table.
+drop policy "Read related disputes" on public.payment_disputes;
+create policy "Read owner and admin disputes" on public.payment_disputes for select to authenticated
+using ((select public.is_admin()) or exists (
+  select 1 from public.bookings b join public.owners o on o.id = b.owner_id
+  where b.id = payment_disputes.booking_id and o.profile_id = (select auth.uid())));
+create view public.customer_payment_disputes with (security_barrier = true) as
+select id,booking_id,kind,message,status,resolution,created_at
+from public.payment_disputes where opened_by = (select auth.uid());
+revoke all on public.customer_payment_disputes from public, anon, authenticated;
+grant select on public.customer_payment_disputes to authenticated;

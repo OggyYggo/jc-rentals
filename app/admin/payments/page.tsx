@@ -1,13 +1,14 @@
 import { AdminHeading } from "@/components/admin/ui";
 import { OwnerPaymentReview } from "@/components/owner/payment-review";
 import { RefundQueue, type RefundRow } from "@/components/owner/refund-queue";
+import { DisputeList, type Dispute } from "@/components/payment-disputes";
 import { PaymentTabs } from "@/components/payment-tabs";
 import { PaymentRisk, type RiskPayment } from "@/components/admin/payment-risk";
 import { getAdminContext } from "@/lib/admin-context";
 import { paymentDate, paymentPeso } from "@/lib/payment-format";
 
 export const instant = false;
-const tabs = { review: "Needs review", risk: "Risk flags", refunds: "Refunds", overdue: "Overdue" };
+const tabs = { review: "Needs review", risk: "Risk flags", disputes: "Disputes", refunds: "Refunds", overdue: "Overdue" };
 const ages = { all: "Any age", "1": "At least 1 hour", "4": "At least 4 hours", "8": "At least 8 hours", "24": "At least 1 day" };
 
 type History = {
@@ -42,6 +43,13 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
         <h2 className="my-3 font-semibold">Overdue refunds</h2></>}
       <RefundQueue refunds={data ?? []} userId={user.id} admin />
     </>;
+  } else if (tab === "disputes") {
+    let request = supabase.from("payment_disputes").select("*,booking:bookings!inner(reference,owner_id)").order("created_at", { ascending: false });
+    if (owner) request = request.eq("booking.owner_id", owner);
+    if (before) request = request.lte("created_at", before);
+    const { data, error } = await request.returns<Dispute[]>();
+    if (error) throw new Error("Could not load disputes.");
+    content = <DisputeList disputes={data ?? []} role="admin" />;
   } else if (tab === "risk") {
     const columns = "id,proof_path,proof_sha256,flags,paid_at,amount,status,booking:bookings(reference,payment_flags),owner:owners(business_name)";
     let request = supabase.from("payments").select(columns).neq("flags", "{}").order("paid_at", { ascending: false }).limit(100);
