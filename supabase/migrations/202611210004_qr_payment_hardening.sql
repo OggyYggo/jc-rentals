@@ -396,3 +396,117 @@ $$;
 revoke all on function public.take_payment_request(text,text), public.set_payment_proof_hash(uuid,text)
   from public, anon, authenticated;
 grant execute on function public.take_payment_request(text,text), public.set_payment_proof_hash(uuid,text) to service_role;
+
+create function public.calculate_owner_credit_state(p_owner_id uuid)
+returns table (balance numeric, pending_fees numeric, available numeric, low_threshold numeric)
+language sql stable security definer set search_path = '' as $$
+  with amounts as (
+    select
+      coalesce((select sum(l.amount) from public.owner_credit_ledger l where l.owner_id = p_owner_id and l.status = 'posted'),0) as balance,
+      coalesce((select sum(b.commission_amount) from public.bookings b where b.owner_id = p_owner_id
+        and b.status in ('awaiting_payment','payment_review')),0) as pending_fees,
+      greatest(coalesce((select (value #>> '{}')::numeric from public.settings where key = 'credit_low_threshold'),200),
+        coalesce((select 2 * avg(b.commission_amount) from public.bookings b where b.owner_id = p_owner_id
+          and b.status in ('confirmed','picked_up','returned','completed') and b.created_at > now() - interval '30 days'),0)) as low_threshold
+  )
+  select balance,pending_fees,balance-pending_fees,low_threshold from amounts
+$$;
+
+create function public.owner_credit_state(p_owner_id uuid)
+returns table (balance numeric, pending_fees numeric, available numeric, low_threshold numeric)
+language sql stable security definer set search_path = '' as $$
+  select s.* from public.calculate_owner_credit_state(p_owner_id) s
+  where auth.uid() is not null and (public.is_admin() or exists (
+    select 1 from public.owners where id = p_owner_id and profile_id = auth.uid()))
+$$;
+
+-- Keep the existing public listing predicate's signature. The actual booking
+-- check also requires enough available credit for the computed commission.
+create or replace function public.owner_can_accept(p_owner_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select coalesce(o.is_active and o.payment_qr_verified and case o.fee_mode
+    when 'credits' then (select available from public.calculate_owner_credit_state(o.id)) >=
+      coalesce((select (value #>> '{}')::numeric from public.settings where key = 'min_credit_to_list'),500)
+    else not exists (select 1 from public.commission_invoices i where i.owner_id = o.id
+      and i.status = 'unpaid' and i.due_date < (now() at time zone 'Asia/Manila')::date)
+    end,false)
+  from public.owners o where o.id = p_owner_id
+$$;
+
+revoke all on function public.calculate_owner_credit_state(uuid), public.owner_credit_state(uuid)
+  from public, anon, authenticated;
+grant execute on function public.owner_credit_state(uuid) to authenticated;
+
+create or replace function public.set_booking_owner_and_earnings()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  booking_rate numeric(10,2);
+  booking_deposit numeric(10,2);
+  booking_commission numeric(5,4);
+  owner_uuid uuid;
+  deposit_fraction numeric(4,3);
+  window_hours numeric;
+  selected_fee_mode text;
+  available_credits numeric;
+begin
+  select c.owner_id, o.commission_rate, r.daily_rate, r.deposit_amount, o.deposit_percent, o.fee_mode
+  into owner_uuid, booking_commission, booking_rate, booking_deposit, deposit_fraction, selected_fee_mode
+  from public.cars c
+  join public.owners o on o.id = c.owner_id
+  join public.car_rates r on r.car_id = c.id and r.mode = new.mode
+  where c.id = new.car_id and c.is_active
+    and ((new.mode = 'self_drive' and c.allows_self_drive) or (new.mode = 'with_driver' and c.allows_with_driver))
+  -- Serialize admission and fee posting for this owner across different cars.
+  for update of o;
+
+  if not found or not public.owner_can_accept(owner_uuid) then
+    raise exception 'This car is unavailable for bookings. Please choose another listing.';
+  end if;
+  if new.end_date < new.start_date then raise exception 'End date must be on or after start date.'; end if;
+
+  if exists (
+    select 1 from public.car_blocked_dates d
+    where d.car_id = new.car_id
+      and daterange(d.start_date, d.end_date, '[]') && daterange(new.start_date, new.end_date, '[]')
+  ) then raise exception 'This car is blocked for one or more selected dates.'; end if;
+
+  select coalesce((s.value #>> '{}')::numeric, 0.30) into window_hours
+  from public.settings s where s.key = 'payment_window_hours';
+  window_hours := coalesce(window_hours, 24);
+  if window_hours < 1 or window_hours > 168 then window_hours := 24; end if;
+  select coalesce(deposit_fraction, (s.value #>> '{}')::numeric, 0.30) into deposit_fraction
+  from public.settings s where s.key = 'deposit_percent';
+  deposit_fraction := greatest(0.1, least(1, coalesce(deposit_fraction, 0.30)));
+
+  new.owner_id := owner_uuid;
+  new.days := greatest(1, new.end_date - new.start_date);
+  new.daily_rate := booking_rate;
+  new.total_price := booking_rate * new.days;
+  new.deposit_amount := case when new.mode = 'self_drive' then booking_deposit else 0 end;
+  new.commission_rate := booking_commission;
+  new.commission_amount := round(new.total_price * booking_commission, 2);
+  if selected_fee_mode = 'credits' then
+    select available into available_credits from public.calculate_owner_credit_state(owner_uuid);
+    if available_credits < new.commission_amount then raise exception 'This owner cannot accept another booking right now.'; end if;
+  end if;
+  new.owner_earnings := new.total_price - new.commission_amount;
+  new.amount_due_now := round(new.total_price * deposit_fraction, 2);
+  new.balance_at_pickup := new.total_price - new.amount_due_now;
+  new.payment_due_at := now() + make_interval(hours => window_hours::integer);
+  new.status := 'awaiting_payment';
+  new.payment := case when new.amount_due_now >= new.total_price then 'paid'::public.payment_status else 'unpaid'::public.payment_status end;
+  return new;
+end;
+$$;
+
+create or replace view public.owner_payment_settings with (security_barrier = true) as
+select key,value from public.settings
+where key in ('platform_account_name','platform_qr_path','payment_instructions','min_credit_to_list');
+
+-- Release stale holds before checking the owner's available credits.
+alter trigger expire_booking_holds_before_insert on public.bookings rename to a_expire_booking_holds_before_insert;
+
+drop policy "Customers can read cars in own bookings" on public.cars;
+create policy "Customers can read cars in own bookings" on public.cars for select to authenticated using (
+  exists (select 1 from public.bookings b where b.car_id = cars.id and b.customer_id = (select auth.uid()))
+);

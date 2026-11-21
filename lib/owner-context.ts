@@ -13,7 +13,7 @@ export async function getOwnerContext() {
   const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).maybeSingle();
   if (profile?.role !== "owner") redirect("/account/bookings");
 
-  const { data: owner } = await supabase.from("owners").select("id, business_name, commission_rate, is_active").eq("profile_id", user.id).maybeSingle();
+  const { data: owner } = await supabase.from("owners").select("id, business_name, commission_rate, is_active, fee_mode").eq("profile_id", user.id).maybeSingle();
   if (!owner || !owner.is_active) redirect("/owner-setup");
 
   return { supabase, user, profile, owner };

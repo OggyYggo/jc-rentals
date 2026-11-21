@@ -1,3 +1,4 @@
+import { CreditBanner, type CreditState } from "@/components/owner/credit-state";
 import { bookingRevenue, earnsCommission, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, CalendarDays, CarFront, CircleDollarSign, ClipboardList, Plus } from "lucide-react";
@@ -20,10 +21,11 @@ export const instant = false;
 
 export default async function OwnerOverviewPage() {
   const { supabase, owner } = await getOwnerContext();
-  const [{ data: cars }, { data: bookings }, { data: contacts }, { data: reviewSummary }] = await Promise.all([
+  const [{ data: cars }, { data: bookings }, { data: contacts }, { data: creditState }, { data: reviewSummary }] = await Promise.all([
     supabase.from("cars").select("id, brand, model, year, is_active, allows_self_drive, allows_with_driver").eq("owner_id", owner.id),
     supabase.from("bookings").select("id, reference, start_date, end_date, total_price, cancel_fee_amount, owner_earnings, status, created_at, customer_id, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
+    supabase.rpc("owner_credit_state", { p_owner_id: owner.id }).maybeSingle<CreditState>(),
     supabase.rpc("owner_review_counts").maybeSingle<{ rating_avg: number; rating_count: number; unanswered: number }>(),
   ]);
 
@@ -39,7 +41,6 @@ export default async function OwnerOverviewPage() {
   const gross = monthBookings.reduce((sum, booking) => sum + bookingRevenue(booking), 0);
   const net = monthBookings.reduce((sum, booking) => sum + Number(booking.owner_earnings), 0);
   const pendingCount = allBookings.filter((booking) => booking.status === "pending").length;
-  const activeRentals = allBookings.filter((booking) => booking.status === "picked_up").length;
   const rate = Number(owner.commission_rate) * 100;
 
   const chartMonths = Array.from({ length: 6 }, (_, index) => {
@@ -53,6 +54,7 @@ export default async function OwnerOverviewPage() {
   const recent = allBookings.slice(0, 6);
 
   return <>
+    {owner.fee_mode === "credits" && creditState && <CreditBanner state={creditState} />}
     <Link href="/owner/bookings#refunds" className="mb-4 block rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold">Refunds to send · {refundCount ?? 0}</Link>
     <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex gap-2"><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
 
