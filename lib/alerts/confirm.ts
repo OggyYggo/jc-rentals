@@ -42,10 +42,11 @@ export type ReasonPrompt = {
   minLength?: number;
   maxLength?: number;
   required?: boolean;
+  choices?: string[];
 };
 
 export async function promptReason({
-  title, text, label, placeholder, confirmText, minLength = REASON_MIN, maxLength = REASON_MAX, required = true,
+  title, text, label, placeholder, confirmText, minLength = REASON_MIN, maxLength = REASON_MAX, required = true, choices,
 }: ReasonPrompt): Promise<string | null> {
   const Swal = await loadSwal();
   const { isConfirmed, value } = await openDialog<string>(Swal, {
@@ -59,6 +60,21 @@ export async function promptReason({
     inputLabel: label ? label + " · Do not include ID numbers or bank details." : "Do not include ID numbers or bank details.",
     inputPlaceholder: placeholder,
     inputAttributes: { maxlength: String(maxLength) },
+    didOpen: choices?.length ? (popup) => {
+      const textarea = Swal.getInput();
+      if (!textarea) return;
+      const options = document.createElement("div");
+      options.className = "flex flex-wrap justify-center gap-2 px-4";
+      for (const choice of choices) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "rounded border px-2 py-1 text-sm";
+        button.textContent = choice;
+        button.onclick = () => { textarea.value = choice; textarea.focus(); };
+        options.append(button);
+      }
+      popup.querySelector(".swal2-actions")?.before(options);
+    } : undefined,
     inputValidator: (value) => reasonError(value, minLength, maxLength, required),
   }).result;
   return isConfirmed ? (value ?? "").trim() : null;

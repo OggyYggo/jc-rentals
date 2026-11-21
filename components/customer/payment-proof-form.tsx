@@ -25,7 +25,7 @@ export function PaymentProofForm({ bookingId, customerId, amount }: { bookingId:
       const path = `${customerId}/${bookingId}/${crypto.randomUUID()}.webp`;
       const { error: uploadError } = await supabase.storage.from("payment-proofs").upload(path, webp, { contentType: "image/webp", upsert: false });
       if (uploadError) throw uploadError;
-      const { error: insertError } = await supabase.from("payments").insert({ booking_id: bookingId, amount, method: "owner_qr", reference_no: reference, proof_path: path });
+      const { error: insertError } = await supabase.rpc("submit_booking_payment", { p_booking_id: bookingId, p_reference: reference, p_proof_path: path });
       if (insertError) { await supabase.storage.from("payment-proofs").remove([path]); throw insertError; }
       router.refresh();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not submit payment proof."); }

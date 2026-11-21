@@ -86,8 +86,10 @@ select set_config('request.jwt.claim.sub','a0000000-0000-4000-8000-000000000003'
 select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 insert into public.bookings(car_id,customer_id,mode,start_date,end_date)
  values ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000003','self_drive',current_date+2,current_date+3);
-insert into public.payments(booking_id,amount,method,reference_no,proof_path)
- select id,amount_due_now,'gcash','PRIVATE-REF-09123456789',customer_id || '/' || id || '/proof.pdf' from public.bookings
+insert into storage.objects(bucket_id,name)
+ select 'payment-proofs', customer_id || '/' || id || '/proof.webp' from public.bookings
+ where customer_id = 'a0000000-0000-4000-8000-000000000003';
+select public.submit_booking_payment(id,'PRIVATE-REF-09123456789',customer_id || '/' || id || '/proof.webp') from public.bookings
  where customer_id = 'a0000000-0000-4000-8000-000000000003';
 do $$ begin assert not exists(select 1 from public.audit_log); end $$;
 
@@ -110,12 +112,14 @@ select set_config('request.jwt.claim.sub','a0000000-0000-4000-8000-000000000003'
 select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 insert into public.bookings(car_id,customer_id,mode,start_date,end_date)
  values ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000003','self_drive',current_date+5,current_date+6);
-insert into public.payments(booking_id,amount,method,reference_no,proof_path)
- select id,amount_due_now,'gcash','AUDIT-CONFIRM',customer_id || '/' || id || '/proof.pdf' from public.bookings
+insert into storage.objects(bucket_id,name)
+ select 'payment-proofs', customer_id || '/' || id || '/proof.webp' from public.bookings
+ where customer_id = 'a0000000-0000-4000-8000-000000000003' and start_date = current_date+5;
+select public.submit_booking_payment(id,'AUDIT-CONFIRM',customer_id || '/' || id || '/proof.webp') from public.bookings
  where customer_id = 'a0000000-0000-4000-8000-000000000003' and start_date = current_date+5;
 select set_config('request.jwt.claim.sub','a0000000-0000-4000-8000-000000000002',true);
 select set_config('request.jwt.claims','{"sub":"a0000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
-select public.confirm_booking_payment(id) from public.payments where reference_no = 'AUDIT-CONFIRM';
+select public.confirm_booking_payment(id,amount,reference_no) from public.payments where reference_no = 'AUDIT-CONFIRM';
 
 reset role;
 do $$
@@ -128,10 +132,10 @@ $$;
 select set_config('request.jwt.claim.sub','',true);
 select set_config('request.jwt.claim.role','',true);
 select set_config('request.jwt.claims','{}',true);
--- Use a fresh unpaid booking because rejecting a payment now cancels that booking.
+-- Ensure expiry is attributed to the scheduler.
 insert into public.bookings(car_id,customer_id,mode,start_date,end_date)
  values ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000003','self_drive',current_date+8,current_date+9);
-update public.bookings set payment_due_at = now() - interval '1 hour' where customer_id = 'a0000000-0000-4000-8000-000000000003';
+update public.bookings set payment_due_at = now() - interval '1 hour', payment_resubmit_due_at = null where customer_id = 'a0000000-0000-4000-8000-000000000003';
 select public.expire_unpaid_bookings();
 do $$
 begin
