@@ -128,6 +128,9 @@ $$;
 select set_config('request.jwt.claim.sub','',true);
 select set_config('request.jwt.claim.role','',true);
 select set_config('request.jwt.claims','{}',true);
+-- Use a fresh unpaid booking because rejecting a payment now cancels that booking.
+insert into public.bookings(car_id,customer_id,mode,start_date,end_date)
+ values ('c0000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000003','self_drive',current_date+8,current_date+9);
 update public.bookings set payment_due_at = now() - interval '1 hour' where customer_id = 'a0000000-0000-4000-8000-000000000003';
 select public.expire_unpaid_bookings();
 do $$
