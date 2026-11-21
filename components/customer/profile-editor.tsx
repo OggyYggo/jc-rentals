@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import type { FormEvent } from "react";
 import { CheckCircle2, FileCheck2, FileUp, LoaderCircle, ShieldCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type ProfileEditorProps = {
@@ -13,18 +14,22 @@ type ProfileEditorProps = {
   hasId: boolean;
   verification: string;
   declaredClasses: string[];
+  verificationNote?: string | null;
 };
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
-export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, verification, declaredClasses }: ProfileEditorProps) {
+export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, verification, declaredClasses, verificationNote }: ProfileEditorProps) {
   const [name, setName] = useState(fullName);
   const [phoneNumber, setPhoneNumber] = useState(phone);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
-  const [licensePresent, setLicensePresent] = useState(hasLicense);
-  const [idPresent, setIdPresent] = useState(hasId);
+  const router = useRouter();
+  const saving = useRef(false);
+  const [refreshing, startTransition] = useTransition();
+  const [licenseKey, setLicenseKey] = useState(0);
+  const [idKey, setIdKey] = useState(0);
   const [classes, setClasses] = useState<string[]>(declaredClasses);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -32,9 +37,12 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving.current || refreshing) return;
+    saving.current = true;
     setBusy(true);
     setError("");
     setMessage("");
+    let uploaded = false;
     try {
       for (const [label, file] of [["Driver's license", licenseFile], ["Government ID", idFile]] as const) {
         if (!file) continue;
@@ -50,6 +58,14 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
         const response = await fetch("/api/account/documents", { method: "POST", body: form });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error ?? "The document could not be uploaded.");
+        uploaded = true;
+        if (kind === "license") {
+          setLicenseFile(null);
+          setLicenseKey(key => key + 1);
+        } else {
+          setIdFile(null);
+          setIdKey(key => key + 1);
+        }
       }
 
       const supabase = createClient();
@@ -61,14 +77,13 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
       if (profileError) throw profileError;
       if (!updated) throw new Error("Your profile could not be found. Please sign out and sign in again.");
 
-      if (licenseFile) setLicensePresent(true);
-      if (idFile) setIdPresent(true);
-      setLicenseFile(null);
-      setIdFile(null);
-      setMessage("Your profile and documents have been saved securely.");
+      setMessage(uploaded ? "Your documents were submitted for review." : "Your profile was saved.");
+      startTransition(() => router.refresh());
     } catch (saveError) {
+      if (uploaded) startTransition(() => router.refresh());
       setError(saveError instanceof Error ? saveError.message : "Could not save your profile. Please try again.");
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
@@ -86,17 +101,18 @@ export function ProfileEditor({ userId, fullName, phone, hasLicense, hasId, veri
             <div className="border-t border-[#edf0f4] pt-5">
             <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#edf2ff] text-[#2457d6]"><ShieldCheck size={18}/></span><div><h3 className="text-sm font-semibold text-[#34445b]">Identity documents</h3><p className="mt-1 max-w-xl text-xs leading-5 text-[#7b8797]">Upload a clear photo or PDF. Documents are stored privately and are not publicly accessible.</p></div></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <DocumentUpload label="Driver’s license" present={licensePresent} file={licenseFile} onChange={setLicenseFile} />
-              <DocumentUpload label="Government ID" present={idPresent} file={idFile} onChange={setIdFile} />
+              <DocumentUpload key={licenseKey} label="Driver’s license" present={hasLicense} file={licenseFile} onChange={setLicenseFile} />
+              <DocumentUpload key={idKey} label="Government ID" present={hasId} file={idFile} onChange={setIdFile} />
             </div>
             <fieldset className="mt-4 rounded-xl bg-[#f5f8ff] p-4"><legend className="px-1 text-xs font-semibold text-[#34445b]">My license covers</legend><div className="mt-2 flex flex-wrap gap-4">{[["car","Car"],["motorcycle","Motorcycle"]].map(([value,label])=><label key={value} className="flex items-center gap-2 text-xs text-[#526178]"><input type="checkbox" checked={classes.includes(value)} onChange={(event)=>setClasses((current)=>event.target.checked?[...new Set([...current,value])]:current.filter((item)=>item!==value))} className="h-4 w-4 accent-[#2457d6]"/>{label}</label>)}</div><p className="mt-2 text-[11px] leading-5 text-[#7b8797]">We confirm this when we review your license. Upload a clear photo of the front and back. Motorcycles need a license valid for motorcycles. Check the current rules on the <a className="font-semibold text-[#2457d6] underline" href="https://lto.gov.ph/wp-content/uploads/2023/09/14-CC2024-DL-CODES.pdf" target="_blank" rel="noreferrer">Land Transportation Office website</a>.</p></fieldset>
             <div className="mt-3 flex items-center gap-2 text-[11px] text-[#8490a0]"><ShieldCheck size={13} className="text-[#5680db]"/> Private storage · PDF, JPG, PNG, or WebP · Up to 10 MB each</div>
             {verification !== "none" && <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#edf2ff] px-2.5 py-1 text-[10px] font-medium capitalize text-[#4568b6]"><FileCheck2 size={12}/> Verification {verification}</p>}
+            {verification === "rejected" && verificationNote && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-red-800">{verificationNote}</p>}
           </div>
 
           {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2.5 text-xs text-[#a13a3a]">{error}</p>}
-          {message && <p role="status" className="flex items-center gap-2 rounded-lg border border-[#cddcfb] bg-[#f4f7ff] px-3 py-2.5 text-xs text-[#34528f]"><CheckCircle2 size={15}/>{message}</p>}
-          <div className="flex justify-end"><button type="submit" disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white transition hover:bg-[#1d4ed8] disabled:opacity-60">{busy && <LoaderCircle size={15} className="animate-spin"/>}Save profile</button></div>
+          {message && !refreshing && <p role="status" className="flex items-center gap-2 rounded-lg border border-[#cddcfb] bg-[#f4f7ff] px-3 py-2.5 text-xs text-[#34528f]"><CheckCircle2 size={15}/>{message}</p>}
+          <div className="flex justify-end"><button type="submit" disabled={busy || refreshing} aria-busy={busy || refreshing} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white transition hover:bg-[#1d4ed8] disabled:opacity-60">{(busy || refreshing) && <LoaderCircle size={15} className="animate-spin"/>}Save profile</button></div>
         </form>
       </div>
     </div>
