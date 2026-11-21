@@ -740,6 +740,83 @@ revoke all on function public.open_payment_dispute(uuid,text,text), public.owner
 grant execute on function public.open_payment_dispute(uuid,text,text), public.owner_reply_payment_dispute(uuid,text),
   public.admin_resolve_payment_dispute(uuid,boolean,text) to authenticated;
 
+create sequence public.receipt_seq;
+revoke all on sequence public.receipt_seq from public, anon, authenticated;
+create table public.payment_receipts (
+  id uuid primary key default gen_random_uuid(),
+  payment_id uuid not null unique references public.payments(id),
+  booking_id uuid not null references public.bookings(id),
+  receipt_no text not null unique,
+  public_code text not null unique default replace(gen_random_uuid()::text,'-',''),
+  status text not null default 'valid' check (status in ('valid','voided','refunded')),
+  details jsonb not null,
+  created_at timestamptz not null default now()
+);
+alter table public.payment_receipts enable row level security;
+revoke all on public.payment_receipts from public, anon, authenticated;
+grant select on public.payment_receipts to authenticated;
+grant select on public.payment_receipts to service_role;
+create policy "Read related payment confirmations" on public.payment_receipts for select to authenticated
+using (exists (select 1 from public.bookings b where b.id = payment_receipts.booking_id
+  and (b.customer_id = (select auth.uid()) or exists (
+    select 1 from public.owners o where o.id = b.owner_id and o.profile_id = (select auth.uid())))));
+
+create function public.issue_payment_receipt()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare
+  next_number text;
+  b public.bookings%rowtype;
+  confirmation_id uuid;
+begin
+  if old.status = 'verified' or new.status <> 'verified' or new.confirmed_channel is null then return new; end if;
+  select * into strict b from public.bookings where id = new.booking_id;
+  next_number := nextval('public.receipt_seq')::text;
+  insert into public.payment_receipts (payment_id,booking_id,receipt_no,details,created_at)
+  select new.id,b.id,'KB-'||to_char(new.verified_at at time zone 'Asia/Manila','YYYY')||'-'||lpad(next_number,greatest(6,length(next_number)),'0'),
+    jsonb_build_object('booking_reference',b.reference,'owner_name',o.business_name,
+      'customer_name',customer.full_name,'vehicle',concat_ws(' ',c.brand,c.model),'start_date',b.start_date,'end_date',b.end_date,
+      'mode',b.mode,'pickup',coalesce(pickup.address,b.pickup_location),'amount',new.amount,'balance',b.balance_at_pickup,
+      'safety_deposit',case when b.mode = 'self_drive' then b.deposit_amount else null end,
+      'channel',coalesce(nullif(o.payment_method_label,''),'Owner QR')),
+    new.verified_at
+  from public.owners o, public.cars c, public.profiles customer
+  left join public.pickup_locations pickup on pickup.id = b.pickup_location_id and pickup.owner_id = b.owner_id
+  where o.id = b.owner_id and c.id = b.car_id and customer.id = b.customer_id
+  returning id into strict confirmation_id;
+  perform public.notify(b.customer_id,'booking_payment_confirmation','Booking payment confirmation',
+    'Your reservation payment confirmation is available.','/api/receipts/'||confirmation_id||'/pdf',b.id,
+    '{in_app,email}',true,'receipt:'||confirmation_id);
+  return new;
+end;
+$$;
+create trigger issue_payment_receipt after update of status on public.payments
+for each row execute function public.issue_payment_receipt();
+
+create function public.sync_payment_receipt_status()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if new.deposit_refund_status = 'refunded' then
+    update public.payment_receipts set status = 'refunded' where booking_id = new.id and status <> 'refunded';
+  elsif new.status in ('cancelled','expired') then
+    update public.payment_receipts set status = 'voided' where booking_id = new.id and status <> 'refunded';
+  end if;
+  return new;
+end;
+$$;
+create trigger sync_payment_receipt_status after update of status,deposit_refund_status on public.bookings
+for each row execute function public.sync_payment_receipt_status();
+
+create function public.public_payment_confirmation(p_code text)
+returns table (receipt_no text,status text,created_at timestamptz,amount numeric,vehicle text,owner_name text)
+language sql stable security definer set search_path = '' as $$
+  select r.receipt_no,r.status,r.created_at,(r.details->>'amount')::numeric,r.details->>'vehicle',r.details->>'owner_name'
+  from public.payment_receipts r where r.public_code = p_code
+$$;
+
+revoke all on function public.issue_payment_receipt(), public.sync_payment_receipt_status(),
+  public.public_payment_confirmation(text) from public, anon, authenticated;
+grant execute on function public.public_payment_confirmation(text) to service_role;
+
 -- Customers can read their case and its decision; internal owner replies stay
 -- available to the owner and the admin through the underlying table.
 drop policy "Read related disputes" on public.payment_disputes;
