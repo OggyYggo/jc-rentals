@@ -244,4 +244,3 @@ for each row execute function public.audit_row_change('booking','reference','sta
 
 create index bookings_pending_refund_idx on public.bookings (owner_id, cancelled_at)
 where deposit_refund_status = 'owed';
-

@@ -25,7 +25,7 @@ const COLUMN_LABELS: Record<string, string> = {
 };
 export const columnLabel = (key: string) => COLUMN_LABELS[key] ?? humanize(key);
 const money = new Set(["total_price", "amount", "deposit_amount", "commission_amount", "owner_earnings",
-  "commission_due", "gross_amount", "daily_rate", "overtime_per_hour", "price_php", "delivery_fee"]);
+  "commission_due", "gross_amount", "cancel_fee_amount", "refund_amount", "daily_rate", "overtime_per_hour", "price_php", "delivery_fee"]);
 const percentages = new Set(["commission_rate", "commission_override", "deposit_percent"]);
 const timeZone = "Asia/Manila";
 const exact = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone });
@@ -45,11 +45,12 @@ export function formatValue(field: string, value?: string | null, row?: AuditRow
   if (value == null || value === "") return "—";
   if (field === "value" && row?.entity_type === "setting" && row.entity_id) field = row.entity_id;
   if (money.has(field) && Number.isFinite(Number(value))) return peso(Number(value));
+  if (["cancel_fee_percent", "cancellation_fee_percent"].includes(field) && Number.isFinite(Number(value))) return Number(value) + "%";
   if ((percentages.has(field) || field === "default_commission_rate") && Number.isFinite(Number(value))) {
     return new Intl.NumberFormat("en", { style: "percent", maximumFractionDigits: 2 }).format(Number(value));
   }
   if (value === "true" || value === "false") return value === "true" ? "Yes" : "No";
-  if ((field.endsWith("_at") || field.endsWith("_date") || field.startsWith("period_")) && Number.isFinite(Date.parse(value))) {
+  if ((field === "cancel_free_until" || field.endsWith("_at") || field.endsWith("_date") || field.startsWith("period_")) && Number.isFinite(Date.parse(value))) {
     return value.length === 10 ? dateOnly.format(new Date(value)) : exactTime(value);
   }
   if (field === "status" || field.endsWith("_status") || ["fee_mode", "verification", "vehicle_type"].includes(field)) return humanize(value);
