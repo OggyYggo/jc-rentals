@@ -1,9 +1,10 @@
+import { bookingRevenue, earnsCommission, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
 import { ArrowDownRight, ArrowUpRight, CircleDollarSign, FileText, Wallet } from "lucide-react";
 import { PageHeading, StatCard, StatusPill, formatPeso, formatShortDate } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
 
 type EarningsBooking = {
-  id: string; reference: string; created_at: string; start_date: string; total_price: number;
+  id: string; reference: string; created_at: string; start_date: string; total_price: number; cancel_fee_amount: number;
   commission_amount: number; owner_earnings: number; status: string; payment: string;
   car: { brand: string; model: string } | null;
 };
@@ -12,22 +13,23 @@ export const instant = false;
 
 export default async function OwnerEarningsPage() {
   const { supabase, owner } = await getOwnerContext();
-  const { data, error } = await supabase.from("bookings").select("id, reference, created_at, start_date, total_price, commission_amount, owner_earnings, status, payment, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("bookings").select("id, reference, created_at, start_date, total_price, cancel_fee_amount, commission_amount, owner_earnings, status, payment, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false });
   if (error) throw new Error("Could not load your earnings report.");
   const bookings = (data ?? []) as unknown as EarningsBooking[];
-  const included = bookings.filter((booking) => ["confirmed", "picked_up", "returned", "completed"].includes(booking.status));
+  const included = bookings.filter(earnsCommission);
   const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const thisMonth = included.filter((booking) => booking.created_at.startsWith(monthKey));
-  const gross = thisMonth.reduce((sum, booking) => sum + Number(booking.total_price), 0);
+  const monthKey = manilaMonth(now);
+  const thisMonth = included.filter((booking) => manilaMonth(new Date(booking.created_at)) === monthKey);
+  const gross = thisMonth.reduce((sum, booking) => sum + bookingRevenue(booking), 0);
   const fee = thisMonth.reduce((sum, booking) => sum + Number(booking.commission_amount), 0);
   const net = thisMonth.reduce((sum, booking) => sum + Number(booking.owner_earnings), 0);
-  const collected = thisMonth.filter((booking) => booking.payment === "paid").reduce((sum, booking) => sum + Number(booking.total_price), 0);
+  const collected = thisMonth.filter((booking) => booking.payment === "paid" || hasKeptFee(booking)).reduce((sum, booking) => sum + bookingRevenue(booking), 0);
 
   const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const rows = included.filter((booking) => booking.created_at.startsWith(key));
+    const [year, month] = monthKey.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 6 + index, 1));
+    const key = manilaMonth(date);
+    const rows = included.filter((booking) => manilaMonth(new Date(booking.created_at)) === key);
     return { label: new Intl.DateTimeFormat("en", { month: "short" }).format(date), gross: rows.reduce((sum, row) => sum + Number(row.total_price), 0), net: rows.reduce((sum, row) => sum + Number(row.owner_earnings), 0) };
   });
   const maxValue = Math.max(...months.map(({ gross: value }) => value), 1);
@@ -41,6 +43,6 @@ export default async function OwnerEarningsPage() {
       <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><h2 className="text-sm font-semibold text-[#33445b]">This month’s breakdown</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Confirmed and completed bookings</p><div className="mt-7 rounded-xl bg-[#f7f9fd] p-4"><p className="text-[10px] text-[#8491a4]">Gross bookings</p><p className="mt-1 text-2xl font-semibold tracking-tight text-[#293b54]">{formatPeso(gross)}</p></div><div className="mt-4 space-y-3.5"><div className="flex items-center justify-between text-[11px] text-[#758298]"><span>Platform fee</span><span className="font-medium text-[#4e5d73]">−{formatPeso(fee)}</span></div><div className="h-px bg-[#edf0f4]"/><div className="flex items-center justify-between text-[11px] text-[#46566d]"><span className="font-medium">Your net earnings</span><span className="text-sm font-semibold">{formatPeso(net)}</span></div><div className="flex items-center justify-between text-[11px] text-[#758298]"><span>Payment collection</span><span className="font-medium text-[#4e5d73]">{gross ? `${Math.round((collected / gross) * 100)}%` : "—"}</span></div></div></article>
     </section>
 
-    <section className="mt-5 overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="border-b border-[#edf0f4] px-4 py-4 sm:px-5"><h2 className="text-sm font-semibold text-[#33445b]">Booking earnings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Individual gross, fee, and net amounts</p></div>{included.length ? <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Booking</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Gross</th><th className="px-4 py-3">Platform fee</th><th className="px-4 py-3">Net</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{included.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-semibold text-[#45556c]">{booking.reference}</span><span className="mt-0.5 block text-[9px] text-[#8995a6]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</span></td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-medium text-[#45556c]">{formatPeso(Number(booking.total_price))}</td><td className="px-4 py-3.5">{formatPeso(Number(booking.commission_amount))}</td><td className="px-4 py-3.5 font-semibold text-[#45556c]">{formatPeso(Number(booking.owner_earnings))}</td><td className="px-4 py-3.5 capitalize">{booking.payment}</td><td className="px-4 py-3.5"><StatusPill status={booking.status}/></td></tr>)}</tbody></table></div> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No confirmed earnings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Confirmed bookings will appear here.</p></div>}</section>
+    <section className="mt-5 overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="border-b border-[#edf0f4] px-4 py-4 sm:px-5"><h2 className="text-sm font-semibold text-[#33445b]">Booking earnings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Individual gross, fee, and net amounts</p></div>{included.length ? <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Booking</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Gross</th><th className="px-4 py-3">Platform fee</th><th className="px-4 py-3">Net</th><th className="px-4 py-3">Payment</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{included.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-semibold text-[#45556c]">{booking.reference}</span><span className="mt-0.5 block text-[9px] text-[#8995a6]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</span></td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-medium text-[#45556c]">{formatPeso(bookingRevenue(booking))}</td><td className="px-4 py-3.5">{formatPeso(Number(booking.commission_amount))}</td><td className="px-4 py-3.5 font-semibold text-[#45556c]">{formatPeso(Number(booking.owner_earnings))}</td><td className="px-4 py-3.5 capitalize">{booking.payment}</td><td className="px-4 py-3.5">{hasKeptFee(booking) ? "Cancelled (fee kept)" : <StatusPill status={booking.status}/>}</td></tr>)}</tbody></table></div> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No confirmed earnings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Confirmed bookings will appear here.</p></div>}</section>
   </>;
 }

@@ -1,3 +1,4 @@
+import { bookingRevenue, earnsCommission, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, CalendarDays, CarFront, CircleDollarSign, ClipboardList, Plus } from "lucide-react";
 import { PageHeading, StatCard, StatusPill, formatPeso, formatShortDate } from "@/components/owner/ui";
@@ -8,7 +9,7 @@ type BookingRow = {
   reference: string;
   start_date: string;
   end_date: string;
-  total_price: number;
+  total_price: number; cancel_fee_amount: number;
   owner_earnings: number;
   status: string;
   customer: { full_name: string } | null;
@@ -21,7 +22,7 @@ export default async function OwnerOverviewPage() {
   const { supabase, owner } = await getOwnerContext();
   const [{ data: cars }, { data: bookings }, { data: contacts }, { data: reviewSummary }] = await Promise.all([
     supabase.from("cars").select("id, brand, model, year, is_active, allows_self_drive, allows_with_driver").eq("owner_id", owner.id),
-    supabase.from("bookings").select("id, reference, start_date, end_date, total_price, owner_earnings, status, created_at, customer_id, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
+    supabase.from("bookings").select("id, reference, start_date, end_date, total_price, cancel_fee_amount, owner_earnings, status, created_at, customer_id, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
     supabase.rpc("owner_review_counts").maybeSingle<{ rating_avg: number; rating_count: number; unanswered: number }>(),
   ]);
@@ -30,19 +31,20 @@ export default async function OwnerOverviewPage() {
   const allBookings = (bookings ?? []).map((booking) => ({ ...booking, customer: contactByBooking.get(booking.id) ?? null })) as unknown as (BookingRow & { created_at: string })[];
   const carList = cars ?? [];
   const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const eligible = allBookings.filter((booking) => ["confirmed", "picked_up", "returned", "completed"].includes(booking.status));
-  const monthBookings = eligible.filter((booking) => booking.created_at.startsWith(monthKey));
-  const gross = monthBookings.reduce((sum, booking) => sum + Number(booking.total_price), 0);
+  const monthKey = manilaMonth(now);
+  const eligible = allBookings.filter(earnsCommission);
+  const monthBookings = eligible.filter((booking) => manilaMonth(new Date(booking.created_at)) === monthKey);
+  const gross = monthBookings.reduce((sum, booking) => sum + bookingRevenue(booking), 0);
   const net = monthBookings.reduce((sum, booking) => sum + Number(booking.owner_earnings), 0);
   const pendingCount = allBookings.filter((booking) => booking.status === "pending").length;
   const activeRentals = allBookings.filter((booking) => booking.status === "picked_up").length;
   const rate = Number(owner.commission_rate) * 100;
 
   const chartMonths = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const amount = eligible.filter((booking) => booking.created_at.startsWith(key)).reduce((sum, booking) => sum + Number(booking.owner_earnings), 0);
+    const [year, month] = monthKey.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 6 + index, 1));
+    const key = manilaMonth(date);
+    const amount = eligible.filter((booking) => manilaMonth(new Date(booking.created_at)) === key).reduce((sum, booking) => sum + Number(booking.owner_earnings), 0);
     return { label: new Intl.DateTimeFormat("en", { month: "short" }).format(date), amount };
   });
   const maxChart = Math.max(...chartMonths.map(({ amount }) => amount), 1);
@@ -75,7 +77,7 @@ export default async function OwnerOverviewPage() {
 
     <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,.9fr)]">
       <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="flex items-center justify-between border-b border-[#edf0f4] px-4 py-4 sm:px-5"><div><h2 className="text-sm font-semibold text-[#33445b]">Recent bookings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">The latest activity across your fleet</p></div><Link href="/owner/bookings" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">See all</Link></div>
-        {recent.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Customer</th><th className="px-4 py-3">Vehicle</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{recent.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-medium text-[#42536a]">{booking.customer?.full_name || "Customer"}</span><span className="mt-0.5 block text-[9px] text-[#9aa4b2]">{booking.reference}</span></td><td className="px-4 py-3.5 text-[#53637a]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-semibold text-[#42536a]">{formatPeso(Number(booking.total_price))}</td><td className="px-4 py-3.5"><StatusPill status={booking.status}/></td></tr>)}</tbody></table></div> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No bookings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Your booking activity will appear here.</p></div>}
+        {recent.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Customer</th><th className="px-4 py-3">Vehicle</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{recent.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-medium text-[#42536a]">{booking.customer?.full_name || "Customer"}</span><span className="mt-0.5 block text-[9px] text-[#9aa4b2]">{booking.reference}</span></td><td className="px-4 py-3.5 text-[#53637a]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-semibold text-[#42536a]">{formatPeso(bookingRevenue(booking))}</td><td className="px-4 py-3.5">{hasKeptFee(booking) ? "Cancelled (fee kept)" : <StatusPill status={booking.status}/>}</td></tr>)}</tbody></table></div> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No bookings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Your booking activity will appear here.</p></div>}
       </article>
 
       <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold text-[#33445b]">Fleet at a glance</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Vehicle availability overview</p></div><Link href="/owner/cars" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">Manage</Link></div><div className="mt-5 space-y-3">{carList.slice(0, 4).map((car, index) => <div key={car.id} className="flex items-center gap-3 rounded-lg border border-[#eef1f5] p-2.5"><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${["bg-[#edf2ff] text-[#4d6ec7]", "bg-[#edf7f1] text-[#438664]", "bg-[#fff5e8] text-[#bb8235]", "bg-[#f2efff] text-[#755eb4]"][index % 4]}`}><CarFront size={17}/></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#45556c]">{car.year ? `${car.year} ` : ""}{car.brand} {car.model}</p><p className="mt-0.5 text-[9px] text-[#8b97a8]">{car.allows_self_drive && car.allows_with_driver ? "Two rental options" : car.allows_with_driver ? "With driver" : "Self drive"}</p></div><span className={`rounded-full px-2 py-1 text-[9px] ${car.is_active ? "bg-[#edf7f1] text-[#39825f]" : "bg-[#f1f3f6] text-[#7d8999]"}`}>{car.is_active ? "Active" : "Hidden"}</span></div>)}</div>{carList.length === 0 && <div className="py-8 text-center text-[10px] text-[#8b97a8]">Add your first vehicle to get started.</div>}<Link href="/owner/cars?new=1" className="mt-4 flex h-9 items-center justify-center gap-2 rounded-lg border border-dashed border-[#d8e0eb] text-[10px] font-semibold text-[#64748a] hover:border-[#9cb1e7] hover:text-[#4567be]"><Plus size={13}/>Add a vehicle</Link></article>

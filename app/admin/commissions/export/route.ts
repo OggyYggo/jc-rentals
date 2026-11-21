@@ -1,3 +1,4 @@
+import { bookingRevenue, commissionBookingFilter, hasKeptFee } from "@/lib/booking-revenue";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,12 +14,12 @@ export async function GET(request: Request) {
   const [year, m] = month.split("-").map(Number); const start = `${month}-01`; const end = new Date(Date.UTC(year, m, 1)).toISOString().slice(0, 10);
   const [{ data: owners, error: ownerError }, { data: bookings, error: bookingError }] = await Promise.all([
     supabase.from("owners").select("id, business_name").order("business_name"),
-    supabase.from("bookings").select("owner_id, total_price, commission_amount, owner_earnings").gte("created_at", `${start}T00:00:00`).lt("created_at", `${end}T00:00:00`).in("status", ["confirmed", "picked_up", "returned", "completed"]),
+    supabase.from("bookings").select("owner_id, total_price, cancel_fee_amount, commission_amount, owner_earnings, status").gte("created_at", `${start}T00:00:00+08:00`).lt("created_at", `${end}T00:00:00+08:00`).or(commissionBookingFilter),
   ]);
   if (ownerError || bookingError) return NextResponse.json({ error: "Could not create commission report." }, { status: 500 });
-  const totals = new Map<string, { count: number; gross: number; fee: number; net: number }>();
-  for (const b of bookings ?? []) { if (!b.owner_id) continue; const t = totals.get(b.owner_id) ?? { count: 0, gross: 0, fee: 0, net: 0 }; t.count++; t.gross += Number(b.total_price); t.fee += Number(b.commission_amount); t.net += Number(b.owner_earnings); totals.set(b.owner_id, t); }
-  const lines = [["month", "owner", "booking_count", "gross_php", "platform_fee_php", "owner_net_php"], ...(owners ?? []).map(owner => { const t = totals.get(owner.id) ?? { count: 0, gross: 0, fee: 0, net: 0 }; return [month, owner.business_name, t.count, t.gross.toFixed(2), t.fee.toFixed(2), t.net.toFixed(2)]; })];
+  const totals = new Map<string, { count: number; cancelled: number; gross: number; fee: number; net: number }>();
+  for (const b of bookings ?? []) { if (!b.owner_id) continue; const t = totals.get(b.owner_id) ?? { count: 0, cancelled: 0, gross: 0, fee: 0, net: 0 }; t.count++; if (hasKeptFee(b)) t.cancelled++; t.gross += bookingRevenue(b); t.fee += Number(b.commission_amount); t.net += Number(b.owner_earnings); totals.set(b.owner_id, t); }
+  const lines = [["month", "owner", "booking_count", "cancelled_fee_kept_count", "gross_php", "platform_fee_php", "owner_net_php"], ...(owners ?? []).map(owner => { const t = totals.get(owner.id) ?? { count: 0, cancelled: 0, gross: 0, fee: 0, net: 0 }; return [month, owner.business_name, t.count, t.cancelled, t.gross.toFixed(2), t.fee.toFixed(2), t.net.toFixed(2)]; })];
   const body = lines.map(row => row.map(csvCell).join(",")).join("\r\n");
   return new NextResponse(body, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="commissions-${month}.csv"`, "cache-control": "private, no-store" } });
 }
