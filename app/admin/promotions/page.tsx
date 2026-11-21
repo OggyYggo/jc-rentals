@@ -7,7 +7,7 @@ export const instant = false;
 
 export default async function PromotionsPage() {
   const { supabase } = await getAdminContext();
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const since = new Date(new Date().getTime() - 30 * 86_400_000).toISOString();
   const [{ data: owners, error: ownersError }, { data: clicks, error: clicksError }, { data: bookings, error: bookingsError }, { data: cars, error: carsError }] = await Promise.all([
     supabase.from("owners").select("id,business_name,is_active").order("business_name"),
     supabase.from("promo_clicks").select("owner_id,src").gte("clicked_at", since).limit(10000),

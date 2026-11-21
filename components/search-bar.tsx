@@ -34,7 +34,7 @@ export function SearchBar() {
             <label className="text-sm font-medium text-muted-foreground">
               Rental Mode
             </label>
-            <Select value={rentalMode} onValueChange={(v: any) => setRentalMode(v)}>
+            <Select value={rentalMode} onValueChange={value => { if (value === "self_drive" || value === "with_driver") setRentalMode(value); }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

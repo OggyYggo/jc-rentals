@@ -11,7 +11,7 @@ export function ListingCancellation({ start, hours, percent, pickupHour, reserva
   const deadline = start && time ? new Date(Date.parse(`${start}T${time}:00+08:00`) - hours * 3_600_000) : null;
   const fee = Math.round(reservation * percent) / 100;
   return <div className="space-y-2 text-sm">
-    {withDriver && <label className="block text-xs font-semibold">Pickup time<input required name="pickup_time" type="time" value={pickup}
+    {withDriver && <label className="block text-xs font-semibold">Pickup time (Manila)<input required name="pickup_time" type="time" value={pickup}
       onChange={event => setPickup(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] px-3 text-sm font-normal"/></label>}
     <p>{deadline ? `Free cancellation until ${formatCutoff(deadline.toISOString())}` : `Free cancellation until ${hours} hours before pickup`}</p>
     <details>

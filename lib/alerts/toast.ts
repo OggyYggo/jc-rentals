@@ -7,8 +7,11 @@ async function toast(icon: "success" | "error" | "info", message: string) {
   try {
     const Swal = await loadSwal();
     if (Swal.isVisible() && Swal.getPopup()?.classList.contains("swal2-modal")) return;
+    const theme = alertTheme();
+    delete theme.heightAuto;
+    delete theme.returnFocus;
     void Swal.fire({
-      ...alertTheme(),
+      ...theme,
       icon,
       titleText: message,
       toast: true,
@@ -16,8 +19,6 @@ async function toast(icon: "success" | "error" | "info", message: string) {
       timer: icon === "error" ? 6000 : 3200,
       timerProgressBar: true,
       showConfirmButton: false,
-      focusConfirm: false,
-      returnFocus: false,
       willOpen: (popup) => popup.setAttribute("role", "status"),
       didOpen: (popup) => {
         popup.onmouseenter = () => Swal.stopTimer();

@@ -16,7 +16,7 @@ export default async function PromotePage() {
     .eq("owner_id", owner.id)
     .order("created_at", { ascending: false });
   if (error) throw new Error("Could not load your cars for promotion.");
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const since = new Date(new Date().getTime() - 30 * 86_400_000).toISOString();
   const [clickResult, bookingResult] = await Promise.all([
     supabase.from("promo_clicks").select("id,src").eq("owner_id", owner.id).gte("clicked_at", since),
     supabase.from("bookings").select("id,ref_src").eq("ref_owner_id", owner.id).gte("created_at", since),

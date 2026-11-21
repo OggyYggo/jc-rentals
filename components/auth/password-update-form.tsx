@@ -17,17 +17,13 @@ export function PasswordUpdateForm({ mode }: { mode: "owner" | "reset" }) {
 
   useEffect(() => {
     let active = true;
-    try {
-      createClient().auth.getUser().then(({ data, error: authError }) => {
-        if (!active) return;
-        if (authError || !data.user) setError("This password link is invalid or has expired. Request a new one and try again.");
-        else setReady(true);
-      }).catch(() => {
-        if (active) setError("This password link is invalid or has expired. Request a new one and try again.");
-      });
-    } catch {
+    void Promise.resolve().then(() => createClient().auth.getUser()).then(({ data, error: authError }) => {
+      if (!active) return;
+      if (authError || !data.user) setError("This password link is invalid or has expired. Request a new one and try again.");
+      else setReady(true);
+    }).catch(() => {
       if (active) setError("This password link is invalid or has expired. Request a new one and try again.");
-    }
+    });
     return () => { active = false; };
   }, []);
 

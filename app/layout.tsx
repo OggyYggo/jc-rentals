@@ -32,6 +32,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
+      data-scroll-behavior="smooth"
       lang="en"
       className={`${inter.variable} ${workSans.variable} h-full antialiased`}
     >

@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Preferences = { email_enabled: boolean; push_enabled: boolean; muted_types: string[] };
 const optionalTypes = ["booking_created", "new_booking", "pickup_tomorrow"];
+
+function subscribeDisplayMode(callback: () => void) {
+  const query = window.matchMedia("(display-mode: standalone)");
+  query.addEventListener("change", callback);
+  return () => query.removeEventListener("change", callback);
+}
+
+function standaloneDisplay() {
+  return window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+}
 
 export function NotificationSettings({ userId, initial, vapidPublicKey }: { userId: string; initial: Preferences | null; vapidPublicKey: string }) {
   const [prefs, setPrefs] = useState<Preferences>(initial ?? { email_enabled: true, push_enabled: true, muted_types: [] });
   const [message, setMessage] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const [standalone, setStandalone] = useState(false);
+  const standalone = useSyncExternalStore(subscribeDisplayMode, standaloneDisplay, () => false);
   const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
   useEffect(() => {
-    setStandalone(window.matchMedia("(display-mode: standalone)").matches || ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone)));
     if ("serviceWorker" in navigator) void navigator.serviceWorker.getRegistration("/").then(async (registration) => setHasSubscription(Boolean(await registration?.pushManager.getSubscription())));
   }, []);
   async function save(next: Preferences) {

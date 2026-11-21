@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState, useTransition, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarDays, CarFront, MapPin, Search, UserRound } from "lucide-react";
 import { Spinner } from "@/components/loading/Spinner";
 import { carsUrl } from "@/lib/cars/searchParams";
@@ -14,18 +14,13 @@ function manilaToday() {
 
 export function SearchForm() {
   const router = useRouter();
-  const pathname = usePathname();
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [location, setLocation] = useState("");
   const [mode, setMode] = useState<"self" | "driver">("self");
   const [vehicle, setVehicle] = useState<"car" | "motorcycle">("car");
   const [errors, setErrors] = useState<{ from?: string; to?: string }>({});
-  const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    setSearching(false);
-  }, [pathname]);
+  const [searching, startTransition] = useTransition();
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,10 +34,9 @@ export function SearchForm() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
 
-    setSearching(true);
     const search = { vehicle, mode: vehicle === "motorcycle" ? "self" as const : mode, from: start || undefined, to: end || undefined, pickup: location.trim() || undefined };
     try { window.sessionStorage.setItem("kuyog-car-search", JSON.stringify(search)); } catch { /* Storage is optional. */ }
-    router.push(carsUrl(search));
+    startTransition(() => router.push(carsUrl(search)));
   }
 
   return <form data-intro-card onSubmit={submit} aria-busy={searching} className="relative z-20 mx-auto -mb-[72px] mt-10 w-full max-w-[1040px] rounded-[20px] border border-[#D6E6F7] bg-white p-4 text-left shadow-[0_24px_65px_-30px_rgba(10,61,145,.4)] sm:p-6 lg:-mb-[62px] lg:rounded-3xl">
