@@ -8,6 +8,7 @@ import { toastError, toastInfo, toastSuccess } from "./toast";
 type AlertAction<T> = {
   confirm?: Confirmation;
   reason?: ReasonPrompt;
+  prepare?: () => Promise<string | null>;
   run: (reason: string) => Promise<T>;
   success?: string | ((result: T) => string);
   successType?: "success" | "info";
@@ -48,7 +49,7 @@ export async function runWithAlerts<T>(opts: AlertAction<T>): Promise<{ ok: true
     if (close) await close();
   }
   try {
-    const reason = opts.reason ? await promptReason(opts.reason) : "";
+    const reason = opts.prepare ? await opts.prepare() : opts.reason ? await promptReason(opts.reason) : "";
     if (reason === null || (opts.confirm && !(await confirmAction(opts.confirm)))) return { ok: false };
     opts.setPending?.(true);
     waiting = true;

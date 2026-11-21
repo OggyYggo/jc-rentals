@@ -1,3 +1,4 @@
+import { readCancellationSettings } from "@/lib/cancellation-settings";
 import type { MyReview } from "@/lib/reviews/model";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -15,7 +16,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, daily_rate, total_price, deposit_amount, status, payment, created_at").eq("customer_id", user.id).order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, daily_rate, total_price, deposit_amount, rental_starts_at, cancel_free_until, cancel_fee_percent, amount_paid_online, cancel_fee_amount, refund_amount, deposit_refund_status, status, payment, created_at").eq("customer_id", user.id).order("created_at", { ascending: false });
   if (error) {
     console.error("Customer bookings query failed:", String(error), { message: error.message, code: error.code, details: error.details, hint: error.hint });
     return <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><h2 className="font-semibold">Bookings are temporarily unavailable</h2><p className="mt-2 leading-6">The payment database may not be set up yet. An administrator should apply the payment status migration and then rerun the payment QR module migration in Supabase.</p><p className="mt-2 text-xs text-amber-800">If both migrations have already completed, check the Vercel function logs for the bookings query error.</p></div>;
@@ -28,7 +29,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
   const completed = new Map((dates ?? []).map(row => [row.id, row]));
   const reviewTarget = (await searchParams).review;
   const now = new Date().getTime();
-  const todayManila = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const { supportDays } = await readCancellationSettings();
   const bookings = (data ?? []).map((booking) => {
     const review = byBooking.get(booking.id);
     const trip = completed.get(booking.id);
@@ -37,5 +38,5 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
       reviewable: !reviewError && !!trip?.owner_id && !review && Date.parse(completion) >= now - 60 * 86_400_000,
       editable: !!review && !review.edited_at && Date.parse(review.created_at) >= now - 7 * 86_400_000 };
   }) as unknown as CustomerBooking[];
-  return <div><div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">My bookings</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">View your rental details and keep track of each booking.</p></div><BookingList key={typeof reviewTarget === "string" ? reviewTarget : "bookings"} bookings={bookings} todayManila={todayManila} reviewTarget={typeof reviewTarget === "string" ? reviewTarget : undefined}/></div>;
+  return <div><div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">My bookings</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">View your rental details and keep track of each booking.</p></div><BookingList key={typeof reviewTarget === "string" ? reviewTarget : "bookings"} bookings={bookings} now={now} supportDays={supportDays} reviewTarget={typeof reviewTarget === "string" ? reviewTarget : undefined}/></div>;
 }
