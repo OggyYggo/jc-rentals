@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { BookingCancellationPolicy } from "@/components/customer/cancellation-policy";
-import { PaymentCopyButton } from "@/components/customer/payment-copy-button";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { PaymentDisputeButton } from "@/components/customer/payment-dispute-button";
 import { PaymentStatusRefresh } from "@/components/customer/payment-status-refresh";
 import { PaymentProofForm } from "@/components/customer/payment-proof-form";
@@ -54,7 +54,7 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
     <h1 className="mt-4 text-2xl font-bold">{available && !proof ? "Pay your booking deposit" : "Booking payment"}</h1>
     <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
       <p className="break-all">Booking {booking.reference}{owner?.business_name && ` · ${owner.business_name}`}</p>
-      <PaymentCopyButton label="Copy reference" value={booking.reference} />
+      <CopyButton label="Copy reference" value={booking.reference} />
     </div>
     {available && <section className="mt-4 space-y-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-6">
       {proof?.status === "rejected" && <div className="rounded-lg bg-amber-50 p-3 text-sm">
@@ -66,7 +66,7 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
         <p className="text-sm font-medium">Amount to send now</p>
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-3xl font-bold">{paymentPeso(booking.amount_due_now)}</p>
-          <PaymentCopyButton label="Copy amount" value={Number(booking.amount_due_now).toFixed(2)} />
+          <CopyButton label="Copy amount" value={Number(booking.amount_due_now).toFixed(2)} />
         </div>
         <div className="rounded-xl bg-blue-50 p-4 text-sm">
           <p className="font-semibold">{owner?.payment_method_label || "Owner payment QR"}</p>
