@@ -1,3 +1,4 @@
+import { CancellationSettings } from "@/components/admin/cancellation-settings";
 import { EntityHistory } from "@/components/admin/audit/EntityHistory";
 import { notFound } from "next/navigation";
 import { AdminHeading } from "@/components/admin/ui";
@@ -19,7 +20,7 @@ export default async function AdminOwnerPaymentPage({ params }: { params: Promis
   const { id } = await params;
   const { supabase } = await getAdminContext();
   const [{ data: owner }, { data: balance }, { data: setting }, { data: overdueInvoices }] = await Promise.all([
-    supabase.from("owners").select("id,business_name,is_active,fee_mode,commission_rate,deposit_percent,payment_method_label,payment_account_name,payment_qr_path,payment_qr_verified").eq("id", id).maybeSingle(),
+    supabase.from("owners").select("id,business_name,is_active,fee_mode,commission_rate,deposit_percent,payment_method_label,payment_account_name,payment_qr_path,payment_qr_verified,cancellation_free_hours,cancellation_fee_percent").eq("id", id).maybeSingle(),
     supabase.from("owner_credit_balances").select("balance").eq("owner_id", id).maybeSingle(),
     supabase.from("settings").select("value").eq("key", "min_credit_to_list").maybeSingle(),
     supabase.from("commission_invoices").select("id").eq("owner_id", id).eq("status", "unpaid").lt("due_date", manilaDate()),
@@ -44,6 +45,7 @@ export default async function AdminOwnerPaymentPage({ params }: { params: Promis
   return <>
     <AdminHeading eyebrow="Owners" title={owner.business_name} description="Review the payment account and configure booking eligibility, payment terms, and deposits." />
     <AdminOwnerPaymentTerms owner={owner as never} qrUrl={qrUrl} readiness={readiness} />
+    <CancellationSettings ownerId={id} hours={owner.cancellation_free_hours} percent={owner.cancellation_fee_percent}/>
     <EntityHistory entity="owner" id={id}/>
   </>;
 }
