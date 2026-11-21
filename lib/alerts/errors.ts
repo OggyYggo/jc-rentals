@@ -52,6 +52,8 @@ const safeMessages = new Set([
   "Dispute is unavailable.",
   "Dispute is not open.",
   "Check the payment setting ranges.",
+  "Both verification documents are required.",
+  "Enter a reason of 5 to 300 characters.",
 ]);
 
 export function friendlyError(error: unknown): { title: string; text: string; action?: { label: string; href: string } } {
@@ -83,4 +85,18 @@ export function friendlyError(error: unknown): { title: string; text: string; ac
     return { title: "Reference already used", text: "That transaction reference has already been used. Check it and try again." };
   }
   return { title: "Action could not be completed", text: safeMessages.has(message) ? message : "Something went wrong. Please try again." };
+}
+
+export function friendlyPaymentError(error: unknown): string {
+  const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  if (message === "REFERENCE_INVALID") return "Enter a wallet or bank reference with 6 to 40 letters or digits.";
+  if (message === "REFERENCE_ALREADY_USED" || code === "23505") return "That transaction reference has already been used. Check your transfer history.";
+  if (/PAYMENT_WINDOW_EXPIRED|payment window has expired/i.test(message)) return "The payment window has passed. If you already paid, contact support.";
+  if (message === "PROOF_LIMIT") return "This booking has reached its three-proof limit.";
+  if (/exact deposit amount/i.test(message)) return "The deposit amount changed. Refresh the page before sending proof.";
+  if (/not accepting|already under review/i.test(message)) return "Check the current payment status before submitting another proof.";
+  if (/failed to fetch|network|connection|load failed/i.test(message)) return "We couldn’t check your payment status. Reconnect and check your booking before trying again.";
+  if (/proof file path|upload/i.test(message)) return "We couldn’t upload the screenshot. Try a JPEG, PNG or WebP image up to 5 MB.";
+  return "We couldn’t submit your proof. Check your booking before trying again.";
 }
