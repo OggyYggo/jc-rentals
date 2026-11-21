@@ -53,7 +53,7 @@ select pg_temp.assert_review_error(
 
 select pg_temp.review_test_claim('71000000-0000-4000-8000-000000000001');
 select pg_temp.assert_review_error(
- $$select public.submit_review('74000000-0000-4000-8000-000000000002',5,null,null,'{}')$$,'REVIEW_NOT_ALLOWED');
+ $$select public.submit_review('74000000-0000-4000-8000-000000000002',0,null,null,'{}')$$,'REVIEW_INVALID');
 select pg_temp.assert_review_error(
  $$select public.submit_review('74000000-0000-4000-8000-000000000004',5,null,null,'{}')$$,'REVIEW_NOT_ALLOWED');
 select pg_temp.assert_review_error(
@@ -153,5 +153,11 @@ delete from public.reviews;
 do $$ begin
   assert (select rating_avg=0 and rating_count=0 from public.cars where id='73000000-0000-4000-8000-000000000001');
   assert (select rating_avg=0 and rating_count=0 from public.owners where id='72000000-0000-4000-8000-000000000001');
+end $$;
+set local role authenticated;
+select pg_temp.review_test_claim('71000000-0000-4000-8000-000000000001');
+select public.submit_review('74000000-0000-4000-8000-000000000003',5,null,null,'{}');
+do $$ begin
+  assert exists(select 1 from public.reviews where booking_id='74000000-0000-4000-8000-000000000003' and rating=5);
 end $$;
 rollback;

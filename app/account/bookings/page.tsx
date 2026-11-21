@@ -24,18 +24,20 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
 
   const { data: reviews, error: reviewError } = await supabase.from("reviews")
     .select("id,booking_id,rating,owner_rating,tags,comment,owner_reply,created_at,edited_at,is_hidden").eq("customer_id", user.id);
-  const { data: dates } = await supabase.from("bookings").select("id,completed_at,car_id,owner_id").eq("customer_id", user.id).eq("status", "completed");
+  const { data: dates, error: datesError } = await supabase.from("bookings").select("id,status,returned_at,completed_at,owner_id").eq("customer_id", user.id).in("status", ["returned", "completed"]);
+  if (reviewError || datesError) console.error("Customer review eligibility query failed:", reviewError ?? datesError);
   const byBooking = new Map((reviews ?? []).map(row => [row.booking_id, row as MyReview]));
-  const completed = new Map((dates ?? []).map(row => [row.id, row]));
+  const returnedTrips = new Map((dates ?? []).map(row => [row.id, row]));
   const reviewTarget = (await searchParams).review;
   const now = new Date().getTime();
   const { supportDays } = await readCancellationSettings();
   const bookings = (data ?? []).map((booking) => {
     const review = byBooking.get(booking.id);
-    const trip = completed.get(booking.id);
-    const completion = trip?.completed_at ?? new Date(Date.parse(booking.end_date + "T00:00:00+08:00") + 86_400_000).toISOString();
+    const trip = returnedTrips.get(booking.id);
+    const tripEnd = trip?.status === "completed" ? trip.completed_at : trip?.returned_at;
+    const reviewWindowStart = tripEnd ? Date.parse(tripEnd) : Date.parse(booking.end_date + "T00:00:00+08:00") + 86_400_000;
     return { ...booking, pickup_time: null, pickup_location: null, itinerary_notes: null, car: null, review,
-      reviewable: !reviewError && !!trip?.owner_id && !review && Date.parse(completion) >= now - 60 * 86_400_000,
+      reviewable: !reviewError && !!trip?.owner_id && !review && reviewWindowStart >= now - 60 * 86_400_000,
       editable: !!review && !review.edited_at && Date.parse(review.created_at) >= now - 7 * 86_400_000 };
   }) as unknown as CustomerBooking[];
   return <div><div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">My bookings</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">View your rental details and keep track of each booking.</p></div><BookingList key={typeof reviewTarget === "string" ? reviewTarget : "bookings"} bookings={bookings} now={now} supportDays={supportDays} reviewTarget={typeof reviewTarget === "string" ? reviewTarget : undefined}/></div>;
