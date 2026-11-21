@@ -1,5 +1,7 @@
 "use client";
 
+import { cancelWithPreview } from "@/lib/cancellation-dialog";
+
 import { runWithAlerts } from "@/lib/alerts/run";
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -21,7 +23,9 @@ export type OwnerBooking = {
   owner_earnings: number;
   status: string;
   payment: string;
-  deposit_refund_status?: string;
+  deposit_refund_status: string;
+  refund_amount: number;
+  cancelled_at: string | null;
   amount_paid_online: number;
   amount_due_now: number;
   balance_at_pickup: number;
@@ -33,7 +37,7 @@ export type OwnerBooking = {
 
 type StatusAction = "confirmed" | "rejected" | "picked_up" | "returned" | "completed";
 
-export function BookingWorkflow({ bookings }: { bookings: OwnerBooking[] }) {
+export function BookingWorkflow({ bookings, todayManila }: { bookings: OwnerBooking[]; todayManila: string }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<Record<string, string>>({});
@@ -64,17 +68,9 @@ export function BookingWorkflow({ bookings }: { bookings: OwnerBooking[] }) {
     });
   }
 
-  function cancelBooking(booking: OwnerBooking) {
-    return runWithAlerts({
-      reason: { title: `Cancel booking ${booking.reference}?`, label: "Reason for cancelling", confirmText: "Cancel booking" },
-      setPending: (pending) => setBusyId(pending ? booking.id : null),
-      run: async (reason) => {
-        const { error } = await createClient().rpc("cancel_booking", { p_booking_id: booking.id, p_reason: reason });
-        if (error) throw error;
-      },
-      success: "Booking cancelled",
-      refresh: router.refresh,
-    });
+  function cancelBooking(booking: OwnerBooking, mode: "auto" | "no_show" = "auto") {
+    return cancelWithPreview({ booking, mode, refresh: router.refresh,
+      setPending: pending => setBusyId(pending ? booking.id : null) });
   }
 
   function markPaid(booking: OwnerBooking) {
@@ -95,29 +91,9 @@ export function BookingWorkflow({ bookings }: { bookings: OwnerBooking[] }) {
     });
   }
 
-  function markRefunded(booking: OwnerBooking) {
-    return runWithAlerts({
-      confirm: {
-        title: "Mark this deposit as refunded?",
-        text: booking.amount_paid_online > 0
-          ? `Confirm that you sent the customer ${formatPeso(Number(booking.amount_paid_online))} for ${booking.reference}.`
-          : `Expected deposit for ${booking.reference}: ${formatPeso(Number(booking.amount_due_now))}. Check the actual transfer before recording the refund.`,
-        confirmText: "Mark refunded",
-      },
-      setPending: (pending) => setBusyId(pending ? booking.id : null),
-      run: async () => {
-        const { error } = await createClient().rpc("mark_deposit_refunded", { p_booking_id: booking.id });
-        if (error) throw error;
-      },
-      success: "Deposit refund recorded",
-      refresh: router.refresh,
-    });
-  }
-
   function actionsFor(booking: OwnerBooking) {
     const disabled = busyId === booking.id;
     const busyIcon = disabled ? <LoaderCircle size={12} className="animate-spin"/> : null;
-    if (["cancelled", "expired"].includes(booking.status) && booking.deposit_refund_status === "owed") return <ActionButton disabled={disabled} tone="green" onClick={() => markRefunded(booking)}>{busyIcon ?? <CircleDollarSign size={12}/>}Mark deposit refunded</ActionButton>;
     if (booking.status === "pending") return <div className="flex flex-wrap gap-1.5"><ActionButton disabled={disabled} tone="blue" onClick={() => updateStatus(booking, "confirmed")}>{busyIcon ?? <Check size={12}/>}Approve</ActionButton><ActionButton disabled={disabled} tone="red" onClick={() => updateStatus(booking, "rejected")}>{busyIcon ?? <CircleX size={12}/>}Reject</ActionButton></div>;
     if (booking.status === "confirmed") return <ActionButton disabled={disabled} tone="blue" onClick={() => updateStatus(booking, "picked_up")}>{busyIcon ?? <Truck size={12}/>}Mark picked up</ActionButton>;
     if (booking.status === "picked_up") return <ActionButton disabled={disabled} tone="blue" onClick={() => updateStatus(booking, "returned")}>{busyIcon ?? <RotateCcw size={12}/>}Mark returned</ActionButton>;
@@ -130,7 +106,7 @@ export function BookingWorkflow({ bookings }: { bookings: OwnerBooking[] }) {
   return <div className="space-y-4">{bookings.map((booking) => <article id={`trip-${booking.id}`} key={booking.id} className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold text-[#33445b]">{booking.customer?.full_name || "Customer"}</h2><StatusPill status={booking.status}/></div><p className="mt-1 text-[10px] text-[#8b97a8]">{booking.reference} · Request received {new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric" }).format(new Date(booking.created_at))}</p></div><div className="text-left sm:text-right"><p className="text-[9px] text-[#8b97a8]">Booking total</p><p className="mt-0.5 text-sm font-semibold text-[#33445b]">{formatPeso(Number(booking.total_price))}</p><p className="text-[9px] text-[#8793a3]">Net {formatPeso(Number(booking.owner_earnings))}</p></div></div>
       <div className="mt-4 grid gap-4 border-t border-[#edf0f4] pt-4 sm:grid-cols-3"><div><p className="text-[9px] font-medium uppercase tracking-wide text-[#9aa4b2]">Vehicle</p><p className="mt-1 text-[11px] font-medium text-[#4c5c72]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</p><p className="mt-0.5 text-[9px] text-[#8995a6]">{booking.car?.plate_number || (booking.mode === "self_drive" ? "Self drive" : "With driver")}</p></div><div><p className="text-[9px] font-medium uppercase tracking-wide text-[#9aa4b2]">Rental dates</p><p className="mt-1 text-[11px] font-medium text-[#4c5c72]">{formatShortDate(booking.start_date)}</p><p className="mt-0.5 text-[9px] text-[#8995a6]">through {formatShortDate(booking.end_date)}</p></div><div><p className="text-[9px] font-medium uppercase tracking-wide text-[#9aa4b2]">Customer contact</p><p className="mt-1 text-[11px] font-medium text-[#4c5c72]">{booking.customer?.phone || "No phone on profile"}</p><p className="mt-0.5 text-[9px] text-[#8995a6] capitalize">Payment {booking.payment}</p></div></div>
       {(booking.pickup_location || booking.pickup_time || booking.itinerary_notes) && <div className="mt-3 rounded-lg bg-[#f8faff] px-3.5 py-3"><p className="text-[9px] font-semibold uppercase tracking-wide text-[#8390a3]">Pickup and itinerary</p><p className="mt-1 text-[10px] text-[#4c5c72]">{[booking.pickup_location, booking.pickup_time ? `Pickup ${booking.pickup_time.slice(0, 5)}` : null].filter(Boolean).join(" · ") || "No pickup details"}</p>{booking.itinerary_notes && <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#6c7a8e]">{booking.itinerary_notes}</p>}</div>}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] pt-3"><div className="flex flex-wrap items-center gap-2">{actionsFor(booking)}{["awaiting_payment", "confirmed"].includes(booking.status) && <ActionButton disabled={busyId === booking.id} tone="red" onClick={() => cancelBooking(booking)}>Cancel booking</ActionButton>}{booking.payment !== "paid" && ["confirmed", "picked_up"].includes(booking.status) && <><select aria-label="Payment method" value={paymentMethods[booking.id] ?? "cash"} onChange={(event) => setPaymentMethods((current) => ({ ...current, [booking.id]: event.target.value }))} className="h-8 rounded-lg border border-[#e1e7ef] bg-white px-2 text-[10px] text-[#5e6e83]"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select><ActionButton disabled={busyId === booking.id} tone="green" onClick={() => markPaid(booking)}>{busyId === booking.id ? <LoaderCircle size={12} className="animate-spin"/> : <CircleDollarSign size={13}/>}Mark payment received</ActionButton></>}</div><p className="text-[9px] text-[#98a2b0]">Platform fee {formatPeso(Number(booking.commission_amount))}</p></div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] pt-3"><div className="flex flex-wrap items-center gap-2">{actionsFor(booking)}{["awaiting_payment", "payment_review", "confirmed"].includes(booking.status) && <ActionButton disabled={busyId === booking.id} tone="red" onClick={() => cancelBooking(booking)}>Cancel booking</ActionButton>}{booking.start_date <= todayManila && ["awaiting_payment", "payment_review", "confirmed"].includes(booking.status) && <ActionButton disabled={busyId === booking.id} tone="red" onClick={() => cancelBooking(booking, "no_show")}>Customer didn’t show up</ActionButton>}{booking.payment !== "paid" && ["confirmed", "picked_up"].includes(booking.status) && <><select aria-label="Payment method" value={paymentMethods[booking.id] ?? "cash"} onChange={(event) => setPaymentMethods((current) => ({ ...current, [booking.id]: event.target.value }))} className="h-8 rounded-lg border border-[#e1e7ef] bg-white px-2 text-[10px] text-[#5e6e83]"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select><ActionButton disabled={busyId === booking.id} tone="green" onClick={() => markPaid(booking)}>{busyId === booking.id ? <LoaderCircle size={12} className="animate-spin"/> : <CircleDollarSign size={13}/>}Mark payment received</ActionButton></>}</div><p className="text-[9px] text-[#98a2b0]">Platform fee {formatPeso(Number(booking.commission_amount))}</p></div>
     </article>)}</div>;
 }
 

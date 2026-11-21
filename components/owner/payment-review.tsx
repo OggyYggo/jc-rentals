@@ -15,7 +15,8 @@ export function OwnerPaymentReview({ payments }: { payments: Payment[] }) {
         confirmText: "Confirm deposit",
       } : undefined,
       reason: approve ? undefined : {
-        title: "Reject this payment proof?", label: "Reason shown to the customer", confirmText: "Reject proof",
+        title: "Reject payment and cancel this booking?",
+        text: "Any verified reservation payment is due back in full. The refund is sent by the vehicle owner. Kuyog Bohol helps record and track it.", label: "Reason shown to the customer", confirmText: "Reject and cancel booking",
       },
       setPending: (pending) => setBusy(pending ? payment.id : ""),
       run: async (reason) => {
@@ -25,7 +26,7 @@ export function OwnerPaymentReview({ payments }: { payments: Payment[] }) {
           : await db.rpc("reject_booking_payment", { p_payment_id: payment.id, p_reason: reason });
         if (error) throw error;
       },
-      success: approve ? "Deposit confirmed" : "Payment proof rejected",
+      success: approve ? "Deposit confirmed" : "Payment rejected and booking cancelled",
       refresh: router.refresh,
     });
   }
