@@ -7,11 +7,14 @@ export const instant = false;
 export default async function OwnerCarsPage({ searchParams }: PageProps<"/owner/cars">) {
   const [{ supabase, owner }, params] = await Promise.all([getOwnerContext(), searchParams]);
   const [{ data, error }, { data: usage }, { count: hiddenCarsCount }] = await Promise.all([
-    supabase.from("cars").select("id, brand, model, year, plate_number, car_type, vehicle_type, engine_cc, helmets_included, rating_avg, rating_count, transmission, fuel_type, seats, description, is_active, plan_hidden, allows_self_drive, allows_with_driver, bookings(count), car_rates(id, mode, daily_rate, deposit_amount, included_hours, overtime_per_hour, notes, fuel_policy, mileage_limit, minimum_age, license_required, fuel_included, driver_meals_included, accommodation_included, coverage_area), car_photos(id, path, thumb_path, sort_order)").eq("owner_id", owner.id).order("created_at", { ascending: false }),
+    supabase.from("cars").select("id, brand, model, year, plate_number, car_type, vehicle_type, engine_cc, helmets_included, rating_avg, rating_count, transmission, fuel_type, seats, description, is_active, plan_hidden, allows_self_drive, allows_with_driver, bookings!bookings_car_id_fkey(count), car_rates(id, mode, daily_rate, deposit_amount, included_hours, overtime_per_hour, notes, fuel_policy, mileage_limit, minimum_age, license_required, fuel_included, driver_meals_included, accommodation_included, coverage_area), car_photos(id, path, thumb_path, sort_order)").eq("owner_id", owner.id).order("created_at", { ascending: false }),
     supabase.rpc("owner_car_usage", { p_owner: owner.id }),
     supabase.from("cars").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("plan_hidden", true),
   ]);
-  if (error) throw new Error("Could not load your vehicle list.");
+  if (error) {
+    console.error("Owner vehicle query failed", { code: error.code, message: error.message });
+    throw new Error("Could not load your vehicle list.");
+  }
   const cars = (data ?? []).map((car) => ({
     ...car,
     car_photos: (car.car_photos ?? []).map((photo) => ({

@@ -1,7 +1,8 @@
 import { CreditBanner, type CreditState } from "@/components/owner/credit-state";
 import { bookingRevenue, earnsCommission, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, CalendarDays, CarFront, CircleDollarSign, ClipboardList, Plus } from "lucide-react";
+import { paymentPeso } from "@/lib/payment-format";
+import { ArrowRight, ArrowUpRight, CalendarDays, CarFront, CircleDollarSign, ClipboardList, Plus, Receipt, Star } from "lucide-react";
 import { PageHeading, StatCard, StatusPill, formatPeso, formatShortDate } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
 
@@ -53,17 +54,96 @@ export default async function OwnerOverviewPage() {
   const maxChart = Math.max(...chartMonths.map(({ amount }) => amount), 1);
   const recent = allBookings.slice(0, 6);
 
+  const refunds = refundCount ?? 0;
+  const showCredits = owner.fee_mode === "credits" && creditState !== null;
+  const summaryLinkClass = "group flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700";
+
+  const recentBookings = (
+      <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="flex items-center justify-between border-b border-[#edf0f4] px-4 py-4 sm:px-5"><div><h2 className="text-sm font-semibold text-[#33445b]">Recent bookings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">The latest activity across your fleet</p></div><Link href="/owner/bookings" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">See all</Link></div>
+        {recent.length ? <>
+          <ul className="divide-y divide-slate-100 sm:hidden">
+            {recent.map(booking => <li key={booking.id} className="flex items-start justify-between gap-2 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-semibold text-slate-800">{booking.customer?.full_name || "Customer"}</p>
+                <p className="mt-0.5 break-words text-xs text-slate-600">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"} · {formatShortDate(booking.start_date)}</p>
+                <p className="mt-0.5 break-words text-xs text-slate-600">{booking.reference} · {formatPeso(bookingRevenue(booking))}</p>
+              </div>
+              {hasKeptFee(booking) ? <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-700">Cancelled (fee kept)</span> : <StatusPill status={booking.status}/>}
+            </li>)}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[620px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Customer</th><th className="px-4 py-3">Vehicle</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{recent.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-medium text-[#42536a]">{booking.customer?.full_name || "Customer"}</span><span className="mt-0.5 block text-[9px] text-[#9aa4b2]">{booking.reference}</span></td><td className="px-4 py-3.5 text-[#53637a]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-semibold text-[#42536a]">{formatPeso(bookingRevenue(booking))}</td><td className="px-4 py-3.5">{hasKeptFee(booking) ? "Cancelled (fee kept)" : <StatusPill status={booking.status}/>}</td></tr>)}</tbody></table></div></> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No bookings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Your booking activity will appear here.</p></div>}
+      </article>
+  );
+
   return <>
-    {owner.fee_mode === "credits" && creditState && <CreditBanner state={creditState} />}
-    <Link href="/owner/payments?tab=refunds" className="mb-4 block rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold">Refunds to send · {refundCount ?? 0}</Link>
     <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex gap-2"><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
 
-    {reviewSummary && <Link href="/owner/reviews" className="mb-4 block rounded-xl border bg-white p-4 text-sm">
-      <p className="font-semibold">Trip reviews</p>
-      <p className="mt-1">{reviewSummary.rating_count ? `Rating ${Number(reviewSummary.rating_avg).toFixed(1)} / 5 · ` : ""}{reviewSummary.rating_count} reviews · {reviewSummary.unanswered} to reply</p>
-      {reviewSummary.unanswered > 0 && reviewSummary.unanswered === reviewSummary.rating_count && <p className="mt-1 text-blue-800 underline">Reply to your first review</p>}
-    </Link>}
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section aria-label="Credits, refunds and reviews" className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white sm:hidden">
+      {showCredits && <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <CircleDollarSign size={17} className="shrink-0 text-blue-700" aria-hidden />
+          <div className="min-w-0">
+            <h2 className="text-xs font-semibold text-slate-800">Owner credits</h2>
+            <p className="break-words text-xs text-slate-600">
+              {paymentPeso(creditState.available)} available
+              {creditState.available <= 0 || creditState.available < creditState.low_threshold ? <span className="text-amber-800"> · {creditState.available <= 0 ? "No credits left" : "Low credits"}</span> : null}
+            </p>
+          </div>
+        </div>
+        <Link href="/owner/credits#top-up" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-blue-50 px-3 text-xs font-semibold text-blue-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700">Top up</Link>
+      </div>}
+      <div className={`grid ${reviewSummary ? "grid-cols-2 divide-x" : ""} divide-slate-100 ${showCredits ? "border-t border-slate-100" : ""}`}>
+        <Link href="/owner/payments?tab=refunds" className="flex min-h-14 min-w-0 items-center justify-between gap-1 px-3 py-2 text-slate-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700">
+          <div><h2 className="text-xs font-semibold">Refunds to send</h2><p className={`text-xs ${refunds ? "font-semibold text-amber-800" : "text-slate-600"}`}>{refunds ? `${refunds} pending` : "None pending"}</p></div>
+          <ArrowRight size={14} className="shrink-0 text-blue-700" aria-hidden />
+        </Link>
+        {reviewSummary && <Link href="/owner/reviews" className="flex min-h-14 min-w-0 items-center justify-between gap-1 px-3 py-2 text-slate-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700">
+          <div><h2 className="text-xs font-semibold">Trip reviews</h2><p className="text-xs text-slate-600">
+            {reviewSummary.rating_count > 0 ? `${Number(reviewSummary.rating_avg).toFixed(1)}/5${reviewSummary.unanswered > 0 ? ` · ${reviewSummary.unanswered} to reply` : ""}` : "No reviews yet"}
+          </p></div>
+          <ArrowRight size={14} className="shrink-0 text-blue-700" aria-hidden />
+        </Link>}
+      </div>
+    </section>
+
+    <section aria-label="Credits, refunds and reviews" className={`mb-5 hidden gap-3 sm:grid sm:grid-cols-2 ${showCredits && reviewSummary ? "xl:grid-cols-3" : ""}`}>
+      {showCredits && <CreditBanner state={creditState} className={reviewSummary ? "sm:col-span-2 xl:col-span-1" : ""} />}
+      <Link href="/owner/payments?tab=refunds" className={summaryLinkClass}>
+        <div className="flex items-center gap-3">
+          <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${refunds ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}><Receipt size={19} aria-hidden /></span>
+          <h2 className="text-sm font-semibold text-slate-800">Refunds to send</h2>
+        </div>
+        <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">{refunds}</p>
+        <p className="mt-1 text-sm text-slate-600">{refunds === 0 ? "No refunds waiting" : refunds === 1 ? "Refund waiting to be sent" : "Refunds waiting to be sent"}</p>
+        <div className="mt-auto pt-4">
+          <p className="flex min-h-11 items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm font-semibold text-blue-700 group-hover:underline">
+            View refunds <ArrowRight size={16} aria-hidden />
+          </p>
+        </div>
+      </Link>
+      {reviewSummary && <Link href="/owner/reviews" className={summaryLinkClass}>
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700"><Star size={19} aria-hidden /></span>
+          <h2 className="text-sm font-semibold text-slate-800">Trip reviews</h2>
+        </div>
+        {reviewSummary.rating_count > 0 ? <>
+          <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">
+            {Number(reviewSummary.rating_avg).toFixed(1)} <span className="text-base font-medium text-slate-500">/ 5</span>
+          </p>
+          <p className="mt-1 text-sm text-slate-600">{reviewSummary.rating_count} {reviewSummary.rating_count === 1 ? "review" : "reviews"}</p>
+          <p className={`mt-3 w-fit rounded-full px-2.5 py-1 text-xs font-medium ${reviewSummary.unanswered ? "bg-violet-50 text-violet-800" : "bg-slate-100 text-slate-600"}`}>
+            {reviewSummary.unanswered > 0 ? `${reviewSummary.unanswered} awaiting reply` : "All caught up"}
+          </p>
+        </> : <p className="mt-4 text-sm text-slate-600">No trip reviews yet</p>}
+        <div className="mt-auto pt-4">
+          <p className="flex min-h-11 items-center justify-between gap-2 border-t border-slate-100 pt-3 text-sm font-semibold text-blue-700 group-hover:underline">
+            {reviewSummary.unanswered > 0 ? "Reply to reviews" : "View reviews"} <ArrowRight size={16} aria-hidden />
+          </p>
+        </div>
+      </Link>}
+    </section>
+    <div className="mb-4 sm:hidden">{recentBookings}</div>
+    <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <StatCard title="Total vehicles" value={String(carList.length)} note={`${carList.filter((car) => car.is_active).length} active in fleet`} icon={CarFront} tone="blue"/>
       <StatCard title="Booking requests" value={String(pendingCount).padStart(2, "0")} note="Waiting for your response" icon={ClipboardList} tone="orange"/>
       <StatCard title="Gross bookings · this month" value={formatPeso(gross)} note={`${monthBookings.length} confirmed rentals`} icon={CircleDollarSign} tone="green"/>
@@ -81,9 +161,7 @@ export default async function OwnerOverviewPage() {
     </section>
 
     <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,.9fr)]">
-      <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="flex items-center justify-between border-b border-[#edf0f4] px-4 py-4 sm:px-5"><div><h2 className="text-sm font-semibold text-[#33445b]">Recent bookings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">The latest activity across your fleet</p></div><Link href="/owner/bookings" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">See all</Link></div>
-        {recent.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Customer</th><th className="px-4 py-3">Vehicle</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{recent.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-medium text-[#42536a]">{booking.customer?.full_name || "Customer"}</span><span className="mt-0.5 block text-[9px] text-[#9aa4b2]">{booking.reference}</span></td><td className="px-4 py-3.5 text-[#53637a]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-semibold text-[#42536a]">{formatPeso(bookingRevenue(booking))}</td><td className="px-4 py-3.5">{hasKeptFee(booking) ? "Cancelled (fee kept)" : <StatusPill status={booking.status}/>}</td></tr>)}</tbody></table></div> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No bookings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Your booking activity will appear here.</p></div>}
-      </article>
+      <div className="hidden sm:flex sm:[&>article]:w-full">{recentBookings}</div>
 
       <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold text-[#33445b]">Fleet at a glance</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Vehicle availability overview</p></div><Link href="/owner/cars" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">Manage</Link></div><div className="mt-5 space-y-3">{carList.slice(0, 4).map((car, index) => <div key={car.id} className="flex items-center gap-3 rounded-lg border border-[#eef1f5] p-2.5"><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${["bg-[#edf2ff] text-[#4d6ec7]", "bg-[#edf7f1] text-[#438664]", "bg-[#fff5e8] text-[#bb8235]", "bg-[#f2efff] text-[#755eb4]"][index % 4]}`}><CarFront size={17}/></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#45556c]">{car.year ? `${car.year} ` : ""}{car.brand} {car.model}</p><p className="mt-0.5 text-[9px] text-[#8b97a8]">{car.allows_self_drive && car.allows_with_driver ? "Two rental options" : car.allows_with_driver ? "With driver" : "Self drive"}</p></div><span className={`rounded-full px-2 py-1 text-[9px] ${car.is_active ? "bg-[#edf7f1] text-[#39825f]" : "bg-[#f1f3f6] text-[#7d8999]"}`}>{car.is_active ? "Active" : "Hidden"}</span></div>)}</div>{carList.length === 0 && <div className="py-8 text-center text-[10px] text-[#8b97a8]">Add your first vehicle to get started.</div>}<Link href="/owner/cars?new=1" className="mt-4 flex h-9 items-center justify-center gap-2 rounded-lg border border-dashed border-[#d8e0eb] text-[10px] font-semibold text-[#64748a] hover:border-[#9cb1e7] hover:text-[#4567be]"><Plus size={13}/>Add a vehicle</Link></article>
     </section>
