@@ -92,7 +92,7 @@ export function Header() {
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0B63CE] text-sm font-semibold text-white shadow-sm">{userInitial}</span>
                 <span className="min-w-0"><span className="block text-[10px] font-medium uppercase tracking-wide text-[#6D82A3]">Signed in</span><span className="block truncate text-sm font-semibold text-[#183B70]">{userName}</span></span>
               </span>
-              <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 font-semibold text-[#0B63CE] hover:bg-[#EAF4FF]" href="/account/bookings">My account and bookings</Link>
+              <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 font-semibold text-[#0B63CE] hover:bg-[#EAF4FF]" href="/account/profile">My account</Link>
             </> : <>
               <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/account/bookings">My bookings</Link>
               <Link onClick={closeMobileMenu} className="rounded-lg px-3 py-2.5 hover:bg-[#EAF4FF]" href="/login">Log in</Link>

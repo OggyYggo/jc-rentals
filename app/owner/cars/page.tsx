@@ -24,5 +24,5 @@ export default async function OwnerCarsPage({ searchParams }: PageProps<"/owner/
   }));
 
   const currentUsage = Array.isArray(usage) ? usage[0] : null;
-  return <><PageHeading eyebrow="Fleet management" title="My vehicles" description="Add vehicles, configure rental modes, update rates, and manage the photos customers see."/><CarManager cars={cars as unknown as OwnerCar[]} ownerId={owner.id} initialOpen={params.new === "1"} usage={currentUsage ? { used: Number(currentUsage.used), limit: Number(currentUsage.max_cars) } : null} hiddenByPlan={hiddenCarsCount ?? 0}/></>;
+  return <><PageHeading title="My cars" description="Manage your cars, motorcycles, rental rates, and listing visibility."/><CarManager cars={cars as unknown as OwnerCar[]} ownerId={owner.id} initialOpen={params.new === "1"} usage={currentUsage ? { used: Number(currentUsage.used), limit: Number(currentUsage.max_cars) } : null} hiddenByPlan={hiddenCarsCount ?? 0}/></>;
 }

@@ -7,17 +7,17 @@ import { NotificationBell } from "@/components/notifications/bell";
 
 export function AccountShell({ children, email, userId }: { children: React.ReactNode; email: string; userId: string }) {
   const pathname = usePathname();
-  const active = pathname.startsWith("/account/profile") ? "profile" : "bookings";
+  const isProfile = pathname === "/account/profile";
   return (
-    <main className="min-h-[calc(100vh-68px)] bg-[#f5f7fb] px-4 py-8 sm:px-7 sm:py-10">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-7 flex items-end justify-between"><div><p className="text-xs font-medium text-[#6f83a5]">Customer account</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#203149]">Your rentals, all in one place</h1></div><NotificationBell userId={userId}/></div>
+    <main className={`min-h-[calc(100vh-68px)] bg-[#f5f7fb] px-4 sm:px-7 ${isProfile ? "py-5 sm:py-8 md:py-10" : "py-8 sm:py-10"}`}>
+      <div className={`mx-auto ${isProfile ? "max-w-xl md:max-w-6xl" : "max-w-6xl"}`}>
+        <div className={`mb-7 items-end justify-between ${isProfile ? "hidden md:flex" : "flex"}`}><div><p className="text-xs font-medium text-[#6f83a5]">Customer account</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#203149]">Your rentals, all in one place</h1></div><NotificationBell userId={userId}/></div>
         <div className="grid gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-2xl border border-[#e3e8ef] bg-white p-3 shadow-sm">
+          <aside className={`h-fit rounded-2xl border border-[#e3e8ef] bg-white p-3 shadow-sm ${isProfile ? "hidden md:block" : ""}`}>
             <div className="flex items-center gap-3 border-b border-[#edf0f4] px-2 pb-4 pt-2"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#edf2ff] text-[#2457d6]"><CircleUserRound size={18} /></span><div className="min-w-0"><p className="truncate text-xs font-semibold text-[#34445b]">{email}</p><p className="mt-0.5 text-[10px] text-[#8b97a7]">Customer</p></div></div>
             <nav className="mt-3 space-y-1">
-              <Link href="/account/bookings" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${active === "bookings" ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CalendarDays size={15} /> My bookings</Link>
-              <Link href="/account/profile" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${active === "profile" ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CircleUserRound size={15} /> Profile &amp; documents</Link>
+              <Link href="/account/bookings" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${isProfile ? "text-[#68778c] hover:bg-[#f6f8fb]" : "bg-[#edf2ff] text-[#2457d6]"}`}><CalendarDays size={15} /> My bookings</Link>
+              <Link href="/account/profile" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${isProfile ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CircleUserRound size={15} /> Profile &amp; documents</Link>
               <Link href="/cars" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#68778c] hover:bg-[#f6f8fb]"><CarFront size={15} /> Browse rentals</Link>
             </nav>
             <form action="/auth/signout" method="post" className="mt-3 border-t border-[#edf0f4] pt-3"><button type="submit" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#758196] hover:bg-[#f6f8fb]"><LogOut size={15} /> Sign out</button></form>

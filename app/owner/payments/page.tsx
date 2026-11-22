@@ -2,7 +2,8 @@ import { PageHeading } from "@/components/owner/ui";
 import { OwnerPaymentReview } from "@/components/owner/payment-review";
 import { RefundQueue, type RefundRow } from "@/components/owner/refund-queue";
 import { DisputeList, type Dispute } from "@/components/payment-disputes";
-import { PaymentTabs } from "@/components/payment-tabs";
+import Link from "next/link";
+import { CircleCheck, Clock3, Hourglass, RotateCcw } from "lucide-react";
 import { getOwnerContext } from "@/lib/owner-context";
 
 export const instant = false;
@@ -36,15 +37,35 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
     content = <OwnerPaymentReview payments={(data ?? []) as never} />;
   }
 
+  const metrics = [
+    { label: "Confirmed", value: stats?.confirmed ?? 0, icon: CircleCheck, style: "bg-emerald-50 text-emerald-800" },
+    { label: "No response", value: stats?.no_response ?? 0, icon: Hourglass, style: "bg-slate-100 text-slate-700" },
+    { label: "Overdue refunds", value: stats?.refunds_overdue ?? 0, icon: RotateCcw, style: "bg-amber-50 text-amber-900" },
+    { label: "Median review time", value: stats?.median_seconds_to_act == null ? "—" : `${Math.round(stats.median_seconds_to_act / 60)} min`, icon: Clock3, style: "bg-blue-50 text-blue-800" },
+  ];
+
   return <>
-    <PageHeading eyebrow="Payments" title="Booking payments" description="Check each transfer in your wallet or bank history before confirming it." />
-    <section className="mb-4 rounded-xl border bg-white p-4 text-sm">
-      <h2 className="font-semibold">Payment performance · Last 90 days</h2>
-      <p className="mt-1">{stats?.confirmed ?? 0} confirmed · {stats?.no_response ?? 0} without response · {stats?.refunds_overdue ?? 0} overdue refunds</p>
-      <p>Median review time · {stats?.median_seconds_to_act == null ? "No reviews yet" : `${Math.round(stats.median_seconds_to_act / 60)} minutes`}</p>
-      <p className="mt-1 text-slate-600">Fast confirmations get more bookings.</p>
+    <PageHeading title="Booking payments" description="Check each transfer in your wallet or bank history before confirming it." />
+    <section aria-labelledby="payment-performance" className="mb-4 rounded-xl border border-[#dce5f1] bg-white p-3 lg:mb-5 lg:rounded-2xl lg:p-5">
+      <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 lg:mb-4">
+        <h2 id="payment-performance" className="text-sm font-semibold text-[#20334e]">Payment performance</h2>
+        <p className="text-xs text-[#51647f]">Last 90 days</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+        {metrics.map(({ label, value, icon: Icon, style }) => <div key={label} className="min-w-0 rounded-lg border border-[#e8eef7] bg-[#f8fbff] px-2.5 py-2 lg:rounded-xl lg:p-3.5">
+          <dt className="flex items-center gap-1.5 text-xs font-medium leading-4 text-[#405775] lg:gap-2">
+            <span className={`grid size-6 shrink-0 place-items-center rounded-md lg:size-8 ${style}`}><Icon size={15} aria-hidden="true" /></span>{label}
+          </dt>
+          <dd className="mt-0.5 text-lg font-semibold tabular-nums text-[#20334e] lg:mt-2 lg:text-2xl">{value}</dd>
+        </div>)}
+      </dl>
     </section>
-    <PaymentTabs path="/owner/payments" active={tab} tabs={tabs} />
+    <nav aria-label="Payment views" className="mb-3 grid grid-cols-3 gap-1 rounded-xl border border-[#dce5f1] bg-white p-1 lg:mb-4 lg:flex lg:w-fit">
+      {Object.entries(tabs).map(([key, label]) => <Link key={key} href={`/owner/payments?tab=${key}`} aria-current={key === tab ? "page" : undefined}
+        className={`inline-flex min-h-11 items-center justify-center rounded-lg px-1 py-1 text-center text-xs font-semibold leading-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 lg:px-5 lg:text-sm ${key === tab ? "bg-[#2457d6] text-white" : "text-[#405775] hover:bg-[#edf4ff]"}`}>
+        {label}
+      </Link>)}
+    </nav>
     {content}
   </>;
 }

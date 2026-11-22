@@ -1,5 +1,6 @@
 "use client";
 
+import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -45,7 +46,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
   if (complete) return <section className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" role="status">
     <h2 className="font-semibold">{isReturn ? "Return confirmed. Booking is now Returned." : "Handed over. Booking is now Picked up."}</h2>
     <div className="flex flex-wrap gap-2">
-      {!admin && (onCancel ? <button type="button" onClick={onCancel} className={actionClass}>Scan another</button> : <Link href="/owner/scan" className={actionClass}>Scan another</Link>)}
+      {!admin && (onCancel ? <button type="button" onClick={onCancel} className={actionClass}>Scan another</button> : <ScanPickupLink className={actionClass}>Scan another</ScanPickupLink>)}
       <Link href={back} className={actionClass}>{admin ? "Back to pickup details" : "Back to bookings"}</Link>
     </div>
   </section>;
@@ -83,11 +84,11 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
         lookup.result === "NOT_TODAY" ? `Outside the pickup window. The booking starts on ${lookup.start_date}.` :
         isReturn ? "Valid return pass" : "Valid pass"}
     </p>
-    <dl className="grid gap-2 rounded-xl border bg-white p-4 text-sm sm:grid-cols-2">
+    <dl className={`grid gap-2 rounded-xl border bg-white p-4 text-sm sm:grid-cols-2 ${onCancel ? "grid-cols-2 max-lg:px-3" : ""}`}>
       <div><dt className="text-slate-600">Customer</dt><dd className="break-words font-semibold">{lookup.customer_name}</dd></div>
       <div><dt className="text-slate-600">Vehicle</dt><dd className="break-words font-semibold">{lookup.vehicle_label}{lookup.plate && ` · ${lookup.plate}`}</dd></div>
       <div><dt className="text-slate-600">Rental dates</dt><dd>{lookup.start_date} to {lookup.end_date}</dd></div>
-      <div><dt className="text-slate-600">Booking</dt><dd>{lookup.reference} · {lookup.mode === "self_drive" ? "Self-drive" : "With driver"}</dd></div>
+      <div><dt className="text-slate-600">Booking</dt><dd className="break-words">{lookup.reference} · {lookup.mode === "self_drive" ? "Self-drive" : "With driver"}</dd></div>
       {lookup.mode === "self_drive" && lookup.deposit_amount > 0 && <div><dt className="text-slate-600">Refundable safety deposit</dt><dd>{paymentPeso(lookup.deposit_amount)}</dd></div>}
     </dl>
     {!isReturn && <dl className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-4 text-sm">
@@ -113,7 +114,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
         <textarea rows={2} maxLength={200} className="mt-1 block w-full rounded-lg border bg-white p-2" value={reason} onChange={event => setReason(event.target.value)} />
       </label>}
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-950">{error}</p>}
-      <div className="flex flex-wrap gap-2">
+      <div className={`flex flex-wrap gap-2 ${onCancel ? "max-lg:grid max-lg:grid-cols-[1fr_auto]" : ""}`}>
         <SubmitButton unstyled busy={busy} disabled={!canSubmit} pendingText="Confirming…" className={`${actionClass} bg-blue-700 text-white disabled:opacity-50`}>
           {isReturn ? "Confirm return" : "Confirm handover"}
         </SubmitButton>{cancel}

@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import { Spinner } from "@/components/loading/Spinner";
 
-export type DocumentKind = "license" | "id";
+export type DocumentKind = "license" | "id" | "selfie";
 
-export const documentLabels = { license: "Driver’s license", id: "Government ID" };
+export const documentLabels = { license: "Driver’s license", id: "Government ID", selfie: "Selfie with ID" };
 
 type Preview = { url: string; pdf: boolean } | { error: string };
 
-export function DocumentViewer({ customerId, kind }: { customerId: string; kind: DocumentKind }) {
-  const source = `/api/admin/customer-documents/${customerId}/${kind}`;
+export function DocumentViewer({ customerId, kind, revision }: { customerId: string; kind: DocumentKind; revision?: string }) {
+  const source = `/api/admin/customer-documents/${customerId}/${kind}${revision ? `?revision=${encodeURIComponent(revision)}` : ""}`;
   return <DocumentPreview key={source} source={source} label={documentLabels[kind]} />;
 }
 
@@ -55,7 +55,7 @@ function DocumentPreview({ source, label }: { source: string; label: string }) {
         <button type="button" className={control} onClick={() => setTurns(value => (value + 1) % 4)}>Rotate</button>
       </>}
       <a href={source} target="_blank" rel="noreferrer" className={control}>Open in new tab</a>
-      <a href={`${source}?download=1`} className={control}>Download</a>
+      <a href={`${source}${source.includes("?") ? "&" : "?"}download=1`} className={control}>Download</a>
     </div>
     {preview.pdf ? <iframe title={`${label} PDF`} src={preview.url} className="h-[min(55dvh,34rem)] w-full rounded-lg border" />
       : <div className="max-h-[55dvh] overflow-auto rounded-lg border bg-slate-100 p-2">

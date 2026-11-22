@@ -1,3 +1,4 @@
+import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import { CreditBanner, type CreditState } from "@/components/owner/credit-state";
 import { bookingRevenue, earnsCommission, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
 import Link from "next/link";
@@ -76,7 +77,7 @@ export default async function OwnerOverviewPage() {
   );
 
   return <>
-    <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex flex-wrap gap-2"><Link href="/owner/scan" className="inline-flex h-9 items-center rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-semibold text-blue-800">Scan pickup pass</Link><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
+    <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex flex-wrap gap-2"><ScanPickupLink className="inline-flex h-9 items-center rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-semibold text-blue-800">Scan pickup pass</ScanPickupLink><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
 
     <section aria-label="Credits, refunds and reviews" className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white sm:hidden">
       {showCredits && <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-2">

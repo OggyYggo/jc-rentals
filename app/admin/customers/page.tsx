@@ -20,9 +20,10 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
   const loadCustomers = <Columns extends string>(columns: Columns) =>
     supabase.from("profiles").select(columns).eq("role", "customer").order("created_at", { ascending: false });
 
-  const [result, access] = await Promise.all([
+  const [result, access, selfies] = await Promise.all([
     loadCustomers(`${customerColumns}, license_declared_classes, license_classes, verification_rejection_reason, customer_archived_at`),
     supabase.rpc("is_super_admin"),
+    supabase.from("customer_selfies").select("customer_id,revision,status"),
   ]);
   let customers: AdminCustomer[] = result.data ?? [];
   let canReject = true;
@@ -53,6 +54,9 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
       customer_archived_at: archivesById.get(customer.id) ?? null,
     }));
   }
+
+  const selfiesByCustomer = new Map(selfies.data?.map(row => [row.customer_id, { revision: row.revision, status: row.status }]));
+  customers = customers.map(customer => ({ ...customer, selfie: selfiesByCustomer.get(customer.id) }));
 
   return <>
     <AdminHeading eyebrow="People" title="Customers" description="Review customer records and privately inspect submitted verification documents." />

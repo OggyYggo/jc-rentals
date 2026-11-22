@@ -24,7 +24,29 @@ export function CustomerReviewDialog({ customer, joined, initialKind, review, ca
   const [error, setError] = useState("");
   const submitting = useRef(false);
   const missing = [!customer.license_path && "License not uploaded", !customer.id_path && "ID not uploaded"].filter(Boolean);
-  const hasDocument = kind === "license" ? Boolean(customer.license_path) : Boolean(customer.id_path);
+  const selfie = kind === "selfie" ? customer.selfie : undefined;
+  const hasDocument = kind === "license" ? Boolean(customer.license_path) : kind === "id" ? Boolean(customer.id_path) : Boolean(selfie);
+
+  async function decideSelfie(approved: boolean) {
+    if (!selfie || submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const { error } = await createClient().rpc("admin_review_customer_selfie", {
+        p_customer: customer.id, p_revision: selfie.revision, p_approved: approved,
+      });
+      if (error) throw error;
+      router.refresh();
+      onClose();
+      void toastSuccess(approved ? "Selfie approved" : "Selfie marked for replacement");
+    } catch {
+      setError("Could not save this decision. Reload the customer record and try again.");
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
+  }
 
   async function decide(status: "approved" | "rejected") {
     if (submitting.current) return;
@@ -61,9 +83,17 @@ export function CustomerReviewDialog({ customer, joined, initialKind, review, ca
           onClick={() => setKind(item)}>{documentLabels[item]}</button>)}
       </div>}
       <div className="mt-3">
-        {hasDocument ? <DocumentViewer customerId={customer.id} kind={kind} />
+        {hasDocument ? <DocumentViewer customerId={customer.id} kind={kind} revision={selfie?.revision} />
           : <p className="rounded-lg bg-slate-100 p-3 text-sm">{documentLabels[kind]} not uploaded.</p>}
       </div>
+      {selfie?.status === "pending" && <div className="mt-4 space-y-3 border-t pt-4">
+        <p className="text-sm">Check that the customer is holding the same ID they submitted.</p>
+        {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy} className={`${control} bg-emerald-50 text-emerald-950`} onClick={() => void decideSelfie(true)}>Approve selfie</button>
+          <button type="button" disabled={busy} className={`${control} text-red-900`} onClick={() => void decideSelfie(false)}>Request replacement</button>
+        </div>
+      </div>}
       {review && <div className="mt-4 space-y-3 border-t pt-4">
         <p className="text-sm">Check that the name matches the ID, the license is current, and the photo is clear.</p>
         {missing.length > 0 && <p className="text-sm text-amber-900">{missing.join(" · ")}</p>}

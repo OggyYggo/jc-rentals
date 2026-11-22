@@ -1,14 +1,13 @@
 "use client";
 
 import { runWithAlerts } from "@/lib/alerts/run";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { CarFront, Check, ImagePlus, LoaderCircle, Pencil, Plus, Search, ToggleLeft, ToggleRight, X } from "lucide-react";
+import { CarFront, Check, ChevronDown, ImagePlus, LoaderCircle, Plus, Search, ToggleLeft, ToggleRight, X, ArrowUpRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { makeShortCode } from "@/lib/promo/short-code";
-import { RatingBadge } from "@/components/reviews/ReviewContent";
-import { formatPeso } from "@/components/owner/ui";
+import { FleetList, fleetStatus } from "./fleet-list";
 import { Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle } from "@/components/ui/attachment";
 
 export type OwnerCar = {
@@ -60,13 +59,42 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [form, setForm] = useState<CarForm>(blankForm);
   const [photos, setPhotos] = useState<File[]>([]);
-  const [search, setSearch] = useState(""); const [vehicleFilter,setVehicleFilter]=useState<"all"|"car"|"motorcycle">("all");
+  const [search, setSearch] = useState("");
+  const [vehicleFilter, setVehicleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const editor = useRef<HTMLElement>(null);
+  const editorTrigger = useRef<HTMLElement | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const filtered = useMemo(() => cars.filter((car) => `${car.brand} ${car.model} ${car.plate_number ?? ""}`.toLowerCase().includes(search.toLowerCase()) && (vehicleFilter === "all" || car.vehicle_type === vehicleFilter)), [cars, search, vehicleFilter]);
+  const query = search.trim().toLocaleLowerCase();
+  const filtered = cars.filter(car =>
+    `${car.brand} ${car.model} ${car.plate_number ?? ""}`.toLocaleLowerCase().includes(query)
+    && (vehicleFilter === "all" || car.vehicle_type === vehicleFilter)
+    && (statusFilter === "all" || fleetStatus(car) === statusFilter),
+  );
+  const hasFilters = Boolean(query || vehicleFilter !== "all" || statusFilter !== "all");
+  const activeCount = cars.filter(car => fleetStatus(car) === "active").length;
+  const editingId = editing?.id;
+  useEffect(() => {
+    if (!isOpen) {
+      editorTrigger.current?.focus();
+      editorTrigger.current = null;
+      return;
+    }
+    editor.current?.focus({ preventScroll: true });
+    editor.current?.scrollIntoView({ block: "start" });
+  }, [editingId, isOpen]);
 
-  function openNewCar() { setEditing(null); setForm(blankForm); setPhotos([]); setError(""); setIsOpen(true); }
-  function openEditCar(car: OwnerCar) { setEditing(car); setForm(formFromCar(car)); setPhotos([]); setError(""); setIsOpen(true); }
+  function openEditor(car: OwnerCar | null) {
+    editorTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setEditing(car);
+    setForm(car ? formFromCar(car) : blankForm);
+    setPhotos([]);
+    setError("");
+    setIsOpen(true);
+  }
+
+  function openNewCar() { openEditor(null); }
   function update<K extends keyof CarForm>(key: K, value: CarForm[K]) { setForm((current) => ({ ...current, [key]: value })); }
 
   async function saveCar(event: FormEvent<HTMLFormElement>) {
@@ -165,11 +193,45 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
     });
   }
 
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e3eaf4] bg-white px-4 py-3"><p className="text-sm font-semibold text-[#40536d]">Active vehicles <span className="text-[#2457d6]">{usage?.used ?? 0} of {usage?.limit ?? "—"}</span></p><div className="flex items-center gap-3">{hiddenByPlan > 0 && <p className="text-xs text-amber-800">{hiddenByPlan} hidden by plan</p>}<a href="/owner/plan" className="text-xs font-semibold text-[#315fae] hover:underline">Manage plan</a></div></div>
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-xs"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b97a8]"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search vehicles..." className="h-9 w-full rounded-lg border border-[#e1e7ef] bg-white pl-9 pr-3 text-xs outline-none focus:border-[#94a9e9]"/></div><select value={vehicleFilter} onChange={(event)=>setVehicleFilter(event.target.value as typeof vehicleFilter)} className="h-9 rounded-lg border border-[#e1e7ef] bg-white px-2 text-xs"><option value="all">All types</option><option value="car">Cars</option><option value="motorcycle">Motorcycles</option></select><button onClick={openNewCar} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8]"><Plus size={14}/>Add vehicle</button></div>
+  return <div className="space-y-4">
+    <section aria-label="Fleet summary" className="grid gap-3 lg:grid-cols-[1fr_1fr_1.4fr]">
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-[#dce5f1] bg-white px-3.5 py-3 lg:col-span-2 lg:grid lg:grid-cols-2 lg:px-5 lg:py-4">
+        <div><p className="text-xs font-medium text-[#52647d]">Total vehicles</p><p className="mt-0.5 text-xl font-semibold tabular-nums text-[#20334e]">{cars.length}</p></div>
+        <div className="border-l border-[#e8eef6] pl-4"><p className="text-xs font-medium text-[#52647d]">Active listings</p><p className="mt-0.5 text-xl font-semibold tabular-nums text-[#20334e]">{activeCount}</p></div>
+        <button type="button" onClick={openNewCar} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg bg-[#2457d6] px-2.5 text-xs font-semibold text-white hover:bg-[#1d4ed8] lg:hidden"><Plus size={15} aria-hidden="true" />Add vehicle</button>
+      </div>
+      <div className="rounded-xl border border-[#dce5f1] bg-[#edf4ff] px-3.5 py-2 lg:px-4 lg:py-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3">
+          <p className="text-xs font-medium text-[#405775]">Plan usage {usage && <strong className="ml-1 text-[#203b65]">{usage.used} of {usage.limit} active slots</strong>}</p>
+          <a href="/owner/plan" className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-[#204a8b] hover:underline lg:min-h-8">Manage plan <ArrowUpRight size={13} aria-hidden="true" /></a>
+        </div>
+        {usage && usage.limit > 0 && <progress className="hidden h-1.5 w-full accent-[#2457d6] lg:block" max={usage.limit} value={usage.used} aria-label="Active vehicle slots used" />}
+        {hiddenByPlan > 0 && <p className="text-xs font-medium text-amber-900 lg:mt-1">{hiddenByPlan} hidden by plan</p>}
+      </div>
+    </section>
+
+    <div className={`rounded-xl border border-[#dce5f1] bg-white p-3 ${isOpen ? "hidden lg:block" : ""}`}>
+      <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-wrap lg:items-center">
+        <label className="relative col-span-2 min-w-0 lg:flex-1">
+          <span className="sr-only">Search vehicles</span>
+          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#52647d]" />
+          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search make, model, or plate" className="min-h-11 w-full rounded-lg border border-[#dce5f1] bg-[#f8fbff] pl-9 pr-3 text-sm text-[#20334e] placeholder:text-[#626f82] focus-visible:outline-2 focus-visible:outline-[#2457d6]" />
+        </label>
+        <FleetFilter label="Vehicle type" value={vehicleFilter} onChange={setVehicleFilter}>
+          <option value="all">All types</option><option value="car">Cars</option><option value="motorcycle">Motorcycles</option>
+        </FleetFilter>
+        <FleetFilter label="Listing status" value={statusFilter} onChange={setStatusFilter}>
+          <option value="all">All statuses</option><option value="active">Active</option><option value="hidden">Hidden</option><option value="plan">Hidden by plan</option>
+        </FleetFilter>
+        <button type="button" onClick={openNewCar} className="hidden min-h-11 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-sm font-semibold text-white hover:bg-[#1d4ed8] lg:inline-flex"><Plus size={15} aria-hidden="true" />Add vehicle</button>
+      </div>
+      {hasFilters && <div className="mt-2 flex items-center justify-between gap-3">
+        <p role="status" className="text-xs text-[#52647d]">{filtered.length} of {cars.length} vehicles</p>
+        <button type="button" className="min-h-9 text-xs font-semibold text-[#204a8b] underline underline-offset-2" onClick={() => { setSearch(""); setVehicleFilter("all"); setStatusFilter("all"); }}>Clear filters</button>
+      </div>}
+    </div>
     {error && !isOpen && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}
-    {isOpen && <section className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><h2 className="text-sm font-semibold text-[#33445b]">{editing ? "Edit vehicle" : "Add a vehicle"}</h2><p className="mt-1 text-[10px] text-[#8793a3]">Set up the vehicle details, rental options, and photos.</p></div><button aria-label="Close form" onClick={() => setIsOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8591a2] hover:bg-[#f4f6fa]"><X size={17}/></button></div>
+    {isOpen && <section ref={editor} tabIndex={-1} aria-labelledby="vehicle-editor-heading" className="scroll-mt-24 rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><h2 id="vehicle-editor-heading" className="text-base font-semibold text-[#33445b]">{editing ? `Edit ${editing.brand} ${editing.model}` : "Add a vehicle"}</h2><p className="mt-1 text-[10px] text-[#8793a3]">Set up the vehicle details, rental options, and photos.</p></div><button aria-label="Close form" onClick={() => setIsOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8591a2] hover:bg-[#f4f6fa]"><X size={17}/></button></div>
       <form onSubmit={saveCar} className="space-y-5"><div className="mb-4 flex w-fit rounded-full bg-[#eef4ff] p-1">{(["car","motorcycle"] as const).map(type=><button key={type} type="button" disabled={Boolean(editing && editing.vehicle_type !== type && (editing.bookings?.[0]?.count ?? 0) > 0)} onClick={()=>{update("vehicle_type",type);if(type==="motorcycle"){update("with_driver",false);update("self_drive",true);update("seats",form.seats==="5"?"2":form.seats);update("car_type","Scooter");update("fuel_type","Gasoline");}else{update("car_type","Sedan");update("helmets_included","0");}}} className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${form.vehicle_type===type?"bg-[#2457d6] text-white":"text-[#41536c]"}`}>{type}</button>)}</div>{editing && (editing.bookings?.[0]?.count ?? 0) > 0 && <p className="mb-3 text-[10px] text-[#8793a3]">Vehicle type cannot be changed after bookings exist.</p>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Make / brand"><input required value={form.brand} onChange={(event) => update("brand", event.target.value)} placeholder={form.vehicle_type === "motorcycle" ? "Honda" : "Toyota"} className={inputClass}/></Field><Field label="Model"><input required value={form.model} onChange={(event) => update("model", event.target.value)} placeholder={form.vehicle_type === "motorcycle" ? "Click 125" : "Vios"} className={inputClass}/></Field><Field label="Year"><input type="number" min="1990" max="2100" value={form.year} onChange={(event) => update("year", event.target.value)} placeholder="2024" className={inputClass}/></Field><Field label="Plate number"><input value={form.plate_number} onChange={(event) => update("plate_number", event.target.value)} placeholder="ABC 1234" className={inputClass}/></Field>
         <Field label="Vehicle type"><select value={form.car_type} onChange={(event) => update("car_type", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Scooter", "Standard", "Adventure", "Big bike"] : ["Sedan", "SUV", "MPV", "Van", "Pickup", "Coupe", "Other"]).map((type) => <option key={type}>{type}</option>)}</select></Field><Field label="Transmission"><select value={form.transmission} onChange={(event) => update("transmission", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Automatic", "Manual", "Semi-automatic"] : ["Automatic", "Manual"]).map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Fuel type"><select value={form.fuel_type} onChange={(event) => update("fuel_type", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Gasoline", "Electric"] : ["Gasoline", "Diesel", "Hybrid", "Electric"]).map((value)=><option key={value}>{value}</option>)}</select></Field><Field label={form.vehicle_type === "motorcycle" ? "Passengers" : "Seats"}><input type="number" min="1" max={form.vehicle_type === "motorcycle" ? 2 : 30} value={form.seats} onChange={(event) => update("seats", event.target.value)} className={inputClass}/></Field>
@@ -192,17 +254,29 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
       {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}<div className="flex justify-end gap-2 border-t border-[#edf0f4] pt-4"><button type="button" onClick={() => setIsOpen(false)} className="h-9 rounded-lg border border-[#e1e7ef] px-3 text-xs font-medium text-[#68778c]">Cancel</button><button disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white disabled:opacity-60">{busy && <LoaderCircle size={14} className="animate-spin"/>}{editing ? "Save changes" : "Add vehicle"}</button></div></form>
       </section>}
 
-    {filtered.length ? <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{filtered.map((car) => <CarCard key={car.id} car={car} busy={busy} onEdit={() => openEditCar(car)} onToggle={() => toggleActive(car)}/>)}</div> : <div className="rounded-xl border border-[#e7ecf3] bg-white px-6 py-14 text-center"><span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf2ff] text-[#4c6fc9]"><CarFront size={20}/></span><h2 className="mt-4 text-sm font-semibold text-[#43536a]">{search ? "No vehicles match that search" : "Your fleet is ready for its first car"}</h2><p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[#8793a3]">{search ? "Try another model, make, or plate number." : "Add a vehicle to start managing rates, rental options, and availability."}</p>{!search && <button onClick={openNewCar} className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white"><Plus size={14}/>Add vehicle</button>}</div>}
+    <div className={isOpen ? "hidden lg:block" : undefined}>
+      {filtered.length ? <FleetList cars={filtered} busy={busy} onEdit={openEditor} onToggle={toggleActive} />
+        : <div className="rounded-xl border border-[#dce5f1] bg-white px-5 py-8 text-center lg:py-14">
+          <span className="mx-auto grid size-11 place-items-center rounded-xl bg-[#edf4ff] text-[#315fae]"><CarFront size={20} aria-hidden="true" /></span>
+          <h2 className="mt-3 text-sm font-semibold text-[#20334e]">{hasFilters ? "No matching vehicles" : "No vehicles yet"}</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-[#52647d]">{hasFilters ? "Try another search or change your filters." : "Add a car or motorcycle to start setting rental rates and uploading photos."}</p>
+        </div>}
+    </div>
+  </div>;
+}
+
+function FleetFilter({ label, value, onChange, children }: {
+  label: string; value: string; onChange: (value: string) => void; children: ReactNode;
+}) {
+  return <div className="relative min-w-0">
+    <select aria-label={label} value={value} onChange={event => onChange(event.target.value)}
+      className="min-h-11 w-full appearance-none rounded-lg border border-[#dce5f1] bg-white pl-2.5 pr-8 text-xs text-[#405775] focus-visible:outline-2 focus-visible:outline-[#2457d6] sm:text-sm forced-colors:appearance-auto forced-colors:pr-2">
+      {children}
+    </select>
+    <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#52647d] forced-colors:hidden" />
   </div>;
 }
 
 const inputClass = "h-9 w-full rounded-lg border border-[#dfe5ec] bg-white px-2.5 text-xs text-[#43536a] outline-none focus:border-[#94a9e9] focus:ring-3 focus:ring-[#2457d6]/10";
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="block text-[10px] font-medium text-[#69788e]">{label}<div className="mt-1.5">{children}</div></label>; }
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) { return <button type="button" onClick={() => onChange(!checked)} className="flex items-center gap-2 text-xs font-semibold text-[#46566d]">{checked ? <ToggleRight size={20} className="text-[#3166d5]"/> : <ToggleLeft size={20} className="text-[#9ba6b5]"/>}{label}{checked && <Check size={12} className="text-[#3e8b67]"/>}</button>; }
-
-function CarCard({ car, busy, onEdit, onToggle }: { car: OwnerCar; busy: boolean; onEdit: () => void; onToggle: () => void }) {
-  const photo = car.car_photos?.[0]?.path;
-  const photoUrl = photo ? car.car_photos[0].publicUrl : null;
-  return <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="relative h-40 bg-[#f0f3f8]">{photoUrl ? <img src={photoUrl} alt={`${car.brand} ${car.model}`} className="h-full w-full object-cover"/> : <div className="flex h-full items-center justify-center text-[#a8b3c2]"><CarFront size={42} strokeWidth={1.2}/></div>}<span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[9px] font-semibold ${car.is_active ? "bg-white text-[#31805c]" : "bg-white text-[#798596]"}`}>{car.is_active ? "Active" : "Hidden"}</span>{car.plan_hidden && <span className="absolute left-3 top-10 rounded-full bg-amber-100 px-2.5 py-1 text-[9px] font-semibold text-amber-800">Hidden by plan</span>}<span className="absolute bottom-3 right-3 rounded-md bg-[#202d40]/70 px-2 py-1 text-[9px] text-white">{car.car_photos?.length ?? 0} photos</span></div><div className="p-4"><div className="flex items-start justify-between gap-2"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold text-[#33445b]">{car.year ? `${car.year} ` : ""}{car.brand} {car.model}</h2><span className="rounded-full bg-[#edf4ff] px-2 py-0.5 text-[9px] font-semibold capitalize text-[#315fae]">{car.vehicle_type}</span></div><p className="mt-1 text-[10px] text-[#8b97a8]">{[car.plate_number, car.car_type, car.transmission].filter(Boolean).join(" · ") || "Vehicle details not set"}</p><RatingBadge average={car.rating_avg} count={car.rating_count}/></div><button aria-label={`Edit ${car.brand} ${car.model}`} onClick={onEdit} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#e5eaf1] text-[#6c7b90] hover:bg-[#f7f9fc]"><Pencil size={14}/></button></div>{car.plan_hidden && <p className="mt-3 text-[10px] text-amber-800">Renew or upgrade your plan to bring this car back online.</p>}<div className="mt-4 grid grid-cols-2 gap-2">{car.allows_self_drive && <RateTile label="Self drive" rate={car.car_rates?.find((item) => item.mode === "self_drive")?.daily_rate} />}{car.allows_with_driver && <RateTile label="With driver" rate={car.car_rates?.find((item) => item.mode === "with_driver")?.daily_rate} />}</div><div className="mt-4 flex items-center justify-between border-t border-[#edf0f4] pt-3"><span className="text-[10px] text-[#8995a6]">{car.car_photos?.length ?? 0} vehicle photos</span><button disabled={busy} onClick={onToggle} className={`text-[10px] font-semibold ${car.is_active ? "text-[#a15757]" : "text-[#4569c4]"}`}>{car.is_active ? "Hide vehicle" : "Make active"}</button></div></div></article>;
-}
-function RateTile({ label, rate }: { label: string; rate?: number }) { return <div className="rounded-lg bg-[#f7f9fc] px-2.5 py-2"><p className="text-[9px] text-[#8b97a8]">{label}</p><p className="mt-0.5 text-xs font-semibold text-[#485970]">{rate ? `${formatPeso(Number(rate))} / day` : "Rate not set"}</p></div>; }

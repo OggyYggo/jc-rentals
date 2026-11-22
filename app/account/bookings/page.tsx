@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { readCancellationSettings } from "@/lib/cancellation-settings";
 import type { MyReview } from "@/lib/reviews/model";
 import { redirect } from "next/navigation";
@@ -9,7 +10,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
 export const instant = false;
 
-export default async function CustomerBookingsPage({ searchParams }: { searchParams: Promise<{ review?: string | string[] }> }) {
+export default async function CustomerBookingsPage({ searchParams }: { searchParams: Promise<{ review?: string | string[]; view?: string | string[] }> }) {
   if (!isSupabaseConfigured()) return <SupabaseSetupNotice />;
   await connection();
   const supabase = await createClient();
@@ -32,7 +33,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
   const refundsByBooking = new Map((refunds ?? []).map(row => [row.booking_id, row]));
   const byBooking = new Map((reviews ?? []).map(row => [row.booking_id, row as MyReview]));
   const returnedTrips = new Map((dates ?? []).map(row => [row.id, row]));
-  const reviewTarget = (await searchParams).review;
+  const { review: reviewTarget, view } = await searchParams;
   const now = new Date().getTime();
   const { supportDays } = await readCancellationSettings();
   const bookings = (data ?? []).map((booking) => {
@@ -44,5 +45,27 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
       reviewable: !reviewError && !!trip?.owner_id && !review && reviewWindowStart >= now - 60 * 86_400_000,
       editable: !!review && !review.edited_at && Date.parse(review.created_at) >= now - 7 * 86_400_000 };
   }) as unknown as CustomerBooking[];
-  return <div><div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">My bookings</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">View your rental details and keep track of each booking.</p></div><BookingList key={typeof reviewTarget === "string" ? reviewTarget : "bookings"} bookings={bookings} now={now} supportDays={supportDays} reviewTarget={typeof reviewTarget === "string" ? reviewTarget : undefined}/></div>;
+  const record = view === "record";
+  const reviewView = view === "reviews";
+  const historical = ["returned", "completed", "cancelled", "rejected", "expired"];
+  const visibleBookings = record ? bookings.filter(booking => historical.includes(booking.status))
+    : reviewView ? bookings.filter(booking => booking.review || booking.reviewable)
+    : bookings;
+  const title = record ? "Booking record" : reviewView ? "My reviews" : "My bookings";
+  const description = record ? "Find completed rentals and closed bookings."
+    : reviewView ? "Read your reviews and leave feedback for eligible trips."
+    : "View your rental details and keep track of each booking.";
+
+  return <div>
+    <div className="mb-5">
+      {(record || reviewView) && <Link href="/account/profile" className="mb-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#0A3D91] hover:underline">← Back to profile</Link>}
+      <h2 className="text-base font-semibold text-[#26364e]">{title}</h2>
+      <p className="mt-1 text-xs leading-5 text-[#7b8797]">{description}</p>
+    </div>
+    {reviewView && (reviewError || datesError) ? <p role="alert" className="rounded-2xl border bg-white p-5 text-sm">Reviews are temporarily unavailable. Try again in a moment.</p>
+      : (record || reviewView) && visibleBookings.length === 0 ? <p className="rounded-2xl border bg-white p-5 text-sm text-[#52647a]">
+        {record ? "Your completed and closed bookings will appear here." : "Your reviews and trips eligible for feedback will appear here."}
+      </p>
+      : <BookingList key={`${title}:${typeof reviewTarget === "string" ? reviewTarget : ""}`} bookings={visibleBookings} now={now} supportDays={supportDays} reviewTarget={typeof reviewTarget === "string" ? reviewTarget : undefined} />}
+  </div>;
 }
