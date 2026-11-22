@@ -139,7 +139,7 @@ export function ContactForm({ initialName, initialEmail, initialTopic, initialBo
       {showSuccess ? (
         <div ref={successPanelRef} className="py-8 text-center sm:py-12" role="status" aria-live="polite">
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#E8F7EF] text-[#1E8E5A]"><DrawCheck /></span>
-          <h2 ref={successHeadingRef} tabIndex={-1} className="mt-5 text-2xl font-bold text-[#0F2342] outline-none focus-visible:ring-[3px] focus-visible:ring-[#2E9BF0]">Message sent</h2>
+          <h2 ref={successHeadingRef} tabIndex={-1} className="mt-5 text-2xl font-bold text-[#0F2342] outline-none focus-visible:ring-[3px] focus-visible:ring-[#2E9BF0]">Message received</h2>
           <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#51657F]">
             Thanks, {firstName}. We will reply{state.email ? ` to ${state.email}` : ""}{replyHours ? ` within ${replyHours} hours` : " as soon as we can"}.
           </p>

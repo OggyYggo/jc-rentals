@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { readCancellationSettings } from "@/lib/cancellation-settings";
+import { canReviewTrip } from "@/lib/reviews/eligibility";
 import type { MyReview } from "@/lib/reviews/model";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -39,10 +40,8 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
   const bookings = (data ?? []).map((booking) => {
     const review = byBooking.get(booking.id);
     const trip = returnedTrips.get(booking.id);
-    const tripEnd = trip?.status === "completed" ? trip.completed_at : trip?.returned_at;
-    const reviewWindowStart = tripEnd ? Date.parse(tripEnd) : Date.parse(booking.end_date + "T00:00:00+08:00") + 86_400_000;
     return { ...booking, pickup_time: null, pickup_location: null, itinerary_notes: null, refund: refundsByBooking.get(booking.id), review,
-      reviewable: !reviewError && !!trip?.owner_id && !review && reviewWindowStart >= now - 60 * 86_400_000,
+      reviewable: !reviewError && !review && canReviewTrip(trip, booking.end_date, now),
       editable: !!review && !review.edited_at && Date.parse(review.created_at) >= now - 7 * 86_400_000 };
   }) as unknown as CustomerBooking[];
   const record = view === "record";
