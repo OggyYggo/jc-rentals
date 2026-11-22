@@ -16,7 +16,7 @@ export default async function AdminOverviewPage() {
   const { supabase } = await getAdminContext();
   const now = new Date();
   const monthStart = `${manilaMonth(now)}-01T00:00:00+08:00`;
-  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, payments, disputes, overdueRefunds, reports] = await Promise.all([
+  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, payments, disputes, overdueRefunds, reports, pickup] = await Promise.all([
     supabase.from("owners").select("id", { count: "exact", head: true }),
     supabase.from("cars").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer"),
@@ -29,6 +29,7 @@ export default async function AdminOverviewPage() {
     supabase.from("payment_disputes").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.from("booking_refunds").select("id", { count: "exact", head: true }).eq("status", "owed").lte("due_at", now.toISOString()),
     supabase.from("review_reports").select("id", { count: "exact", head: true }).eq("status","open"),
+    supabase.rpc("admin_pickup_metrics").maybeSingle<{ scanned: number; manual: number; overrides: number }>(),
   ]);
   const monthlyBookings = monthBookings.data ?? [];
   const gross = monthlyBookings.reduce((sum, booking) => sum + bookingRevenue(booking), 0);
@@ -46,6 +47,11 @@ export default async function AdminOverviewPage() {
     <Link href="/admin/settings#email-alerts" className="mt-5 inline-block rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700">Email alerts · {emailStatus}</Link>
     {!reports.error && <Link href="/admin/reviews" className="ml-2 mt-5 inline-block rounded-md border bg-white px-3 py-2 text-xs font-medium">Reviews waiting · {reports.count ?? 0} open reports</Link>}
     {!payments.error && !disputes.error && !overdueRefunds.error && <Link href="/admin/payments" className="mt-4 block rounded-xl border bg-white p-4 text-sm font-semibold">Payments waiting · {payments.count ?? 0} · Disputes open · {disputes.count ?? 0} · Refunds overdue · {overdueRefunds.count ?? 0}</Link>}
+    {pickup.data && <section className="mt-4 rounded-xl border bg-white p-4 text-sm">
+      <h2 className="font-semibold">Pickup activity · Last 30 days</h2>
+      <p className="mt-1">{pickup.data.scanned} by scan · {pickup.data.manual} manual · {pickup.data.overrides} overrides
+        {Number(pickup.data.scanned) + Number(pickup.data.manual) > 0 && ` · ${Math.round(100 * Number(pickup.data.scanned) / (Number(pickup.data.scanned) + Number(pickup.data.manual)))}% by scan`}</p>
+    </section>}
     <RecentActivity entries={activity} now={now.getTime()}/>
   </>;
 }
