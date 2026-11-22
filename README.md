@@ -159,3 +159,20 @@ For ratings and reviews, apply migrations `202611200007` through `202611200009` 
 
 5. Vercel schedules the digest at 00:00 UTC (8:00 AM Manila) via `vercel.json`. Hobby cron can invoke it within the scheduled hour. If exact-minute delivery is required on Hobby, schedule a Supabase `pg_cron` job at `0 0 * * *` that GETs the digest URL through `pg_net` with the `Authorization: Bearer` header populated from the Vault copy of `CRON_SECRET`. [Vercel Cron scheduling limits](https://vercel.com/docs/schedules/cron-jobs/usage-and-pricing)
 6. Enable two-step verification on the shared inbox. Add a Gmail filter for the verified sender, then use **Send test email** in Settings and confirm it arrives.
+
+## Pickup passes
+
+Apply the four `20261122000*` pickup migrations before releasing the app. Configure
+`NEXT_PUBLIC_SITE_URL` with the production HTTPS origin. Owner lookup uses the
+server-only `SUPABASE_SECRET_KEY` for its request limit. If a preview needs to
+recognize passes from another trusted HTTPS origin, list it in
+`PICKUP_PREVIEW_ORIGINS`.
+
+The migrations schedule the pickup-day reminder at 08:00 Manila time when
+`pg_cron` is available. Verify the `send-pickup-reminders` job in the target
+database. Return scanning is opt-in through the `pickup_return_scan` database
+setting.
+
+Run the pickup SQL regression suite against a disposable migrated database.
+Run the QR decoding test with
+`node --experimental-strip-types --test tests/pickup-qr.test.mjs`.

@@ -1,5 +1,6 @@
 alter table public.pickup_scan_attempts add column pass_id uuid references public.booking_pickup_passes(id) on delete cascade;
 alter table public.pickup_scan_attempts add column rate_limited boolean not null default false;
+alter table public.pickup_scan_attempts add column locked_until timestamptz;
 create index pickup_scan_verified_idx on public.pickup_scan_attempts(owner_profile_id,pass_id,created_at) where ok;
 
 create function public.pickup_actor_allowed(p_owner uuid)
@@ -28,7 +29,7 @@ declare
   dates record;
   day date := (now() at time zone 'Asia/Manila')::date;
   failures integer;
-  first_failure timestamptz;
+  locked_until timestamptz;
   outcome text;
   neutral constant jsonb := '{"result":"NOT_VALID"}';
 begin
@@ -38,12 +39,13 @@ begin
 
   -- Serialize failed-attempt accounting for concurrent requests by one actor.
   perform pg_advisory_xact_lock(hashtextextended('pickup-scan:'||actor,0));
-  select count(*),min(created_at) into failures,first_failure from public.pickup_scan_attempts
-    where owner_profile_id = actor and not ok and not rate_limited and created_at > clock_timestamp() - interval '10 minutes';
-  if failures >= 5 then
+  select count(*) filter (where not rate_limited and pickup_scan_attempts.locked_until is null),max(pickup_scan_attempts.locked_until)
+    into failures,locked_until from public.pickup_scan_attempts
+    where owner_profile_id = actor and not ok and created_at > clock_timestamp() - interval '10 minutes';
+  if locked_until > clock_timestamp() then
     insert into public.pickup_scan_attempts(owner_profile_id,ok,rate_limited) values (actor,false,true);
     return jsonb_build_object('result','LOCKED','retry_after_seconds',
-      greatest(1,ceil(extract(epoch from first_failure + interval '10 minutes' - clock_timestamp()))));
+      greatest(1,ceil(extract(epoch from locked_until - clock_timestamp()))));
   end if;
 
   if p_token ~ '^[a-f0-9]{64}$' and p_code is null then
@@ -53,8 +55,9 @@ begin
   end if;
   select * into b from public.bookings where id = p.booking_id and owner_id = p.owner_id;
   if b.id is null or p.status = 'revoked' or b.status in ('cancelled','expired','rejected') or not public.pickup_reservation_verified(b) then
-    insert into public.pickup_scan_attempts(owner_profile_id,ok) values (actor,false);
-    if failures = 4 then perform public.log_pickup_event(null,'lookup_failed',jsonb_build_object('failures',5)); end if;
+    insert into public.pickup_scan_attempts(owner_profile_id,ok,locked_until)
+    values (actor,false,case when failures >= 4 then clock_timestamp() + interval '10 minutes' end);
+    if failures >= 4 then perform public.log_pickup_event(null,'lookup_failed',jsonb_build_object('failures',5)); end if;
     return neutral;
   end if;
   insert into public.pickup_scan_attempts(owner_profile_id,ok,pass_id) values (actor,true,p.id);
