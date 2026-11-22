@@ -21,6 +21,7 @@
     "lucide-react": "^1.66.0",
     "next": "16.4.6",
     "pdf-lib": "^1.17.1",
+    "qr-scanner": "^1.4.2",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-day-picker": "^10.0.2",
@@ -39,6 +40,7 @@
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "^16.4.6",
+    "jsqr": "^1.4.0",
     "shadcn": "^4.23.0",
     "tailwindcss": "^4",
     "typescript": "^5"

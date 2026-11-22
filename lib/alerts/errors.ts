@@ -1,3 +1,5 @@
+import { pickupErrors } from "@/lib/pickup/model";
+
 const safeMessages = new Set([
   "This application is no longer pending.",
   "Could not check for an existing account.",
@@ -76,6 +78,7 @@ export function friendlyError(error: unknown): { title: string; text: string; ac
   if (/failed to fetch|fetch failed|network\s?error|network request failed|load failed/i.test(message)) {
     return { title: "Connection problem", text: "We could not reach the server. Check your connection and try again." };
   }
+  if (Object.hasOwn(pickupErrors, message)) return { title: "Pickup pass", text: pickupErrors[message] };
   if (message === "ATTESTATION_MISMATCH") return { title: "Check the transfer details", text: "The amount and transaction reference must both match the proof." };
   if (message === "ADMIN_NOTE_REQUIRED") return { title: "Reason required", text: "Enter an audit reason of at least ten characters." };
   if (message === "PAYMENT_REVIEW_EXPIRED") return { title: "Review window closed", text: "Refresh the queue and check the refund status." };

@@ -7,6 +7,7 @@ declare module "qrcode" {
   };
 
   const QRCode: {
+    create(text: string, options?: Options): { version: number; modules: { size: number; get(row: number, column: number): number } };
     toDataURL(text: string, options?: Options): Promise<string>;
   };
 
