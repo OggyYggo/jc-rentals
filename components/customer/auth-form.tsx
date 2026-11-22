@@ -3,14 +3,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { accountReturnPath, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
+import { accountReturnPath, defaultCustomerDestination, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/client";
 
-export function AuthForm({ mode, configured, next = "/account/bookings", initialMessage = "" }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string }) {
-  const router = useRouter();
+export function AuthForm({ mode, configured, next = defaultCustomerDestination, initialMessage = "" }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -50,7 +48,11 @@ export function AuthForm({ mode, configured, next = "/account/bookings", initial
         const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (authError) throw authError;
       }
-      let destination = !isSignup && next.startsWith("/") && !next.startsWith("//") ? next : "/account/bookings";
+      let destination = defaultCustomerDestination;
+      if (!isSignup && next.startsWith("/") && !next.startsWith("//")) {
+        const target = new URL(next, window.location.origin);
+        if (target.origin === window.location.origin) destination = target.href;
+      }
       if (!isSignup) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
@@ -59,8 +61,8 @@ export function AuthForm({ mode, configured, next = "/account/bookings", initial
           if (profile?.role === "admin") destination = pickupReturnPath(next) ?? "/admin";
         }
       }
-      router.replace(destination);
-      router.refresh();
+      // Start with a fresh document so the first account view uses the new session.
+      window.location.replace(destination);
     } catch (authError) {
       const authCode = typeof authError === "object" && authError !== null && "code" in authError ? authError.code : undefined;
       if (authCode === "email_not_confirmed") {

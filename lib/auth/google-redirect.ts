@@ -1,5 +1,6 @@
 import { pickupPathPattern } from "@/lib/pickup/model";
 
+export const defaultCustomerDestination = "/account";
 export const googleNextCookie = "kb-google-next";
 
 export function pickupReturnPath(value: string | null | undefined) {
@@ -7,5 +8,5 @@ export function pickupReturnPath(value: string | null | undefined) {
 }
 
 export function accountReturnPath(value: string | null | undefined) {
-  return pickupReturnPath(value) ?? (value === "/account/profile" ? value : "/account/bookings");
+  return pickupReturnPath(value) ?? (value === "/account/profile" || value === "/account/bookings" ? value : defaultCustomerDestination);
 }
