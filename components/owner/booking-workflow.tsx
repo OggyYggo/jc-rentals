@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, CircleDollarSign, CircleX, LoaderCircle, RotateCcw, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { paymentDate } from "@/lib/payment-format";
 import { StatusPill, formatPeso, formatShortDate } from "@/components/owner/ui";
 
 export type OwnerBooking = {
@@ -34,6 +35,7 @@ export type OwnerBooking = {
   mode: string;
   created_at: string;
   customer: { full_name: string; phone: string | null } | null;
+  pickup_event?: { kind: string; created_at: string };
   car: { id: string; brand: string; model: string; plate_number: string | null } | null;
 };
 
@@ -107,6 +109,14 @@ export function BookingWorkflow({ bookings, todayManila }: { bookings: OwnerBook
     return <div className="flex flex-wrap items-center gap-2">{actionsFor(booking)}{["awaiting_payment", "payment_review", "confirmed"].includes(booking.status) && <ActionButton disabled={busyId === booking.id} tone="red" onClick={() => cancelBooking(booking)}>Cancel booking</ActionButton>}{booking.start_date <= todayManila && ["awaiting_payment", "payment_review", "confirmed"].includes(booking.status) && <ActionButton disabled={busyId === booking.id} tone="red" onClick={() => cancelBooking(booking, "no_show")}>Customer didn’t show up</ActionButton>}{booking.payment !== "paid" && ["confirmed", "picked_up"].includes(booking.status) && <><select aria-label="Payment method" value={paymentMethods[booking.id] ?? "cash"} onChange={(event) => setPaymentMethods((current) => ({ ...current, [booking.id]: event.target.value }))} className="h-8 rounded-lg border border-[#e1e7ef] bg-white px-2 text-[10px] text-[#5e6e83]"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option></select><ActionButton disabled={busyId === booking.id} tone="green" onClick={() => markPaid(booking)}>{busyId === booking.id ? <LoaderCircle size={12} className="animate-spin"/> : <CircleDollarSign size={13}/>}Mark payment received</ActionButton></>}</div>;
   }
 
+  function pickupLabel(booking: OwnerBooking) {
+    const event = booking.pickup_event;
+    if (!event) return null;
+    return <p className="mt-1 text-xs text-slate-600">
+      {event.kind === "manual" ? "Picked up manually" : "Picked up by scan"} · {paymentDate(event.created_at)} Manila time
+    </p>;
+  }
+
   if (!bookings.length) return <div className="rounded-xl border border-[#e7ecf3] bg-white px-6 py-16 text-center"><span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-[#edf2ff] text-[#4c6fc9]"><Check size={20}/></span><h2 className="mt-4 text-sm font-semibold text-[#43536a]">All caught up</h2><p className="mt-1 text-xs text-[#8793a3]">New booking requests will appear here.</p></div>;
 
   return <div className="space-y-2.5 sm:space-y-4">{bookings.map((booking) => <article id={`trip-${booking.id}`} key={booking.id} className="rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5">
@@ -121,6 +131,7 @@ export function BookingWorkflow({ bookings, todayManila }: { bookings: OwnerBook
             <p className="text-slate-600">{formatShortDate(booking.start_date)} – {formatShortDate(booking.end_date)}</p>
             <p className="font-semibold text-slate-900 tabular-nums">{formatPeso(Number(booking.total_price))}</p>
           </div>
+          {pickupLabel(booking)}
         </header>
         <details className="group mt-1">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-b-xl px-3 py-2 text-xs focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-blue-700 [&::-webkit-details-marker]:hidden">
@@ -150,7 +161,7 @@ export function BookingWorkflow({ bookings, todayManila }: { bookings: OwnerBook
           </div>
         </details>
       </div>
-      <div className="hidden sm:contents"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold text-[#33445b]">{booking.customer?.full_name || "Customer"}</h2><StatusPill status={booking.status}/></div><p className="mt-1 text-[10px] text-[#8b97a8]">{booking.reference} · Request received {new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric" }).format(new Date(booking.created_at))}</p><CopyButton value={booking.reference} label="Copy reference" /></div><div className="text-left sm:text-right"><p className="text-[9px] text-[#8b97a8]">Booking total</p><p className="mt-0.5 text-sm font-semibold text-[#33445b]">{formatPeso(Number(booking.total_price))}</p><p className="text-[9px] text-[#8793a3]">Net {formatPeso(Number(booking.owner_earnings))}</p></div></div>
+      <div className="hidden sm:contents"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold text-[#33445b]">{booking.customer?.full_name || "Customer"}</h2><StatusPill status={booking.status}/></div><p className="mt-1 text-[10px] text-[#8b97a8]">{booking.reference} · Request received {new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric" }).format(new Date(booking.created_at))}</p><CopyButton value={booking.reference} label="Copy reference" />{pickupLabel(booking)}</div><div className="text-left sm:text-right"><p className="text-[9px] text-[#8b97a8]">Booking total</p><p className="mt-0.5 text-sm font-semibold text-[#33445b]">{formatPeso(Number(booking.total_price))}</p><p className="text-[9px] text-[#8793a3]">Net {formatPeso(Number(booking.owner_earnings))}</p></div></div>
       <div className="mt-4 grid gap-4 border-t border-[#edf0f4] pt-4 sm:grid-cols-3"><div><p className="text-[9px] font-medium uppercase tracking-wide text-[#9aa4b2]">Vehicle</p><p className="mt-1 text-[11px] font-medium text-[#4c5c72]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</p><p className="mt-0.5 text-[9px] text-[#8995a6]">{booking.car?.plate_number || (booking.mode === "self_drive" ? "Self drive" : "With driver")}</p></div><div><p className="text-[9px] font-medium uppercase tracking-wide text-[#9aa4b2]">Rental dates</p><p className="mt-1 text-[11px] font-medium text-[#4c5c72]">{formatShortDate(booking.start_date)}</p><p className="mt-0.5 text-[9px] text-[#8995a6]">through {formatShortDate(booking.end_date)}</p></div><div><p className="text-[9px] font-medium uppercase tracking-wide text-[#9aa4b2]">Customer contact</p><p className="mt-1 text-[11px] font-medium text-[#4c5c72]">{booking.customer?.phone || "No phone on profile"}</p><p className="mt-0.5 text-[9px] text-[#8995a6] capitalize">Payment {booking.payment}</p></div></div>
       {(booking.pickup_location || booking.pickup_time || booking.itinerary_notes) && <div className="mt-3 rounded-lg bg-[#f8faff] px-3.5 py-3"><p className="text-[9px] font-semibold uppercase tracking-wide text-[#8390a3]">Pickup and itinerary</p><p className="mt-1 text-[10px] text-[#4c5c72]">{[booking.pickup_location, booking.pickup_time ? `Pickup ${booking.pickup_time.slice(0, 5)}` : null].filter(Boolean).join(" · ") || "No pickup details"}</p>{booking.itinerary_notes && <p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-[#6c7a8e]">{booking.itinerary_notes}</p>}</div>}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f4] pt-3">{bookingControls(booking)}<p className="text-[9px] text-[#98a2b0]">Platform fee {formatPeso(Number(booking.commission_amount))}</p></div>

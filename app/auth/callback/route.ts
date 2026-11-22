@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { accountReturnPath, googleNextCookie } from "@/lib/auth/google-redirect";
+import { accountReturnPath, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const pickup = pickupReturnPath(params.get("next") ?? request.cookies.get(googleNextCookie)?.value);
+      if (pickup) return returnTo(pickup);
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();

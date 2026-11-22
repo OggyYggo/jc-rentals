@@ -8,9 +8,10 @@ export const instant = false;
 
 export default async function OwnerBookingsPage() {
   const { supabase, owner } = await getOwnerContext();
-  const [{ data, error }, { data: contacts, error: contactsError }] = await Promise.all([
+  const [{ data, error }, { data: contacts, error: contactsError }, { data: history, error: historyError }] = await Promise.all([
     supabase.from("bookings").select("id, reference, start_date, end_date, pickup_time, pickup_location, itinerary_notes, total_price, balance_at_pickup, amount_paid_online, amount_due_now, deposit_refund_status, cancelled_at, refund_amount, commission_amount, owner_earnings, status, payment, mode, created_at, car:cars!bookings_car_id_fkey(id, brand, model, plate_number)").eq("owner_id", owner.id).order("created_at", { ascending: false }),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
+    supabase.rpc("owner_pickup_history").overrideTypes<{ booking_id: string; kind: string; created_at: string }[], { merge: false }>(),
   ]);
   if (error || contactsError) {
     const describe = (failure: typeof error) => failure
@@ -20,8 +21,10 @@ export default async function OwnerBookingsPage() {
     throw new Error("Could not load bookings for this rental business.");
   }
   const contactByBooking = new Map((contacts ?? []).map((contact) => [contact.booking_id, contact]));
-  const bookings = (data ?? []).map((booking) => ({ ...booking, customer: contactByBooking.get(booking.id) ?? null })) as unknown as OwnerBooking[];
+  if (historyError) console.error("Could not load pickup history", { code: historyError.code });
+  const byPickup = new Map((Array.isArray(history) ? history : []).map(event => [event.booking_id, event]));
+  const bookings = (data ?? []).map((booking) => ({ ...booking, customer: contactByBooking.get(booking.id) ?? null, pickup_event: byPickup.get(booking.id) })) as unknown as OwnerBooking[];
   const requests = bookings.filter((booking) => booking.status === "payment_review").length;
 
-  return <><PageHeading eyebrow="Reservations" title="Bookings" description="Manage confirmed rentals and record the pickup balance when collected." action={<span className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e1e7ef] bg-white px-3 text-[10px] font-medium text-[#6f7d91]"><CalendarDays size={13}/>{requests} deposits to review</span>}/><Link id="refunds" href="/owner/payments?tab=refunds" className="mb-4 inline-block rounded-lg border bg-white p-3 text-sm font-semibold">View refund queue</Link><BookingWorkflow bookings={bookings} todayManila={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())}/></>;
+  return <><PageHeading eyebrow="Reservations" title="Bookings" description="Manage confirmed rentals and record the pickup balance when collected." action={<div className="flex flex-wrap items-center gap-2"><Link href="/owner/scan" className="inline-flex min-h-11 items-center rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white">Scan pickup pass</Link><span className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e1e7ef] bg-white px-3 text-[10px] font-medium text-[#6f7d91]"><CalendarDays size={13}/>{requests} deposits to review</span></div>}/><Link id="refunds" href="/owner/payments?tab=refunds" className="mb-4 inline-block rounded-lg border bg-white p-3 text-sm font-semibold">View refund queue</Link><BookingWorkflow bookings={bookings} todayManila={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())}/></>;
 }

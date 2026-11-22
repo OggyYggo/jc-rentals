@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { accountReturnPath, googleNextCookie } from "@/lib/auth/google-redirect";
+import { accountReturnPath, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/client";
 
 export function AuthForm({ mode, configured, next = "/account/bookings", initialMessage = "" }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string }) {
@@ -55,8 +55,8 @@ export function AuthForm({ mode, configured, next = "/account/bookings", initial
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-          if (profile?.role === "owner") destination = "/owner";
-          if (profile?.role === "admin") destination = "/admin";
+          if (profile?.role === "owner") destination = pickupReturnPath(next) ?? "/owner";
+          if (profile?.role === "admin") destination = pickupReturnPath(next) ?? "/admin";
         }
       }
       router.replace(destination);
