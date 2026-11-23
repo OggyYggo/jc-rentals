@@ -139,7 +139,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
           {error && <p className="rounded-lg bg-[#FDE8E8] p-3 text-sm text-[#A12A2A]">{error}</p>}
           {message && !refreshing && <p className="flex items-center gap-2 rounded-lg bg-[#E3F7EA] p-3 text-sm text-[#12703A]"><CheckCircle2 size={17} aria-hidden="true" />{message}</p>}
         </div>
-        <SubmitButton busy={savingDocuments} pendingText="Saving…" className="min-h-[52px] w-full rounded-xl bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91]">Save</SubmitButton>
+        <SubmitButton busy={savingDocuments} pendingText="Saving…" className="min-h-[52px] w-full rounded-full bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] md:rounded-xl">Save</SubmitButton>
       </form>
     </div>;
   }

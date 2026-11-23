@@ -15,7 +15,7 @@ export function PaymentStatusRefresh({ status }: { status: string }) {
   }, [status]);
 
   useEffect(() => {
-    if (status !== "payment_review" && status !== "awaiting_payment") return;
+    if (!["payment_review", "awaiting_payment", "pending"].includes(status)) return;
     function refresh() {
       if (document.visibilityState === "visible" && !pending && navigator.onLine) startTransition(() => router.refresh());
     }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SubmitButton } from "@/components/loading/SubmitButton";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { runWithAlerts } from "@/lib/alerts/run";
@@ -12,6 +13,7 @@ export function PickupPassActions({ bookingId, state, rotations = 0 }: {
 }) {
   const router = useRouter();
   const last = useRef(state);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if ((state === "used" || state === "return_ready") && (last.current === "ready" || last.current === "today")) void toastSuccess("Pickup confirmed");
@@ -24,7 +26,7 @@ export function PickupPassActions({ bookingId, state, rotations = 0 }: {
   }, [router, state]);
 
   if (state !== "ready" && state !== "today") return null;
-  return <button type="button" disabled={rotations >= 3} className="min-h-11 text-sm font-semibold text-blue-800 underline disabled:opacity-50" onClick={() => void runWithAlerts({
+  return <SubmitButton unstyled type="button" busy={pending} pendingText="Replacing pass…" disabled={rotations >= 3} className="min-h-11 text-sm font-semibold text-blue-800 underline disabled:opacity-50 max-md:mt-2 max-md:w-full" onClick={() => void runWithAlerts({
     confirm: { title: "Replace this pickup pass?", text: "The QR and backup code on any saved images will stop working.", confirmText: "Replace pass" },
     run: async () => {
       const { error } = await createClient().rpc("rotate_my_pickup_pass", { p_booking: bookingId });
@@ -32,5 +34,6 @@ export function PickupPassActions({ bookingId, state, rotations = 0 }: {
     },
     refresh: router.refresh,
     success: "Pickup pass replaced",
-  })}>{rotations >= 3 ? "Replacement limit reached" : "I think my pass was shared"}</button>;
+    setPending,
+  })}>{rotations >= 3 ? "Replacement limit reached" : <><span className="md:hidden">Get a new code</span><span className="hidden md:inline">I think my pass was shared</span></>}</SubmitButton>;
 }

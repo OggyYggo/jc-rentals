@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { runWithAlerts } from "@/lib/alerts/run";
 import { createClient } from "@/lib/supabase/client";
+import { SubmitButton } from "@/components/loading/SubmitButton";
 
 const kinds = {
   paid_not_confirmed: "I paid but it is not confirmed",
@@ -17,6 +18,7 @@ export function PaymentDisputeButton({ bookingId, kind, availableAt }: {
 }) {
   const router = useRouter();
   const [readyAt, setReadyAt] = useState<string>();
+  const [pending, setPending] = useState(false);
   useEffect(() => {
     if (!availableAt) return;
     const timer = window.setTimeout(() => setReadyAt(availableAt), Math.max(0, Date.parse(availableAt) - Date.now()));
@@ -38,7 +40,8 @@ export function PaymentDisputeButton({ bookingId, kind, availableAt }: {
       },
       success: "Dispute submitted",
       refresh: router.refresh,
+      setPending,
     });
   }
-  return <button type="button" onClick={openDispute} className="min-h-11 text-sm font-semibold text-blue-800 underline">{kinds[kind]}</button>;
+  return <SubmitButton unstyled type="button" busy={pending} pendingText="Submitting dispute…" onClick={openDispute} className="min-h-11 text-sm font-semibold text-blue-800 underline">{kinds[kind]}</SubmitButton>;
 }

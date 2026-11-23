@@ -3,8 +3,8 @@
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-export function CopyButton({ value, label = "Copy", copiedLabel = "Copied" }: {
-  value: string; label?: string; copiedLabel?: string;
+export function CopyButton({ value, label = "Copy", copiedLabel = "Copied", mobileTouch = false }: {
+  value: string; label?: string; copiedLabel?: string; mobileTouch?: boolean;
 }) {
   const [result, setResult] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -39,7 +39,7 @@ export function CopyButton({ value, label = "Copy", copiedLabel = "Copied" }: {
   }
 
   return <span className="inline-flex flex-wrap items-center gap-1">
-    <button type="button" onClick={copy} className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border bg-white px-2 text-xs font-semibold text-blue-800 focus-visible:ring-2 focus-visible:ring-blue-600">
+    <button type="button" onClick={copy} aria-label={label} className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-lg border bg-white px-2 text-xs font-semibold text-blue-800 focus-visible:ring-2 focus-visible:ring-blue-600 ${mobileTouch ? "max-md:min-h-11" : ""}`}>
       {result === "copied" ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}{label}
     </button>
     <span aria-live="polite" className="text-xs">{result === "copied" ? copiedLabel : result === "failed" ? "Select the text to copy it." : ""}</span>
