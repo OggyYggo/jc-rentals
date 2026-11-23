@@ -84,14 +84,25 @@ export function BookingList({ bookings, now, supportDays, reviewTarget, showFilt
       setPending: pending => setCancellingId(pending ? booking.id : null) });
   }
 
-  if (!bookings.length) return <div className="rounded-2xl border border-[#e3e8ef] bg-white px-6 py-14 text-center shadow-sm"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#edf2ff] text-[#4d71cc]"><CalendarDays size={21}/></span><h2 className="mt-4 text-base font-semibold text-[#34445b]">No bookings yet</h2><p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#7d8998]">When you book a vehicle, you’ll find the schedule, status, and rental details here.</p><Link href="/" className="mt-5 inline-flex h-9 items-center rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white hover:bg-[#1d4ed8]">Browse rentals</Link></div>;
-
   return <div className="space-y-4">
     {showFilters && <div role="group" aria-label="Filter bookings" className="flex flex-wrap gap-2 md:hidden">
       {filters.map(option => <button key={option} type="button" aria-pressed={filter === option} onClick={() => setFilter(option)}
         className={`min-h-11 rounded-full border px-4 text-sm font-semibold ${filter === option ? "border-[#0A47B1] bg-[#0A47B1] text-white" : "border-[#D6E6F7] bg-white text-[#0A3D91]"}`}>{option}</button>)}
     </div>}
-    {!bookings.some(matchesFilter) && <p className="rounded-2xl border border-[#D6E6F7] bg-white p-4 text-sm text-[#5B6F89] md:hidden">No {filter.toLowerCase()} bookings.</p>}
+    {!bookings.length && <>
+      <div className="rounded-2xl border border-[#D6E6F7] bg-white p-5 text-[#0F2342] md:hidden">
+        <CalendarDays size={24} className="text-[#0A47B1]" aria-hidden="true" />
+        <h2 className="mt-3 font-heading text-lg font-semibold">{filter === "All" ? "No bookings yet" : `No ${filter.toLowerCase()} bookings`}</h2>
+        {filter === "All" && <Link href="/cars" className="mt-4 flex h-[52px] items-center justify-center rounded-full bg-[#0A47B1] text-sm font-semibold text-white">Browse rentals</Link>}
+      </div>
+      <div className="hidden rounded-2xl border border-[#e3e8ef] bg-white px-6 py-14 text-center shadow-sm md:block">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#edf2ff] text-[#4d71cc]"><CalendarDays size={21}/></span>
+        <h2 className="mt-4 text-base font-semibold text-[#34445b]">No bookings yet</h2>
+        <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#7d8998]">When you book a vehicle, you’ll find the schedule, status, and rental details here.</p>
+        <Link href="/" className="mt-5 inline-flex h-9 items-center rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white hover:bg-[#1d4ed8]">Browse rentals</Link>
+      </div>
+    </>}
+    {bookings.length > 0 && !bookings.some(matchesFilter) && <p className="rounded-2xl border border-[#D6E6F7] bg-white p-4 text-sm text-[#5B6F89] md:hidden">No {filter.toLowerCase()} bookings.</p>}
     {bookings.map((booking) => {
     const cancelAllowed = cancellableStatuses.includes(booking.status) && !!booking.rental_starts_at && now < Date.parse(booking.rental_starts_at);
     const payHref = `/account/bookings/${booking.id}/pay`;
@@ -170,5 +181,7 @@ export function BookingList({ bookings, now, supportDays, reviewTarget, showFilt
     close={() => {
       setActiveReview(null);
       requestAnimationFrame(() => openedBy.current?.focus());
-    }}/>}<div className="hidden items-center gap-2 px-1 text-[10px] leading-5 text-[#8b97a7] md:flex"><RotateCw size={12}/>Booking status updates as your rental progresses.</div></div>;
+    }}/>}
+    {bookings.length > 0 && <div className="hidden items-center gap-2 px-1 text-[10px] leading-5 text-[#8b97a7] md:flex"><RotateCw size={12}/>Booking status updates as your rental progresses.</div>}
+  </div>;
 }

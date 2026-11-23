@@ -8,7 +8,7 @@ import { NotificationBell } from "@/components/notifications/bell";
 export function AccountShell({ children, email, userId }: { children: React.ReactNode; email: string; userId: string }) {
   const pathname = usePathname();
   const isProfile = pathname === "/account/profile";
-  const mobileHub = isProfile || pathname === "/account";
+  const mobileHub = isProfile || pathname === "/account" || pathname === "/account/bookings" || pathname.startsWith("/account/bookings/");
   return (
     <main className={`min-h-[calc(100vh-68px)] ${mobileHub ? "bg-[#F3F9FF] px-5 py-5 sm:py-8 md:bg-[#f5f7fb] md:px-7 md:py-10" : "bg-[#f5f7fb] px-4 py-8 sm:px-7 sm:py-10"}`}>
       <div className={`mx-auto ${mobileHub ? "max-w-xl md:max-w-6xl" : "max-w-6xl"}`}>
