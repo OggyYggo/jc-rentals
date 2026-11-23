@@ -22,6 +22,8 @@ function AccountLoading() {
   return <main className="min-h-[calc(100vh-68px)] bg-[#f5f7fb] px-5 py-10"><div className="mx-auto max-w-6xl"><div className="mb-6 h-8 w-52 animate-pulse rounded bg-white"/><div className="h-80 animate-pulse rounded-2xl border border-[#e3e8ef] bg-white"/></div></main>;
 }
 
+export const metadata = { robots: { index: false, follow: false } };
+
 export default function CustomerAccountLayout({ children }: { children: ReactNode }) {
   return <Suspense fallback={<AccountLoading/>}><CustomerAccountContent>{children}</CustomerAccountContent></Suspense>;
 }

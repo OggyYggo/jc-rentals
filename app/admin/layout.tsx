@@ -2,6 +2,8 @@ import { Suspense, type ReactNode } from "react";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { getAdminContext } from "@/lib/admin-context";
 
+export const metadata = { robots: { index: false, follow: false } };
+
 export const instant = false;
 
 async function AdminLayoutContent({ children }: { children: ReactNode }) {

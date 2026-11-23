@@ -1,5 +1,7 @@
 "use server";
 
+import { SITE_URL } from "@/lib/site-url";
+
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -128,7 +130,7 @@ export async function finalizeApplication(applicationId: string, cancelToken: st
   const { data: preferredPlanRow } = await admin.from("plans").select("name").eq("code", application.preferred_plan).maybeSingle();
   const preferredPlanName = preferredPlanRow?.name ?? "Starter";
   if (apiKey && from) {
-    const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "https://kuyogbohol.com";
+    const origin = SITE_URL;
     const emailHtml = `<div style="font-family:Arial,sans-serif;background:#EAF4FF;padding:32px;color:#0F2342"><div style="max-width:560px;margin:auto;background:white;border-radius:18px;padding:32px"><h1>We received your application</h1><p>Hi ${escapeHtml(application.full_name)},</p><p>Thank you for applying to list your vehicle with Kuyog Bohol. We will review it and reply by email.</p><p>Your chosen plan: <strong>${escapeHtml(preferredPlanName)}</strong>. You pay nothing now; if you chose a paid plan, payment is only after approval.</p><p><a href="${origin}/apply" style="color:#0B63CE">Visit Kuyog Bohol</a></p></div></div>`;
     const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [application.email], subject: "We received your application", html: emailHtml }) }).catch((error) => { console.error("Application email failed", error instanceof Error ? error.message : "unknown"); return null; });
     if (response && !response.ok) console.error("Application email failed", response.status);

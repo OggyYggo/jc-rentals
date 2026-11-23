@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/lib/site/public-metadata";
 import { CarGrid } from "@/components/motion/CarGrid";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +8,9 @@ import { VehicleFilterTabs } from "@/components/cars/VehicleFilterTabs";
 import { CarListFilters } from "@/components/cars/CarListFilters";
 import { PublicFooter } from "@/components/public-footer";
 import { parseCarSearch, carsUrl } from "@/lib/cars/searchParams";
+
+export const metadata = publicMetadata("/cars", "Cars for Rent in Bohol",
+  "Compare cars from local owners across Bohol. Choose a self-drive rental or book a car with a local driver for your trip.");
 
 export const instant = false;
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -109,7 +113,8 @@ export default async function CarsPage({ searchParams }: Props) {
   const dateNotice = activeMode === "driver" && search.from && search.to && !shownCars.length;
 
   return <><main className="theme-public min-h-screen bg-white px-5 py-10 text-[#0F2342] sm:px-8 md:py-14"><div className="mx-auto max-w-6xl">
-    <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Explore Bohol</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Cars and motorcycles for your trip</h1>
+    <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Explore Bohol</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Cars and motorcycles for rent in Bohol</h1>
+    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#51657F]">Browse rentals from local owners for trips around Panglao and the rest of Bohol. Go at your own pace with a self-drive vehicle, or choose a car with a local driver.</p>
     {invalidDates && <p role="status" className="mt-4 rounded-xl bg-[#fff7e8] px-4 py-3 text-sm text-[#76551b]">Please choose valid dates.</p>}
     <VehicleFilterTabs current={search.vehicle} counts={vehicleCounts} search={search}/>
     {search.vehicle === "motorcycle" && search.mode === "driver" && <p role="status" className="mt-3 text-xs text-[#51657F]">Motorcycles are self-drive only. Showing self-drive rentals.</p>}<CarFilterTabs current={search.vehicle === "motorcycle" ? "self" : activeMode ?? "all"} counts={search.vehicle === "motorcycle" ? { all: counts.self, self: counts.self, driver: 0 } : counts} search={search} motorcycle={search.vehicle === "motorcycle"}/>

@@ -1,14 +1,12 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/site/public-metadata";
 import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
 import { breakEvenBookings, ownerEarningsExample, peso } from "@/lib/plans/breakEven";
 import { getPublicPlans } from "@/lib/plans/queries";
 
 export const instant = false;
-export const metadata: Metadata = {
-  title: "Pricing for vehicle owners | Kuyog Bohol",
-  description: "List your vehicle free. Pick a plan when you grow. Pay a small commission only when you get a booking.",
-};
+export const metadata = publicMetadata("/pricing", "Pricing for vehicle owners",
+  "List your vehicle for free with Kuyog Bohol, compare plans for Bohol rental owners and see what you pay when you get a booking.");
 
 const supportLabel: Record<string, string> = { email: "Email support", priority: "Priority email support", priority_onboarding: "Priority support and onboarding help", custom: "Custom support" };
 const money = (value: number) => value === 0 ? "Free" : `${peso(value)} / month`;

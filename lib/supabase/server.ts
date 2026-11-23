@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
-export async function createClient() {
+function publicCredentials() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -9,6 +10,18 @@ export async function createClient() {
     throw new Error("Supabase is not configured. Add the required values to .env.local.");
   }
 
+  return { url, key };
+}
+
+export function createPublicServerClient() {
+  const { url, key } = publicCredentials();
+  return createSupabaseClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+export async function createClient() {
+  const { url, key } = publicCredentials();
   const cookieStore = await cookies();
 
   return createServerClient(url, key, {

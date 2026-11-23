@@ -1,12 +1,9 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/site/public-metadata";
 import Link from "next/link";
 import { PublicFooter } from "@/components/public-footer";
 
-export const metadata: Metadata = {
-  title: "Privacy | Kuyog Bohol",
-  description: "How Kuyog Bohol uses information submitted through its website and contact form.",
-  alternates: { canonical: "/privacy" },
-};
+export const metadata = publicMetadata("/privacy", "Privacy",
+  "Read how Kuyog Bohol handles information submitted through the website and contact form, including how to request a correction.");
 
 export default function PrivacyPage() {
   return <>

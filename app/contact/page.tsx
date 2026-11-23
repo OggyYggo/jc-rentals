@@ -1,6 +1,6 @@
+import { publicMetadata } from "@/lib/site/public-metadata";
 import { HeroIntro } from "@/components/motion/HeroIntro";
 import { Reveal } from "@/components/motion/Reveal";
-import type { Metadata } from "next";
 import { connection } from "next/server";
 import { ContactForm } from "@/components/contact/ContactForm";
 import { ContactHero } from "@/components/contact/ContactHero";
@@ -10,11 +10,8 @@ import { isBookingReference } from "@/lib/contact/schema";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
-export const metadata: Metadata = {
-  title: "Contact us | Kuyog Bohol",
-  description: "Questions about a booking, a car or becoming an owner? Contact Kuyog Bohol, car rental in Bohol.",
-  alternates: { canonical: "/contact" },
-};
+export const metadata = publicMetadata("/contact", "Contact Kuyog Bohol",
+  "Contact Kuyog Bohol for help with vehicle rentals, bookings, payments or listing your vehicle. Send a message to our local support team.", { absolute: true });
 
 const topics = ["booking", "cars_pricing", "payment", "owner", "other"] as const;
 type Topic = (typeof topics)[number];

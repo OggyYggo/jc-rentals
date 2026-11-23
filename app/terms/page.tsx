@@ -1,9 +1,13 @@
+import { publicMetadata } from "@/lib/site/public-metadata";
 import { cancellationPolicy } from "@/lib/policies/cancellation";
 import { connection } from "next/server";
 import { readCancellationSettings } from "@/lib/cancellation-settings";
 import { cancellationRule, refundOwnerCopy, refundSupportCopy } from "@/lib/cancellation";
 import Link from "next/link";
 export const instant = false;
+export const metadata = publicMetadata("/terms", "Terms of Service",
+  "Read Kuyog Bohol’s rental and payment terms, including booking deposits, cancellation fees, motorcycle requirements and the owner agreement.");
+
 export default async function TermsPage(){
   await connection();
   const { hours, percent, pickupHour, supportDays } = await readCancellationSettings();

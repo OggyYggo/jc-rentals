@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site-url";
+import { publicMetadata } from "@/lib/site/public-metadata";
 import { Inter, Work_Sans } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
@@ -16,9 +18,15 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://kuyogbohol.com"),
-  title: "Kuyog Bohol — Rental Business, Simplified",
-  description: "Manage bookings, vehicles, customers, and rental operations in one clear workspace. Built for rental businesses in the Philippines.",
+  ...publicMetadata("/", "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver",
+    "Rent a car in Bohol from local owners. Drive yourself or hire a car with a driver. Book online in minutes."),
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver",
+    template: "%s | Kuyog Bohol",
+  },
+  applicationName: "Kuyog Bohol",
+  twitter: { card: "summary_large_image" },
   icons: {
     icon: [
       { url: "/favicon.ico", type: "image/x-icon" },

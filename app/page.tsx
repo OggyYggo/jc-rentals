@@ -1,3 +1,6 @@
+import { JsonLd } from "@/components/seo/json-ld";
+import { SITE_URL } from "@/lib/site-url";
+import { publicMetadata } from "@/lib/site/public-metadata";
 import { HeroIntro } from "@/components/motion/HeroIntro";
 import { Reveal } from "@/components/motion/Reveal";
 import Link from "next/link";
@@ -17,7 +20,8 @@ import { RideWithDriver } from "@/components/home/RideWithDriver";
 import { FindCarLink } from "@/components/home/FindCarLink";
 import { FeaturedCarsGrid } from "@/components/home/FeaturedCarsGrid";
 
-export const metadata = { title: "Kuyog Bohol: Car and Motorcycle Rental in Bohol, Self-Drive and With Driver", description: "Rent a car or motorcycle in Bohol from local owners. Choose self-drive or a car with a driver. Book online in minutes." };
+export const metadata = publicMetadata("/", "Kuyog Bohol: Car and Motorcycle Rental in Bohol, Self-Drive and With Driver",
+  "Rent a car or motorcycle in Bohol from local owners. Choose self-drive or a car with a driver. Book online in minutes.", { absolute: true });
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://kuyogbohol.com").replace(/\/$/, "");
 const organizationJsonLd = {
   "@context": "https://schema.org",
@@ -54,16 +58,37 @@ const perks: [LucideIcon, string, string][] = [
 
 export default function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   return <main className="theme-public overflow-hidden bg-white text-[#0F2342]">
+    <JsonLd data={{
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": `${SITE_URL}/#organization`,
+          name: "Kuyog Bohol",
+          url: SITE_URL,
+          logo: `${SITE_URL}/icon-512.png`,
+          email: "kuyogbohol@gmail.com",
+          areaServed: "Bohol, Philippines",
+          // TODO: Add sameAs when Jabez provides the official Facebook page URL.
+        },
+        {
+          "@type": "WebSite",
+          name: "Kuyog Bohol",
+          url: SITE_URL,
+          publisher: { "@id": `${SITE_URL}/#organization` },
+        },
+      ],
+    }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd).replace(/</g, "\\u003c") }} />
     {/* Hero */}
     <HeroIntro as="section" id="top" className="public-hero relative flex flex-col justify-center px-5 pb-32 pt-16 sm:px-8 md:min-h-[560px] md:pb-36 md:pt-24">
-      <Image src={heroBackground} alt="The Chocolate Hills in Bohol" fill priority sizes="100vw" className="object-cover object-center"/>
+      <Image src={heroBackground} alt="The Chocolate Hills in Bohol" fill preload sizes="100vw" className="object-cover object-center"/>
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#0F2342]/80 via-[#0A3D91]/35 to-[#0F2342]/5 md:bg-[#0F2342]/60"/>
       <div aria-hidden="true" className="absolute inset-0 bg-[#0A3D91]/15"/>
       <div className="relative z-10 mx-auto w-full max-w-6xl text-center text-white">
         <span data-intro className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/10 px-4 py-2 text-[13px] font-semibold uppercase tracking-[0.15em] backdrop-blur-md">CAR & MOTORCYCLE RENTAL IN BOHOL</span>
         <h1 data-intro className="mx-auto mt-6 max-w-[900px] text-[46px] font-semibold leading-[1.04] tracking-tight md:text-6xl lg:text-[76px]">Rent a car or motorcycle in Bohol.</h1>
-        <p data-intro className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Choose a self-drive car, a car with a driver, or a self-drive motorcycle. Book in minutes.</p>
+        <p data-intro className="mx-auto mt-5 max-w-2xl text-[17px] leading-7 text-white/90 md:text-xl">Explore Panglao and the rest of Bohol with a rental from a local owner. Choose a self-drive car or motorcycle, or book a car with a local driver.</p>
         <div className="mx-auto mt-8 grid max-w-[300px] grid-cols-2 justify-center gap-x-5 gap-y-3 text-left text-sm font-semibold text-white/95 sm:flex sm:max-w-none sm:flex-wrap sm:gap-x-8 sm:text-center">
           <span data-intro-trust className="flex items-center gap-2"><Users size={20} strokeWidth={1.8}/> Local owners</span>
           <span data-intro-trust className="flex items-center gap-2"><CircleDollarSign size={20} strokeWidth={1.8}/> Clear pricing</span>

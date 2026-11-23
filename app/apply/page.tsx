@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { publicMetadata } from "@/lib/site/public-metadata";
 import { ApplyHeader } from "@/components/apply/ApplyHeader";
 import { ApplyForm } from "@/components/apply/ApplyForm";
 import { ApplySidebar } from "@/components/apply/ApplySidebar";
@@ -6,7 +6,8 @@ import { PublicFooter } from "@/components/public-footer";
 import { ApplyPlanProvider } from "@/components/apply/ApplyPlanContext";
 import { getPublicPlans } from "@/lib/plans/queries";
 
-export const metadata: Metadata = { title: "Apply to List Your Car | Kuyog Bohol", description: "Apply to offer your vehicle for rent in Bohol. No account needed." };
+export const metadata = publicMetadata("/apply", "Apply to List Your Car",
+  "Apply to list your vehicle for rent in Bohol. Tell us about yourself and your vehicle, and we’ll email you after reviewing your application.");
 export const instant = false;
 export default async function ApplyPage({ searchParams }: PageProps<"/apply">) {
   const [{ plans, unavailable }, params] = await Promise.all([getPublicPlans(), searchParams]);

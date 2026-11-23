@@ -6,7 +6,7 @@ import { Mail, FileText, CarFront, Star } from "lucide-react";
 import { getApplicationEmail, getApplicationPlanSummary } from "@/app/apply/actions";
 import { PublicFooter } from "@/components/public-footer";
 
-export const metadata = { title: "Application received | Kuyog Bohol" };
+export const metadata = { title: "Application received", robots: { index: false, follow: false } };
 async function ApplicantEmail() { return <strong className="break-all text-[#0F2342]">{(await getApplicationEmail()) ?? "your email"}</strong>; }
 async function ChosenPlanCard() {
   const details = await getApplicationPlanSummary();

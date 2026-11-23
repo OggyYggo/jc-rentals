@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CircleCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Welcome | Kuyog Bohol",
+  title: "Welcome",
 };
 
 export default function CustomerWelcomePage() {

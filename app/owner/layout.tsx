@@ -2,6 +2,8 @@ import { Suspense, type ReactNode } from "react";
 import { OwnerShell } from "@/components/owner/owner-shell";
 import { getOwnerContext } from "@/lib/owner-context";
 
+export const metadata = { robots: { index: false, follow: false } };
+
 export const instant = false;
 
 async function OwnerLayoutContent({ children }: { children: ReactNode }) {

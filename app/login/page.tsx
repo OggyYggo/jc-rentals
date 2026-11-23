@@ -1,5 +1,7 @@
 import { AuthForm } from "@/components/customer/auth-form";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
+export const metadata = { title: "Log in", robots: { index: false, follow: false } };
+
 export const instant = false;
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string | string[]; error?: string }> }) {

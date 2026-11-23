@@ -1,3 +1,6 @@
+import { JsonLd } from "@/components/seo/json-ld";
+import { publicMetadata } from "@/lib/site/public-metadata";
+import { SITE_URL } from "@/lib/site-url";
 import { paymentPeso } from "@/lib/payment-format";
 import { DateUpdateForm } from "@/components/booking/DateUpdateForm";
 import { BookingPolicyDialog } from "@/components/booking/BookingPolicyDialog";
@@ -27,12 +30,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await connection();
   const { id } = await params;
   const car = await getPublicPromoCar(id);
-  if (!car) return { title: "Vehicle rental in Bohol | Kuyog Bohol" };
-  const title = `${car.brand} ${car.model}${car.year ? ` ${car.year}` : ""} ${car.vehicle_type === "motorcycle" ? "motorcycle" : "car"} for rent in Bohol | Kuyog Bohol`;
-  const rates = car.rates.filter((rate) => rate.mode === "self_drive" ? car.allows_self_drive : car.allows_with_driver);
-  const from = rates.length ? Math.min(...rates.map((rate) => Number(rate.daily_rate))) : null;
-  const description = `${car.brand} ${car.model} for rent in Bohol${from === null ? "" : ` from ₱${from.toLocaleString()} per day`}. Book online with Kuyog Bohol.`;
-  return { title, description, openGraph: { title, description, type: "website" } };
+  if (!car) return { title: "Vehicle rental in Bohol", robots: { index: false, follow: false } };
+  const name = [car.brand, car.model, car.year].filter(Boolean).join(" ");
+  const title = `${name} for rent in Bohol`;
+  const price = lowestDailyRate(car, car.rates);
+  const description = `Rent a ${name} in Bohol${price === undefined ? "" : ` from ₱${price.toLocaleString("en-PH")} per day`}. See vehicle details and check availability for your trip with Kuyog Bohol.`;
+  return publicMetadata(`/cars/${id}`, title, description, { car: true });
+}
+
+function lowestDailyRate(
+  car: { allows_self_drive: boolean; allows_with_driver: boolean },
+  rates: { mode: string; daily_rate: number }[],
+) {
+  const prices = rates
+    .filter(({ mode }) => (mode === "self_drive" && car.allows_self_drive) || (mode === "with_driver" && car.allows_with_driver))
+    .map(({ daily_rate }) => Number(daily_rate))
+    .filter(price => Number.isFinite(price) && price > 0);
+  return prices.length ? Math.min(...prices) : undefined;
 }
 
 export const instant = false;
@@ -101,10 +115,6 @@ async function CarDetailContent({ params, searchParams }: Props) {
   ]);
   const reviewCount = Number(car.rating_count ?? 0);
   const reviewAverage = Number(car.rating_avg ?? 0);
-  const reviewJson = JSON.stringify({
-    "@context": "https://schema.org", "@type": "Product", name: `${car.brand} ${car.model}`,
-    aggregateRating: { "@type": "AggregateRating", ratingValue: reviewAverage, reviewCount },
-  }).replace(/</g, "\\u003c");
   const mode = requestedMode === "with_driver" && car.allows_with_driver ? "with_driver" : requestedMode === "self_drive" && car.allows_self_drive ? "self_drive" : car.allows_with_driver ? "with_driver" : "self_drive";
   const modeUnavailable = mode !== requestedMode;
 
@@ -155,6 +165,9 @@ async function CarDetailContent({ params, searchParams }: Props) {
   const deposit = Number(rate?.deposit_amount ?? 0);
   const photos = [...(car.car_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order);
   const photoUrls = photos.map((photo) => carPhotoUrl(photo.path)).filter((photo: string | null): photo is string => Boolean(photo));
+  const vehicleName = [car.brand, car.model, car.year].filter(Boolean).join(" ");
+  const listingUrl = `${SITE_URL}/cars/${id}`;
+  const lowestRate = lowestDailyRate(car, car.car_rates ?? []);
   const specs: [LucideIcon, string | null][] = car.vehicle_type === "motorcycle" ? [[Users, car.seats ? `${car.seats} passengers` : null], [Bike, car.engine_cc ? `${car.engine_cc} cc` : null], [CarFront, car.helmets_included ? `Helmets included: ${car.helmets_included}` : "No helmets included"], [Settings2, car.transmission], [Fuel, car.fuel_type]] : [[Users, car.seats ? `${car.seats} seats` : null], [Settings2, car.transmission], [CarFront, car.car_type], [Fuel, car.fuel_type]];
 
   const vehicleType = car.vehicle_type;
@@ -231,12 +244,27 @@ async function CarDetailContent({ params, searchParams }: Props) {
   }
 
   const reservation = Math.round(total * Math.max(0.1, Math.min(1, policy.depositRate)) * 100) / 100;
-  return <>{reviewCount >= 3 && <script type="application/ld+json">{reviewJson}</script>}<main className="theme-public min-h-screen bg-white px-5 py-8 text-[#0F2342] sm:px-8 md:py-12 max-md:bg-[#F3F9FF] max-md:pt-2 max-md:font-body"><div className="mx-auto max-w-6xl max-md:flex max-md:flex-col max-md:gap-4">
+  return <><JsonLd data={{
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: vehicleName,
+    description: car.description?.trim() || `${vehicleName} for rent in Bohol.`,
+    image: photoUrls.length ? photoUrls : undefined,
+    brand: { "@type": "Brand", name: car.brand },
+    url: listingUrl,
+    offers: lowestRate === undefined ? undefined : {
+      "@type": "Offer",
+      price: lowestRate,
+      priceCurrency: "PHP",
+      availability: "https://schema.org/InStock",
+      url: listingUrl,
+    },
+  }} /><main className="theme-public min-h-screen bg-white px-5 py-8 text-[#0F2342] sm:px-8 md:py-12 max-md:bg-[#F3F9FF] max-md:pt-2 max-md:font-body"><div className="mx-auto max-w-6xl max-md:flex max-md:flex-col max-md:gap-4">
     <Link href={carListHref} className="text-sm font-semibold text-[#0B63CE] max-md:order-first max-md:-mb-2 max-md:flex max-md:min-h-11 max-md:items-center max-md:text-[#0A3D91]">← All vehicles</Link>
-    <div className="mt-4 flex flex-wrap items-end justify-between gap-3 max-md:order-2 max-md:mt-0 max-md:items-start"><div className="max-md:min-w-0"><h1 className="text-3xl font-semibold md:text-4xl max-md:font-heading max-md:text-[28px] max-md:leading-tight max-md:font-bold max-md:tracking-tight">{car.brand} {car.model}</h1>{car.vehicle_type === "motorcycle" && <span className="rounded-full bg-[#0A3D91] px-3 py-1 text-xs font-semibold text-white">Motorcycle</span>}<p className="mt-2 text-sm text-[#51657F]">{[car.year,car.car_type].filter(Boolean).join(" · ")}</p></div>{rate && <p className="shrink-0 rounded-xl bg-[#EAF4FF] px-3 py-2 font-heading text-lg font-bold text-[#0A3D91] md:hidden">₱{Number(rate.daily_rate).toLocaleString()} <span className="text-xs font-medium">/ day</span></p>}<div className="flex flex-wrap gap-2 max-md:w-full">{specs.filter(([, label]) => label !== null).map(([Icon,label], index)=><span key={index} className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2 text-xs text-[#0A3D91]"><Icon size={14}/>{label}</span>)}</div></div>
+    <div className="mt-4 flex flex-wrap items-end justify-between gap-3 max-md:order-2 max-md:mt-0 max-md:items-start"><div className="max-md:min-w-0"><h1 className="text-3xl font-semibold md:text-4xl max-md:font-heading max-md:text-[28px] max-md:leading-tight max-md:font-bold max-md:tracking-tight">{car.brand} {car.model} for rent in Bohol</h1>{car.vehicle_type === "motorcycle" && <span className="rounded-full bg-[#0A3D91] px-3 py-1 text-xs font-semibold text-white">Motorcycle</span>}<p className="mt-2 text-sm text-[#51657F]">{[car.year,car.car_type].filter(Boolean).join(" · ")}</p></div>{rate && <p className="shrink-0 rounded-xl bg-[#EAF4FF] px-3 py-2 font-heading text-lg font-bold text-[#0A3D91] md:hidden">₱{Number(rate.daily_rate).toLocaleString()} <span className="text-xs font-medium">/ day</span></p>}<div className="flex flex-wrap gap-2 max-md:w-full">{specs.filter(([, label]) => label !== null).map(([Icon,label], index)=><span key={index} className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2 text-xs text-[#0A3D91]"><Icon size={14}/>{label}</span>)}</div></div>
     <div className="mt-6 grid items-start gap-7 max-md:contents lg:grid-cols-[1.45fr_0.85fr]">
       <div className="min-w-0 space-y-6 max-md:contents max-md:space-y-0 max-md:[&>*]:order-6">
-        <div className="relative aspect-[16/9] overflow-hidden max-md:order-1! rounded-2xl bg-[#EAF4FF] max-md:aspect-[4/3] max-md:rounded-[22px]">{photoUrls.length ? <CarPhotoCarousel photos={photoUrls} alt={`${car.brand} ${car.model}`} priority/> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={60} strokeWidth={1.2}/></div>}</div>
+        <div className="relative aspect-[16/9] overflow-hidden max-md:order-1! rounded-2xl bg-[#EAF4FF] max-md:aspect-[4/3] max-md:rounded-[22px]">{photoUrls.length ? <CarPhotoCarousel photos={photoUrls} alt={`${vehicleName} for rent in Bohol`} priority/> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={60} strokeWidth={1.2}/></div>}</div>
 
         <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5 max-md:order-3! max-md:flex max-md:flex-col max-md:p-3"><div className="flex flex-wrap items-center justify-between gap-3 max-md:order-first"><h2 className="font-semibold text-[#0F2342] max-md:sr-only">Choose a rental mode</h2><div className="flex rounded-full bg-[#EAF4FF] p-1 max-md:w-full" aria-label="Rental mode">{[["self_drive","Self-drive",car.allows_self_drive],["with_driver","With driver",car.allows_with_driver]].filter(([, ,enabled])=>enabled).map(([value,label])=>{const canonicalMode = value === "with_driver" ? "driver" : "self"; const params = new URLSearchParams(); if(start)params.set("from",start);if(end)params.set("to",end);params.set("mode",canonicalMode);if(pickup)params.set("pickup",pickup);return <Link key={String(value)} aria-current={value === mode ? "true" : undefined} scroll={false} href={`/cars/${id}?${params}`} className={`rounded-full px-4 py-2 text-xs font-semibold max-md:flex max-md:min-h-11 max-md:flex-1 max-md:items-center max-md:justify-center max-md:text-sm ${value===mode?"bg-[#0B63CE] text-white":"text-[#0A3D91]"}`}>{String(label)}</Link>})}</div></div>
           {modeUnavailable && requestedMode === "with_driver" && <p className="mt-3 text-sm text-[#51657F]">This car is available self-drive only. We switched the mode for you.</p>}
