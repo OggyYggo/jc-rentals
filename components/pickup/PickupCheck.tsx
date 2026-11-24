@@ -4,6 +4,7 @@ import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowRight, Check, ScanLine } from "lucide-react";
 import { SubmitButton } from "@/components/loading/SubmitButton";
 import { createClient } from "@/lib/supabase/client";
 import { pickupError, type PickupCredential, type PickupLookup } from "@/lib/pickup/model";
@@ -42,6 +43,43 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
   const needsReason = !isReturn && (admin || lookup.result === "NOT_TODAY");
   const blocked = !isReturn && !admin && lookup.docs_required && !lookup.documents_verified;
   const canSubmit = isReturn ? !admin : !blocked && idChecked && (!due || (received && method !== "")) && (!needsReason || reason.trim().length >= 5);
+
+  if (complete && !isReturn && !admin) {
+    const scanClass = `${actionClass} gap-2 border-[#2457d6] bg-[#2457d6] text-white hover:bg-[#1d4ed8]`;
+    const scanLabel = <><ScanLine size={16} aria-hidden="true" /> Scan another pass</>;
+
+    return <section aria-labelledby="pickup-success-heading" className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+      <div role="status" className="bg-emerald-950 px-5 py-8 text-center text-white sm:px-8 sm:py-10">
+        <span className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-emerald-300 text-emerald-950 ring-8 ring-emerald-400/20">
+          <Check size={32} strokeWidth={2.5} aria-hidden="true" />
+        </span>
+        <h2 id="pickup-success-heading" className="text-2xl font-bold tracking-tight sm:text-3xl">Vehicle handed over</h2>
+        <p className="mt-2 text-sm text-emerald-100">Booking is now <strong>Picked up</strong>.</p>
+      </div>
+
+      <div className="space-y-5 p-5 sm:p-6">
+        <dl className="space-y-3 rounded-xl bg-slate-50 px-4 py-3 text-sm">
+          <div className="grid grid-cols-[5rem_1fr] gap-2">
+            <dt className="text-slate-600">Booking</dt>
+            <dd className="min-w-0 break-words font-semibold text-slate-900">{lookup.reference}</dd>
+          </div>
+          <div className="grid grid-cols-[5rem_1fr] gap-2">
+            <dt className="text-slate-600">Vehicle</dt>
+            <dd className="min-w-0 break-words font-semibold text-slate-900">{lookup.vehicle_label}{lookup.plate && ` · ${lookup.plate}`}</dd>
+          </div>
+        </dl>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {onCancel
+            ? <button type="button" onClick={onCancel} className={scanClass}>{scanLabel}</button>
+            : <ScanPickupLink className={scanClass}>{scanLabel}</ScanPickupLink>}
+          <Link href={back} className={`${actionClass} gap-2 border-slate-200 text-slate-700 hover:bg-slate-50`}>
+            Back to bookings <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
+    </section>;
+  }
 
   if (complete) return <section className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" role="status">
     <h2 className="font-semibold">{isReturn ? "Return confirmed. Booking is now Returned." : "Handed over. Booking is now Picked up."}</h2>
