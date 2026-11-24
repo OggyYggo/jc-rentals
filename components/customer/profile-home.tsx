@@ -17,14 +17,15 @@ export function ProfileHome({ name, email, joinedAt, hasLicense, hasId, verifica
   const initials = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join("").toLocaleUpperCase();
   const memberSince = joinedAt && Number.isFinite(Date.parse(joinedAt))
     ? new Intl.DateTimeFormat("en-PH", { month: "short", year: "numeric", timeZone: "Asia/Manila" }).format(new Date(joinedAt)) : null;
-  const documents = [documentStatus(hasLicense, verification), documentStatus(hasId, verification),
-    selfieUnavailable ? "Unavailable" : documentStatus(Boolean(selfieStatus), selfieStatus)];
+  const bookingDocuments = [documentStatus(hasLicense, verification), documentStatus(hasId, verification)];
+  const selfie = selfieUnavailable ? "Unavailable" : documentStatus(Boolean(selfieStatus), selfieStatus);
+  const documents = [...bookingDocuments, selfie];
   const approved = documents.filter(status => status === "Approved").length;
   const missing = documents.filter(status => status === "Needed").length;
-  const rejected = documents.includes("Rejected");
-  const chip = approved === 3 ? { label: "Verified", style: "bg-[#E3F7EA] text-[#12703A]" }
-    : rejected ? { label: "Needs attention", style: "bg-[#FDE8E8] text-[#A12A2A]" }
-    : documents.includes("Under review") ? { label: "Verification in progress", style: "bg-[#FFF2D6] text-[#8A5A00]" }
+  const bookingVerified = bookingDocuments.every(status => status === "Approved");
+  const chip = bookingVerified ? { label: "Verified for booking", style: "bg-[#E3F7EA] text-[#12703A]" }
+    : bookingDocuments.includes("Rejected") ? { label: "Needs attention", style: "bg-[#FDE8E8] text-[#A12A2A]" }
+    : bookingDocuments.includes("Under review") ? { label: "Verification in progress", style: "bg-[#FFF2D6] text-[#8A5A00]" }
     : { label: "Not verified", style: "bg-[#FFF2D6] text-[#8A5A00]" };
   const menu = [
     { label: "Personal details", subtitle: "Name and phone number", href: "/account/profile?section=details", icon: ContactRound },
@@ -49,12 +50,12 @@ export function ProfileHome({ name, email, joinedAt, hasLicense, hasId, verifica
     {approved < 3 && <Card className={`${card} p-4`}>
       <Link href="/account/profile?section=documents" className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0A47B1]">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-heading text-base font-semibold text-[#0F2342]"><ShieldCheck size={18} aria-hidden="true" className="text-[#0A3D91]" />Get verified</h2>
+          <h2 className="flex items-center gap-2 font-heading text-base font-semibold text-[#0F2342]"><ShieldCheck size={18} aria-hidden="true" className="text-[#0A3D91]" />Document progress</h2>
           <span className="text-xs font-semibold tabular-nums text-[#0A3D91]">{approved} of 3</span>
         </div>
         <progress aria-label="Documents approved" value={approved} max={3}
           className="mt-3 block h-2 w-full overflow-hidden rounded-full bg-[#EAF4FF] accent-[#0A47B1] [&::-moz-progress-bar]:bg-[#0A47B1] [&::-webkit-progress-bar]:bg-[#EAF4FF] [&::-webkit-progress-value]:bg-[#0A47B1]" />
-        <p className="mt-2 text-sm text-[#5B6F89]">{rejected ? "Check the review feedback and replace your documents." : missing > 0 ? "Upload your remaining documents for review." : selfieUnavailable ? "Some verification details are temporarily unavailable." : "We’ll update your progress once the review is complete."}</p>
+        <p className="mt-2 text-sm text-[#5B6F89]">{bookingVerified && selfie === "Needed" ? "Upload a selfie with your ID to complete your documents." : documents.includes("Rejected") ? "Check the review feedback and replace your documents." : missing > 0 ? "Upload your remaining documents for review." : selfieUnavailable ? "Some verification details are temporarily unavailable." : "We’ll update your progress once the review is complete."}</p>
       </Link>
     </Card>}
 

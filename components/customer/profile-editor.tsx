@@ -117,8 +117,9 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
       <header>
         <h1 className="font-heading text-[24px] font-bold tracking-tight text-[#0F2342]">Documents and ID</h1>
         <p className="mt-1 text-sm leading-5 text-[#5B6F89]">Upload clear photos. Only you and the Kuyog Bohol admin can see them.</p>
+        {license === "Approved" && id === "Approved" && <p className="mt-2 text-sm font-semibold text-[#12703A]">Your license and ID are verified for booking.</p>}
       </header>
-      <ol aria-label="Verification steps" className="grid grid-cols-4 gap-1.5 rounded-2xl border border-[#D6E6F7] bg-white px-2.5 py-3">
+      <ol aria-label="Document review steps" className="grid grid-cols-4 gap-1.5 rounded-2xl border border-[#D6E6F7] bg-white px-2.5 py-3">
         {["Upload", "Review", "Verified", "Ready"].map((label, index) => <li key={label} aria-current={index === currentStep ? "step" : undefined}
           className={`border-t-4 py-1.5 text-center text-xs font-semibold ${index <= currentStep ? "border-[#0A47B1] text-[#0A3D91]" : "border-[#E3EEF9] text-[#5B6F89]"} ${index === currentStep ? "rounded-b-lg bg-[#EAF4FF]" : ""}`}>
           {label}
