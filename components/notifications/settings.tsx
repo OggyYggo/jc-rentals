@@ -74,7 +74,7 @@ export function NotificationSettings({ userId, initial, vapidPublicKey }: { user
         <p className="mt-1 text-xs text-slate-500">Play a chime for new notifications while this Kuyog tab is active.</p>
       </div>
       <button type="button" disabled={sound.busy} onClick={sound.toggle} className="shrink-0 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">
-        {sound.busy ? "Enabling…" : sound.enabled ? "Turn off sound" : "Enable sound"}
+        {sound.busy ? "Enabling…" : sound.blocked ? "Resume sound" : sound.enabled ? "Turn off sound" : "Enable sound"}
       </button>
     </div>
     {sound.error && <p role="alert" className="mt-2 text-xs text-red-700">{sound.error}</p>}
