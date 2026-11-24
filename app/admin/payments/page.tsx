@@ -132,7 +132,7 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
 async function PendingReview({ owner, before }: { owner?: string; before?: string }) {
   const { supabase } = await getAdminContext();
   let request = supabase.from("payments")
-    .select("id,booking_id,amount,reference_no,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
+    .select("id,booking_id,amount,reference_no,payment_provider,payment_label,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
     .eq("status", "pending").order("paid_at");
   if (owner) request = request.eq("owner_id", owner);
   if (before) request = request.lte("paid_at", before);

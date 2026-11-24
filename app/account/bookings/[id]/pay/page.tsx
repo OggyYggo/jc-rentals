@@ -7,12 +7,13 @@ import { CancelBookingButton, PaymentCountdown } from "@/components/customer/boo
 import { CopyButton } from "@/components/ui/CopyButton";
 import { PaymentDisputeButton } from "@/components/customer/payment-dispute-button";
 import { PaymentStatusRefresh } from "@/components/customer/payment-status-refresh";
-import { PaymentProofForm } from "@/components/customer/payment-proof-form";
+import { BookingPaymentOptions } from "@/components/customer/booking-payment-options";
 import { BookingPaymentConfirmation } from "@/components/customer/payment-confirmation";
 import { DisputeList, type Dispute } from "@/components/payment-disputes";
 import { customerBookingStatus } from "@/lib/customer-bookings";
 import { paymentDate, paymentPeso, safetyDepositCopy } from "@/lib/payment-format";
 import type { Receipt } from "@/lib/payment-receipt";
+import { bookingPaymentOptions, signPaymentQr } from "@/lib/payments/qr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,7 +26,7 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
   const { data: { user } } = await db.auth.getUser();
   if (!user) redirect("/login");
   const { data: booking } = await db.from("bookings")
-    .select("id,reference,owner_id,status,mode,start_date,end_date,rental_starts_at,car:cars!bookings_car_id_fkey(brand,model),deposit_amount,payment_due_at,payment_resubmit_due_at,review_due_at,amount_due_now,balance_at_pickup,total_price,cancel_free_until,cancel_fee_percent,amount_paid_online")
+    .select("id,reference,status,mode,start_date,end_date,rental_starts_at,car:cars!bookings_car_id_fkey(brand,model),deposit_amount,payment_due_at,payment_resubmit_due_at,review_due_at,amount_due_now,balance_at_pickup,total_price,cancel_free_until,cancel_fee_percent,amount_paid_online")
     .eq("id", id).eq("customer_id", user.id).maybeSingle();
   if (!booking) notFound();
   const [{ data: proofs, error: proofError }, { data: receipt }, { data: disputes }, { data: pickup }, { data: refund }] = await Promise.all([
@@ -44,14 +45,11 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
     : inReview ? proofs?.find(payment => payment.status === "pending") : undefined) ?? proofs?.[0];
   const available = !proofError && status === "awaiting_payment" && (!deadline || Date.parse(deadline) > now);
   const reviewDeadline = booking.review_due_at ?? booking.payment_due_at;
+  const { data: paymentOptions } = available ? await bookingPaymentOptions(db,id) : { data: null };
   const admin = createAdminClient();
-  const { data: owner } = available && admin
-    ? await admin.from("owners").select("business_name,payment_method_label,payment_account_name,payment_qr_path,gcash_number")
-      .eq("id", booking.owner_id).eq("payment_qr_verified", true).maybeSingle()
-    : { data: null };
-  const qr = owner?.payment_qr_path && admin
-    ? (await admin.storage.from("owner-qr").createSignedUrl(owner.payment_qr_path, 300)).data?.signedUrl
-    : null;
+  const options = await Promise.all((paymentOptions ?? []).map(async ({ qr_path, qr_bucket, ...option }) => ({
+    ...option, qrUrl: await signPaymentQr({ qr_path, qr_bucket }, admin),
+  })));
   const paymentDispute = inReview || (status === "awaiting_payment" && !proofError && (!available || proof?.status === "rejected")) || status === "expired";
   const refundDispute = refund?.status === "refunded";
   const hasDispute = (kind: string) => disputes?.some((dispute) => dispute.kind === kind && dispute.status === "open");
@@ -59,7 +57,6 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
   const mobileCard = "mt-4 min-w-0 rounded-2xl border border-[#D6E6F7] bg-white p-4 md:hidden";
   const car = Array.isArray(booking.car) ? booking.car[0] : booking.car;
   const phone = pickup?.contact_phone?.replace(/[^+0-9]/g, "");
-  const walletDigits = owner?.gcash_number?.replace(/\D/g, "");
   const paid = booking.status !== "confirmed" && proof?.status === "verified" ? proof.amount : booking.amount_paid_online;
 
   return <main className="mx-auto max-w-2xl px-4 py-8 max-md:font-body max-md:text-[#0F2342]">
@@ -73,73 +70,31 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
       <CopyButton mobileTouch label="Copy reference" value={booking.reference} />
     </div>}
     <div className="mt-2 hidden flex-wrap items-center gap-2 text-sm md:flex">
-      <p className="break-all">Booking {booking.reference}{owner?.business_name && ` · ${owner.business_name}`}</p>
+      <p className="break-all">Booking {booking.reference}</p>
       <CopyButton label="Copy reference" value={booking.reference} />
     </div>
     {available && <>
-      <section className="mt-4 space-y-2 rounded-2xl bg-[#0A47B1] p-4 text-white md:hidden">
+      <section className="mt-4 space-y-2 rounded-2xl bg-[#0A47B1] p-4 text-white md:border md:bg-white md:text-slate-900">
         <h2 className="font-heading font-semibold">Amount to pay</h2>
         <p className="text-3xl font-bold">{paymentPeso(booking.amount_due_now)}</p>
         {deadline && <PaymentCountdown deadline={deadline} now={now} />}
         <CopyButton mobileTouch label="Copy amount" value={Number(booking.amount_due_now).toFixed(2)} />
       </section>
-      {!proof && <>
-        <section className={mobileCard}>
-          <h2 className="font-heading font-semibold">{owner?.payment_method_label || "Owner payment QR"}</h2>
-          <p className="mt-2 text-sm">{owner?.payment_account_name || owner?.business_name || "Account name unavailable"}{walletDigits && walletDigits.length >= 4 && ` · •••• ${walletDigits.slice(-4)}`}</p>
-          {qr ? <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qr} alt="Owner payment QR" className="mx-auto my-3 max-h-60 max-w-full rounded-lg object-contain" />
-            <a className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#D6E6F7] px-3 text-sm font-semibold text-[#0A3D91]" href={`/account/bookings/${id}/pay/qr`}>Download QR</a>
-          </> : <p className="mt-2 text-sm text-[#A12A2A]">The payment QR is unavailable. Contact support before sending money.</p>}
-        </section>
-        <section className={mobileCard}>
-          <h2 className="font-heading font-semibold">How to pay</h2>
-          <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-[#5B6F89]">
-            <li>Scan the QR or upload the saved image in your e-wallet or bank app.</li>
-            <li>Verify the account name and send the exact amount shown above.</li>
-            <li>Keep the screenshot and transaction reference, then send your proof below.</li>
-          </ol>
-          <p className="mt-3 break-all text-sm">Booking reference · {booking.reference}</p>
-          <CopyButton mobileTouch label="Copy reference" value={booking.reference} />
-        </section>
-      </>}
-    </>}
-    {available && <section className="mt-4 space-y-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-6 max-md:border-[#D6E6F7]">
       {proof?.status === "rejected" && <div className="rounded-lg bg-amber-50 p-3 text-sm">
         <p className="font-semibold">Your proof was rejected</p>
         <p className="break-words">{proof.rejection_reason}</p>
         <p>Check your transfer history before sending any additional payment.</p>
       </div>}
-      {!proof && <>
-        <p className="hidden text-sm font-medium md:block">Amount to send now</p>
-        <div className="hidden flex-wrap items-center gap-3 md:flex">
-          <p className="text-3xl font-bold">{paymentPeso(booking.amount_due_now)}</p>
-          <CopyButton label="Copy amount" value={Number(booking.amount_due_now).toFixed(2)} />
-        </div>
-        <div className="hidden rounded-xl bg-blue-50 p-4 text-sm md:block">
-          <p className="font-semibold">{owner?.payment_method_label || "Owner payment QR"}</p>
-          <p>Account name · {owner?.payment_account_name || "Unavailable"}</p>
-          <p className="mt-1">Check that the name matches before sending.</p>
-          {qr ? <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qr} alt="Owner payment QR" className="my-3 max-h-60 max-w-full rounded-lg bg-white object-contain p-2" />
-            <a className="inline-flex min-h-11 items-center rounded-lg border bg-white px-3 font-medium text-blue-800" href={`/account/bookings/${id}/pay/qr`}>Download QR</a>
-          </> : <p className="mt-2 text-red-800">The payment QR is unavailable. Contact support before sending money.</p>}
-        </div>
-        <ol className="hidden list-decimal space-y-1 pl-5 text-sm md:block">
-          <li>Open your e-wallet or bank app and choose Pay QR.</li>
-          <li>Scan the QR or upload the saved image.</li>
-          <li>Check the account name and enter the exact amount.</li>
-          <li>Return here with a screenshot and the wallet or bank transaction reference.</li>
-        </ol>
-      </>}
-      <p className="text-sm">Balance at pickup · {paymentPeso(booking.balance_at_pickup)}</p>
-      {deadline && <p className="text-sm">{proof ? "Resubmit by" : "Pay and upload proof by"} {paymentDate(deadline)} Manila time</p>}
-      {booking.mode === "self_drive" && <p className="text-sm">Safety deposit · {paymentPeso(booking.deposit_amount)}. {safetyDepositCopy}</p>}
-      <BookingCancellationPolicy booking={booking} now={now} />
-      <PaymentProofForm bookingId={id} customerId={user.id} amount={Number(booking.amount_due_now)} />
-    </section>}
+      <BookingPaymentOptions options={options} bookingId={id} customerId={user.id} reference={booking.reference}
+        amount={Number(booking.amount_due_now)} retry={proof?.status === "rejected"}>
+        <section className="mt-4 space-y-2 rounded-2xl border bg-white p-4 sm:p-6">
+          <p className="text-sm">Balance at pickup · {paymentPeso(booking.balance_at_pickup)}</p>
+          {deadline && <p className="text-sm">{proof ? "Resubmit by" : "Pay and upload proof by"} {paymentDate(deadline)} Manila time</p>}
+          {booking.mode === "self_drive" && <p className="text-sm">Safety deposit · {paymentPeso(booking.deposit_amount)}. {safetyDepositCopy}</p>}
+          <BookingCancellationPolicy booking={booking} now={now} />
+        </section>
+      </BookingPaymentOptions>
+    </>}
     {confirmed && <section role="status" className="mt-4 space-y-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 max-md:rounded-2xl max-md:bg-[#E3F7EA] max-md:text-[#12703A]">
       <h2 className="font-semibold">Payment confirmed</h2>
       <p>Reservation payment received · {paymentPeso(paid)}</p>

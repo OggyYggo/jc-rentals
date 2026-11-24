@@ -1,3 +1,4 @@
+import { paymentProviders, type PaymentProvider } from "@/lib/payments/providers";
 import { JsonLd } from "@/components/seo/json-ld";
 import { publicMetadata } from "@/lib/site/public-metadata";
 import { SITE_URL } from "@/lib/site-url";
@@ -107,12 +108,14 @@ async function CarDetailContent({ params, searchParams }: Props) {
     car = result.data;
   } catch { notFound(); }
   if (!car) notFound();
-  const [reviewPage, distribution, reviewTags, reviewOwner] = await Promise.all([
+  const [reviewPage, acceptedProviders, distribution, reviewTags, reviewOwner] = await Promise.all([
     publicReviewPage(db, id, "newest"),
+    db.rpc("get_owner_accepted_providers", { p_owner_id: car.owner_id }),
     db.from("public_review_distribution").select("rating,total").eq("car_id", id),
     db.from("public_review_tags").select("tag,total").eq("car_id", id).order("total", { ascending: false }),
     db.from("public_review_owners").select("business_name,rating_avg,rating_count").eq("car_id", id).maybeSingle(),
   ]);
+  const paymentMethods = Array.isArray(acceptedProviders.data) ? acceptedProviders.data as { provider: PaymentProvider }[] : [];
   const reviewCount = Number(car.rating_count ?? 0);
   const reviewAverage = Number(car.rating_avg ?? 0);
   const mode = requestedMode === "with_driver" && car.allows_with_driver ? "with_driver" : requestedMode === "self_drive" && car.allows_self_drive ? "self_drive" : car.allows_with_driver ? "with_driver" : "self_drive";
@@ -262,6 +265,10 @@ async function CarDetailContent({ params, searchParams }: Props) {
   }} /><main className="theme-public min-h-screen bg-white px-5 py-8 text-[#0F2342] sm:px-8 md:py-12 max-md:bg-[#F3F9FF] max-md:pt-2 max-md:font-body"><div className="mx-auto max-w-6xl max-md:flex max-md:flex-col max-md:gap-4">
     <Link href={carListHref} className="text-sm font-semibold text-[#0B63CE] max-md:order-first max-md:-mb-2 max-md:flex max-md:min-h-11 max-md:items-center max-md:text-[#0A3D91]">← All vehicles</Link>
     <div className="mt-4 flex flex-wrap items-end justify-between gap-3 max-md:order-2 max-md:mt-0 max-md:items-start"><div className="max-md:min-w-0"><h1 className="text-3xl font-semibold md:text-4xl max-md:font-heading max-md:text-[28px] max-md:leading-tight max-md:font-bold max-md:tracking-tight">{car.brand} {car.model} for rent in Bohol</h1>{car.vehicle_type === "motorcycle" && <span className="rounded-full bg-[#0A3D91] px-3 py-1 text-xs font-semibold text-white">Motorcycle</span>}<p className="mt-2 text-sm text-[#51657F]">{[car.year,car.car_type].filter(Boolean).join(" · ")}</p></div>{rate && <p className="shrink-0 rounded-xl bg-[#EAF4FF] px-3 py-2 font-heading text-lg font-bold text-[#0A3D91] md:hidden">₱{Number(rate.daily_rate).toLocaleString()} <span className="text-xs font-medium">/ day</span></p>}<div className="flex flex-wrap gap-2 max-md:w-full">{specs.filter(([, label]) => label !== null).map(([Icon,label], index)=><span key={index} className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF4FF] px-3 py-2 text-xs text-[#0A3D91]"><Icon size={14}/>{label}</span>)}</div></div>
+    {paymentMethods.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2 text-sm max-md:order-2 max-md:mt-0">
+      <span className="font-semibold">Accepted payments</span>
+      {paymentMethods.map(({ provider }) => <span key={provider} className="rounded-full bg-[#EAF4FF] px-3 py-1 text-xs text-[#0A3D91]">{paymentProviders[provider].label}</span>)}
+    </div>}
     <div className="mt-6 grid items-start gap-7 max-md:contents lg:grid-cols-[1.45fr_0.85fr]">
       <div className="min-w-0 space-y-6 max-md:contents max-md:space-y-0 max-md:[&>*]:order-6">
         <div className="relative aspect-[16/9] overflow-hidden max-md:order-1! rounded-2xl bg-[#EAF4FF] max-md:aspect-[4/3] max-md:rounded-[22px]">{photoUrls.length ? <CarPhotoCarousel photos={photoUrls} alt={`${vehicleName} for rent in Bohol`} priority/> : <div className="car-photo-placeholder flex h-full items-center justify-center text-[#0B63CE]"><CarFront size={60} strokeWidth={1.2}/></div>}</div>

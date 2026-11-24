@@ -1,6 +1,16 @@
 import { pickupErrors } from "@/lib/pickup/model";
 
 const safeMessages = new Set([
+  "Payment option not found.",
+  "The payment option changed. Refresh and review the current QR.",
+  "Choose a QR image uploaded to your account.",
+  "Enter a label and account name without an account number.",
+  "You already have an active option for this provider.",
+  "You can have up to 8 active payment options.",
+  "Refresh the page and reorder your current payment options.",
+  "Keep one verified option while bookings are awaiting payment.",
+  "Enter a rejection reason (up to 300 characters).",
+  "The active payment option or its QR image could not be found.",
   "This application is no longer pending.",
   "Could not check for an existing account.",
   "Could not send the account invitation.",
@@ -94,6 +104,7 @@ export function friendlyPaymentError(error: unknown): string {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
   const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
   if (message === "REFERENCE_INVALID") return "Enter a wallet or bank reference with 6 to 40 letters or digits.";
+  if (message === "PAYMENT_OPTION_UNAVAILABLE") return "That payment option is no longer available. Refresh the page and check your transfer before trying again.";
   if (message === "REFERENCE_ALREADY_USED" || code === "23505") return "That transaction reference has already been used. Check your transfer history.";
   if (/PAYMENT_WINDOW_EXPIRED|payment window has expired/i.test(message)) return "The payment window has passed. If you already paid, contact support.";
   if (message === "PROOF_LIMIT") return "This booking has reached its three-proof limit.";

@@ -1,6 +1,7 @@
 "use client";
 
 import { runWithAlerts } from "@/lib/alerts/run";
+import { AdminPaymentOptionReview, type ReviewOption } from "@/components/admin/payment-option-review";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -12,10 +13,6 @@ type Owner = {
   fee_mode: string;
   commission_rate: number;
   deposit_percent: number | null;
-  payment_method_label: string | null;
-  payment_account_name: string | null;
-  payment_qr_path: string | null;
-  payment_qr_verified: boolean;
 };
 
 type Readiness = {
@@ -29,11 +26,11 @@ type Readiness = {
 
 export function AdminOwnerPaymentTerms({
   owner,
-  qrUrl,
+  options,
   readiness,
 }: {
   owner: Owner;
-  qrUrl: string | null;
+  options: ReviewOption[];
   readiness: Readiness;
 }) {
   const router = useRouter();
@@ -69,26 +66,6 @@ export function AdminOwnerPaymentTerms({
     });
   }
 
-  function verify(value: boolean) {
-    return runWithAlerts({
-      confirm: {
-        title: value ? "Mark this QR as verified?" : "Revoke QR verification?",
-        text: value ? "Verify the QR against the owner's payment details before continuing." : "The owner may stop receiving new bookings.",
-        confirmText: value ? "Verify QR" : "Revoke verification",
-        danger: !value,
-      },
-      setPending: setBusy,
-      run: async () => {
-        const { error } = await createClient().rpc("admin_set_owner_payment_qr_verified", {
-          p_owner_id: owner.id, p_verified: value,
-        });
-        if (error) throw error;
-      },
-      success: value ? "QR verified" : "QR verification revoked",
-      refresh: router.refresh,
-    });
-  }
-
   const creditShortfall = readiness.feeMode === "credits"
     ? Math.max(0, readiness.minimumCredit - readiness.creditBalance)
     : 0;
@@ -113,15 +90,7 @@ export function AdminOwnerPaymentTerms({
     </section>
 
     <div className="grid gap-5 md:grid-cols-2">
-      <section className="rounded-xl border bg-white p-5">
-        <h2 className="font-semibold">Owner payment QR</h2>
-        <p className="mt-2 text-sm">{owner.payment_method_label || "Method not set"} · {owner.payment_account_name || "Account name not set"}</p>
-        {qrUrl ? <img src={qrUrl} alt={`${owner.business_name} payment QR`} className="mt-4 max-h-64 rounded border p-2" /> : <p className="mt-4 text-sm text-amber-800">No QR uploaded.</p>}
-        <p className="mt-4 text-sm">Status: <b>{owner.payment_qr_verified ? "Verified" : "Needs verification"}</b></p>
-        <button onClick={() => verify(!owner.payment_qr_verified)} disabled={busy || (!owner.payment_qr_path && !owner.payment_qr_verified)} className="mt-3 rounded bg-blue-700 px-3 py-2 text-sm text-white disabled:opacity-50">
-          {owner.payment_qr_verified ? "Revoke verification" : "Verify QR"}
-        </button>
-      </section>
+      <AdminPaymentOptionReview options={options} />
 
       <form onSubmit={save} className="space-y-4 rounded-xl border bg-white p-5">
         <h2 className="font-semibold">Payment terms</h2>

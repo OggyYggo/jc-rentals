@@ -1,4 +1,6 @@
 "use client";
+import { paymentProviders, type PaymentProvider } from "@/lib/payments/providers";
+
 
 import { runWithAlerts } from "@/lib/alerts/run";
 import { normalizePaymentReference, paymentDate, paymentPeso } from "@/lib/payment-format";
@@ -10,6 +12,7 @@ import { ArrowUpRight } from "lucide-react";
 import { PaymentQueueBadge, PaymentQueueCard, PaymentQueueEmpty } from "./payment-queue-card";
 
 type Payment = {
+  payment_label?: string | null; payment_provider?: PaymentProvider | null;
   id: string; booking_id: string; amount: number; reference_no: string; proof_path: string; paid_at: string;
   proof_sha256: string | null; flags: string[];
   booking: { reference: string; review_due_at: string | null; payment_flags: string[]; car: { brand: string; model: string } | null } | null;
@@ -109,6 +112,11 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
     const reviewControls = <div className="min-w-0">
         {admin && <h2 className="font-semibold">{bookingRef}</h2>}
         <p className="mt-1 break-all text-sm text-slate-700">{admin && `${paymentPeso(payment.amount)} · `}Transfer reference <strong>{payment.reference_no}</strong></p>
+        {payment.payment_label && <p className="mt-1 break-words text-sm text-slate-700">
+          Payment option · <strong>{payment.payment_label}</strong>
+          {payment.payment_provider && paymentProviders[payment.payment_provider].label !== payment.payment_label
+            && " (" + paymentProviders[payment.payment_provider].label + ")"}
+        </p>}
         {admin && deadlineText && <p className="text-sm text-slate-600">{deadlineText}{timeLeft && ` · ${timeLeft}`}</p>}
         <div className="mt-2 flex flex-wrap gap-2">{flags.map((flag) => <span key={flag} className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-950">{flag.replaceAll("_", " ")}</span>)}</div>
         {!admin && <>

@@ -31,7 +31,7 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
     content = <DisputeList disputes={data ?? []} role="owner" />;
   } else {
     const { data, error } = await supabase.from("payments")
-      .select("id,booking_id,amount,reference_no,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
+      .select("id,booking_id,amount,reference_no,payment_provider,payment_label,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
       .eq("owner_id", owner.id).eq("status", "pending").order("paid_at");
     if (error) throw new Error("Could not load payment review queue.");
     content = <OwnerPaymentReview payments={(data ?? []) as never} />;

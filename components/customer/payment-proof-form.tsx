@@ -8,7 +8,7 @@ import { normalizePaymentReference, paymentPeso } from "@/lib/payment-format";
 import { friendlyPaymentError } from "@/lib/alerts/errors";
 import { paymentImage } from "@/lib/payment-image";
 
-export function PaymentProofForm({ bookingId, customerId, amount }: { bookingId: string; customerId: string; amount: number }) {
+export function PaymentProofForm({ bookingId, customerId, amount, paymentOptionId }: { bookingId: string; customerId: string; amount: number; paymentOptionId?: string }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -42,6 +42,7 @@ export function PaymentProofForm({ bookingId, customerId, amount }: { bookingId:
       if (uploadError) throw uploadError;
       const { data: id, error: submitError } = await db.rpc("submit_booking_payment", {
         p_booking_id: bookingId, p_reference: reference, p_proof_path: path,
+        ...(paymentOptionId ? { p_payment_option_id: paymentOptionId } : {}),
       });
       if (submitError) throw submitError;
       const { data: payment } = await db.from("payments").select("status").eq("id", id).maybeSingle();
