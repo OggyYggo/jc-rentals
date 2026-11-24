@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useContext, useEffect, useState, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { NotificationSoundContext } from "./sound";
 
 type Preferences = { email_enabled: boolean; push_enabled: boolean; muted_types: string[] };
 const optionalTypes = ["booking_created", "new_booking", "pickup_tomorrow"];
@@ -17,6 +18,7 @@ function standaloneDisplay() {
 }
 
 export function NotificationSettings({ userId, initial, vapidPublicKey }: { userId: string; initial: Preferences | null; vapidPublicKey: string }) {
+  const sound = useContext(NotificationSoundContext);
   const [prefs, setPrefs] = useState<Preferences>(initial ?? { email_enabled: true, push_enabled: true, muted_types: [] });
   const [message, setMessage] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -64,7 +66,20 @@ export function NotificationSettings({ userId, initial, vapidPublicKey }: { user
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not disable push notifications."); }
     finally { setPushBusy(false); }
   }
-  return <section className="mt-6 rounded-xl border bg-white px-5"><h2 className="pt-5 font-semibold">Delivery</h2>{toggle("Email notifications", prefs.email_enabled, (value) => ({ ...prefs, email_enabled: value }))}<div className="border-b py-4"><div className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">Phone notifications</p><p className="mt-1 text-xs text-slate-500">Get alerts when this site is closed.</p></div>{hasSubscription ? <button disabled={pushBusy} onClick={() => void disablePush()} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">{pushBusy ? "Working…" : "Turn off"}</button> : !(isIOS && !standalone) && <button disabled={pushBusy || !vapidPublicKey} onClick={() => void enablePush()} className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">{pushBusy ? "Working…" : "Turn on alerts"}</button>}</div>{isIOS && !standalone && <p className="mt-3 rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-900">On iPhone or iPad, first tap Share, choose Add to Home Screen, then open the installed app and enable alerts here.</p>}</div><h2 className="pt-5 font-semibold">Optional updates</h2>{optionalTypes.map((type) => toggle(type.replaceAll("_", " "), !prefs.muted_types.includes(type), (value) => ({ ...prefs, muted_types: value ? prefs.muted_types.filter((item) => item !== type) : [...prefs.muted_types, type] })))}<p className="py-4 text-xs text-slate-500">Critical payment and account alerts are always on.</p>{message && <p aria-live="polite" className="pb-4 text-sm text-slate-600">{message}</p>}</section>;
+  return <>
+  <section className="mt-6 rounded-xl border bg-white p-5">
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <h2 className="font-semibold">Notification sound</h2>
+        <p className="mt-1 text-xs text-slate-500">Play a chime for new notifications while this Kuyog tab is active.</p>
+      </div>
+      <button type="button" disabled={sound.busy} onClick={sound.toggle} className="shrink-0 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">
+        {sound.busy ? "Enabling…" : sound.enabled ? "Turn off sound" : "Enable sound"}
+      </button>
+    </div>
+    {sound.error && <p role="alert" className="mt-2 text-xs text-red-700">{sound.error}</p>}
+  </section>
+  <section className="mt-6 rounded-xl border bg-white px-5"><h2 className="pt-5 font-semibold">Delivery</h2>{toggle("Email notifications", prefs.email_enabled, (value) => ({ ...prefs, email_enabled: value }))}<div className="border-b py-4"><div className="flex items-center justify-between gap-4"><div><p className="text-sm font-medium">Phone notifications</p><p className="mt-1 text-xs text-slate-500">Get alerts when this site is closed.</p></div>{hasSubscription ? <button disabled={pushBusy} onClick={() => void disablePush()} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">{pushBusy ? "Working…" : "Turn off"}</button> : !(isIOS && !standalone) && <button disabled={pushBusy || !vapidPublicKey} onClick={() => void enablePush()} className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">{pushBusy ? "Working…" : "Turn on alerts"}</button>}</div>{isIOS && !standalone && <p className="mt-3 rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-900">On iPhone or iPad, first tap Share, choose Add to Home Screen, then open the installed app and enable alerts here.</p>}</div><h2 className="pt-5 font-semibold">Optional updates</h2>{optionalTypes.map((type) => toggle(type.replaceAll("_", " "), !prefs.muted_types.includes(type), (value) => ({ ...prefs, muted_types: value ? prefs.muted_types.filter((item) => item !== type) : [...prefs.muted_types, type] })))}<p className="py-4 text-xs text-slate-500">Critical payment and account alerts are always on.</p>{message && <p aria-live="polite" className="pb-4 text-sm text-slate-600">{message}</p>}</section></>;
 }
 
 function decodeVapidKey(key: string) {

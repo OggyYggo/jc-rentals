@@ -5,6 +5,7 @@ import { Inter, Work_Sans } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { PushOptInPrompt } from "@/components/notifications/push-opt-in-prompt";
+import { NotificationSoundProvider } from "@/components/notifications/sound";
 import { TopProgressBar } from "@/components/loading/TopProgressBar";
 
 const inter = Inter({
@@ -47,7 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <TopProgressBar />
         <Header />
-        {children}
+        <NotificationSoundProvider>{children}</NotificationSoundProvider>
         <PushOptInPrompt />
       </body>
     </html>
