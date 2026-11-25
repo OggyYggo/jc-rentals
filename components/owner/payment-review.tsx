@@ -7,15 +7,23 @@ import { normalizePaymentReference, paymentDate, paymentPeso } from "@/lib/payme
 import { createClient } from "@/lib/supabase/client";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
-import { PaymentQueueBadge, PaymentQueueCard, PaymentQueueEmpty } from "./payment-queue-card";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowUpRight, Check, ChevronDown, TriangleAlert } from "lucide-react";
+import { SubmitButton } from "@/components/loading/SubmitButton";
+import { OwnerDepositCard, PaymentQueueBadge, PaymentQueueCard, PaymentQueueEmpty } from "./payment-queue-card";
 
 type Payment = {
   payment_label?: string | null; payment_provider?: PaymentProvider | null;
   id: string; booking_id: string; amount: number; reference_no: string; proof_path: string; paid_at: string;
   proof_sha256: string | null; flags: string[];
   booking: { reference: string; review_due_at: string | null; payment_flags: string[]; car: { brand: string; model: string } | null } | null;
+};
+
+const focusDetail = (element: HTMLElement | null) => {
+  if (element?.getClientRects().length) {
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ block: "start" });
+  }
 };
 
 export function OwnerPaymentReview({ payments, admin = false }: { payments: Payment[]; admin?: boolean }) {
@@ -25,6 +33,9 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
   const [inputs, setInputs] = useState<Record<string, { amount: string; reference: string }>>({});
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState<number | null>(null);
+  const [openDeposit, setOpenDeposit] = useState<string>();
+  const reviewTrigger = useRef<HTMLButtonElement | null>(null);
+  const openedPayment = payments.find(payment => payment.id === openDeposit);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -89,6 +100,11 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
     });
   }
 
+  function dismissDeposit() {
+    setOpenDeposit(undefined);
+    requestAnimationFrame(() => reviewTrigger.current?.focus());
+  }
+
   if (!payments.length) return admin
     ? <p className="rounded-xl border bg-white p-10 text-center text-sm text-slate-500">No deposits waiting for review.</p>
     : <PaymentQueueEmpty>No deposits waiting for review.</PaymentQueueEmpty>;
@@ -103,41 +119,164 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
     const bookingRef = payment.booking?.reference ?? payment.booking_id;
     const deadlineText = deadline ? `Review by ${paymentDate(deadline)} Manila time` : null;
     const timeLeft = minutes === null ? null : minutes > 0 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m left` : "Deadline passed";
-    const proof = urls[payment.id] ? <a href={urls[payment.id]} target="_blank" rel="noreferrer" className={admin ? undefined : "block rounded-xl border border-[#dce5f1] bg-[#f8fbff] p-2 text-sm font-semibold text-[#214a86]"}>
+    if (admin) {
+      const proof = urls[payment.id] ? <a href={urls[payment.id]} target="_blank" rel="noreferrer" >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={urls[payment.id]} alt="Customer payment proof" className={admin ? "max-h-56 rounded-lg object-contain" : "max-h-52 w-full rounded-lg object-contain"} />
-      {!admin && <span className="mt-2 inline-flex items-center gap-1">Open payment proof <ArrowUpRight size={14} aria-hidden="true" /></span>}
+      <img src={urls[payment.id]} alt="Customer payment proof" className="max-h-56 rounded-lg object-contain" />
     </a> : <p className="text-sm text-slate-600">Proof image unavailable</p>;
 
     const reviewControls = <div className="min-w-0">
-        {admin && <h2 className="font-semibold">{bookingRef}</h2>}
+        <h2 className="font-semibold">{bookingRef}</h2>
         <p className="mt-1 break-all text-sm text-slate-700">{admin && `${paymentPeso(payment.amount)} · `}Transfer reference <strong>{payment.reference_no}</strong></p>
         {payment.payment_label && <p className="mt-1 break-words text-sm text-slate-700">
           Payment option · <strong>{payment.payment_label}</strong>
           {payment.payment_provider && paymentProviders[payment.payment_provider].label !== payment.payment_label
             && " (" + paymentProviders[payment.payment_provider].label + ")"}
         </p>}
-        {admin && deadlineText && <p className="text-sm text-slate-600">{deadlineText}{timeLeft && ` · ${timeLeft}`}</p>}
+        {deadlineText && <p className="text-sm text-slate-600">{deadlineText}{timeLeft && ` · ${timeLeft}`}</p>}
         <div className="mt-2 flex flex-wrap gap-2">{flags.map((flag) => <span key={flag} className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-950">{flag.replaceAll("_", " ")}</span>)}</div>
-        {!admin && <>
-          <p className="mt-3 text-sm">Enter the amount and reference from your GCash, Maya, or bank history.</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <label className="text-sm">Received amount<input type="number" min="0" step="0.01" inputMode="decimal" value={input.amount} onChange={(event) => setInputs({ ...inputs, [payment.id]: { ...input, amount: event.target.value } })} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[#dce5f1] px-3 text-base focus-visible:outline-2 focus-visible:outline-blue-700 lg:text-sm" /></label>
-            <label className="text-sm">Received reference<input value={input.reference} onChange={(event) => setInputs({ ...inputs, [payment.id]: { ...input, reference: event.target.value } })} className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[#dce5f1] px-3 text-base focus-visible:outline-2 focus-visible:outline-blue-700 lg:text-sm" /></label>
-          </div>
-        </>}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button disabled={!!busy || (!admin && (!matches || (minutes !== null && minutes <= 0)))} onClick={() => review(payment, true)} className="rounded-lg bg-green-700 px-3 py-3 text-sm text-white disabled:opacity-50">{busy === payment.id ? "Working…" : admin ? "Confirm on behalf of owner" : "Confirm payment"}</button>
+          <button disabled={!!busy} onClick={() => review(payment, true)} className="rounded-lg bg-green-700 px-3 py-3 text-sm text-white disabled:opacity-50">{busy === payment.id ? "Working…" : "Confirm on behalf of owner"}</button>
           <button disabled={!!busy} onClick={() => review(payment, false)} className="rounded-lg border px-3 py-3 text-sm text-red-700">Reject proof</button>
         </div>
       </div>;
 
-    if (admin) return <article key={payment.id} className="grid gap-5 rounded-xl border bg-white p-5 md:grid-cols-[180px_minmax(0,1fr)]">{proof}{reviewControls}</article>;
-    return <PaymentQueueCard key={payment.id} title={bookingRef} amount={paymentPeso(payment.amount)}
-      badge={<PaymentQueueBadge label={minutes !== null && minutes <= 0 ? "Deadline passed" : "Needs review"} tone="amber" />}
-      detail={<>{deadlineText && <span>{deadlineText}{minutes !== null && minutes > 0 ? ` · ${timeLeft}` : ""}</span>}{flags.length > 0 && <span className="font-semibold text-amber-900">{flags.length} {flags.length === 1 ? "flag" : "flags"}</span>}</>}
-      action="Review deposit">
-      <div className="grid items-start gap-4 lg:grid-cols-[190px_minmax(0,1fr)] lg:gap-6">{proof}{reviewControls}</div>
-    </PaymentQueueCard>;
+      return <article key={payment.id} className="grid gap-5 rounded-xl border bg-white p-5 md:grid-cols-[180px_minmax(0,1fr)]">{proof}{reviewControls}</article>;
+    }
+
+    const amount = paymentPeso(payment.amount);
+    const car = payment.booking?.car;
+    const bookingLabel = car ? `${car.brand} ${car.model} \u00b7 ${bookingRef}` : bookingRef;
+    const flagLabel = flags.length ? `${flags.length} ${flags.length === 1 ? "flag" : "flags"}` : undefined;
+    const urgent = minutes !== null && deadline && now !== null && Date.parse(deadline) - now < 3_600_000;
+    const compactTime = minutes !== null && minutes > 0 && minutes < 60 ? `${minutes}m left` : timeLeft;
+    const timeChip = compactTime && <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${urgent ? "bg-[#FDE8E8] text-[#A12A2A]" : "bg-[#FFF2D6] text-[#8A5A00]"}`}>{compactTime}</span>;
+    const selected = openedPayment?.id === payment.id;
+    const formProps = {
+      amount: payment.amount, reference: payment.reference_no, option: payment.payment_label, url: urls[payment.id],
+      input, matches, flags, flagLabel, disabled: Boolean(busy), working: busy === payment.id,
+      expired: minutes !== null && minutes <= 0,
+      onChange: (key: "amount" | "reference", value: string) => setInputs(current => ({
+        ...current, [payment.id]: { ...(current[payment.id] ?? input), [key]: value },
+      })),
+      onReview: (approve: boolean) => review(payment, approve),
+    };
+
+    return <div key={payment.id} className={openedPayment && !selected ? "hidden md:block" : undefined}>
+      <div className="md:hidden">
+        {selected && <section ref={focusDetail} tabIndex={-1} aria-label="Review deposit" className="min-w-0 scroll-mt-24 space-y-3 font-body text-[#0F2342] focus:outline-none">
+          <button type="button" onClick={dismissDeposit} disabled={Boolean(busy)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#0A3D91] focus-visible:outline-2 disabled:opacity-50">
+            <ArrowLeft size={17} aria-hidden="true" /> Deposits
+          </button>
+          <header className="space-y-1 rounded-2xl bg-[#0A47B1] p-4 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <h2 className="font-heading text-sm font-semibold">Deposit to confirm</h2>{timeChip}
+            </div>
+            <p className="break-words font-heading text-[30px] font-bold tabular-nums">{amount}</p>
+            <p className="break-words text-sm text-[#EAF4FF]">{bookingLabel}</p>
+          </header>
+          {deadline && <p className="px-1 text-xs text-[#5B6F89]">Review by {reviewDeadline(deadline)}</p>}
+          <OwnerDepositDetails {...formProps} />
+        </section>}
+        <div hidden={selected}><OwnerDepositCard amount={amount} booking={bookingLabel} timeLeft={timeChip} option={payment.payment_label} flags={flagLabel}
+          onReview={(event) => {
+            reviewTrigger.current = event.currentTarget;
+            setOpenDeposit(payment.id);
+          }} /></div>
+      </div>
+
+      <div className="hidden md:block">
+        <PaymentQueueCard title={bookingLabel} amount={amount}
+          badge={timeChip || <PaymentQueueBadge label="Needs review" tone="amber" />}
+          detail={deadline && <span>Review by {reviewDeadline(deadline)}</span>}
+          action="Review deposit">
+          <OwnerDepositDetails {...formProps} />
+        </PaymentQueueCard>
+      </div>
+    </div>;
   })}</div>;
+}
+
+const deadlineDay = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", month: "short", day: "numeric" });
+const deadlineClock = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" });
+function reviewDeadline(value: string) {
+  const date = new Date(value);
+  return `${deadlineDay.format(date)}, ${deadlineClock.format(date)}`;
+}
+
+function OwnerDepositDetails({ amount, reference, option, url, input, matches, flags, flagLabel, disabled, working, expired, onChange, onReview }: {
+  amount: number; reference: string; option?: string | null; url?: string;
+  input: { amount: string; reference: string }; matches: boolean; flags: string[]; flagLabel?: string;
+  disabled: boolean; working: boolean; expired: boolean;
+  onChange: (key: "amount" | "reference", value: string) => void;
+  onReview: (approve: boolean) => void;
+}) {
+  const [brokenUrl, setBrokenUrl] = useState<string>();
+  const proofUrl = url !== brokenUrl ? url : undefined;
+  const amountMatches = input.amount !== "" && Number(input.amount) === Number(amount);
+  const expectedReference = normalizePaymentReference(reference ?? "");
+  const referenceMatches = expectedReference !== "" && normalizePaymentReference(input.reference) === expectedReference;
+  const field = "mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[#D6E6F7] px-3 pr-9 text-base focus-visible:outline-2 focus-visible:outline-[#0A47B1] lg:text-sm";
+  const check = <Check size={18} aria-hidden="true" className="pointer-events-none absolute right-2.5 top-4 text-[#12703A]" />;
+  const proofText = <>
+    {option && <p className="break-words text-sm text-[#5B6F89]">{option}</p>}
+    <p className="break-all text-sm text-[#5B6F89]">Ref <span className="font-semibold text-[#0F2342]">{reference}</span></p>
+  </>;
+  return <div className="grid min-w-0 items-start gap-3 lg:grid-cols-[190px_minmax(0,1fr)] lg:gap-6">
+    <div className="flex min-w-0 items-start gap-3 rounded-2xl border border-[#D6E6F7] bg-white p-3 md:hidden">
+      {proofUrl && <a href={proofUrl} target="_blank" rel="noreferrer" aria-label="Open customer proof in a new tab" className="block size-[84px] shrink-0 rounded-lg bg-[#F3F9FF] focus-visible:outline-2 focus-visible:outline-[#0A47B1]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={proofUrl} alt="Customer payment proof" onError={() => setBrokenUrl(proofUrl)} className="size-full rounded-lg object-contain" />
+      </a>}
+      <div className="min-w-0">
+        <h3 className="font-heading text-sm font-bold text-[#0F2342]">Customer&apos;s proof</h3>
+        {proofText}
+        {proofUrl ? <a href={proofUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1 rounded text-sm font-semibold text-[#0A47B1] focus-visible:outline-2">View proof <ArrowUpRight size={15} aria-hidden="true" /></a>
+          : <p className="mt-1 text-sm text-[#5B6F89]">Proof image unavailable</p>}
+      </div>
+    </div>
+
+    <div className="hidden md:block">
+      {proofUrl ? <a href={proofUrl} target="_blank" rel="noreferrer" className="block rounded-xl border border-[#dce5f1] bg-[#f8fbff] p-2 text-sm font-semibold text-[#214a86] focus-visible:outline-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={proofUrl} alt="Customer payment proof" onError={() => setBrokenUrl(proofUrl)} className="max-h-52 w-full rounded-lg object-contain" />
+        <span className="mt-2 inline-flex min-h-11 items-center gap-1">View proof <ArrowUpRight size={14} aria-hidden="true" /></span>
+      </a> : <p className="text-sm text-slate-600">Proof image unavailable</p>}
+    </div>
+
+    <div className="min-w-0 space-y-3">
+      <div className="hidden md:block">{proofText}</div>
+      <div className="min-w-0 rounded-2xl border border-[#D6E6F7] bg-white p-3 md:rounded-none md:border-0 md:p-0">
+        <h3 className="font-heading text-sm font-bold text-[#0F2342]">What you received</h3>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="min-w-0 text-sm">Amount<span className="relative block">
+            <input type="number" min="0" step="0.01" inputMode="decimal" disabled={disabled} value={input.amount} onChange={event => onChange("amount", event.target.value)} className={field} />
+            {amountMatches && check}
+          </span></label>
+          <label className="min-w-0 text-sm">Reference<span className="relative block">
+            <input disabled={disabled} value={input.reference} onChange={event => onChange("reference", event.target.value)} className={field} />
+            {referenceMatches && check}
+          </span></label>
+        </div>
+        <p role="status" aria-live="polite" className={`mt-2 text-sm font-semibold ${matches ? "text-[#12703A]" : "text-[#8A5A00]"}`}>
+          {matches ? "Amount and reference match" : input.amount !== "" || input.reference !== "" ? "Check amount and reference" : ""}
+        </p>
+      </div>
+
+      {flagLabel && <details className="group rounded-xl border border-[#D6E6F7] bg-white px-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded text-sm font-semibold text-[#8A5A00] focus-visible:outline-2 [&::-webkit-details-marker]:hidden">
+          <TriangleAlert size={16} aria-hidden="true" /> {flagLabel} <span aria-hidden="true">&middot;</span> <span className="group-open:hidden">Show</span><span className="hidden group-open:inline">Hide</span>
+          <ChevronDown size={16} aria-hidden="true" className="ml-auto group-open:rotate-180" />
+        </summary>
+        <div className="flex flex-wrap gap-2 pb-3">{flags.map(flag => <span key={flag} className="break-all rounded-full bg-[#FFF2D6] px-2 py-1 text-xs text-[#8A5A00]">{flag.replaceAll("_", " ")}</span>)}</div>
+      </details>}
+
+      <div className="grid gap-2 md:flex md:flex-wrap">
+        <SubmitButton type="button" unstyled busy={working} disabled={disabled || !matches || expired} onClick={() => onReview(true)} pendingText="Working..."
+          className="min-h-11 rounded-xl bg-[#12703A] px-3 py-3 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#12703A] disabled:opacity-50 md:rounded-lg md:bg-green-700 md:font-normal">Confirm payment</SubmitButton>
+        <SubmitButton type="button" unstyled busy={working} disabled={disabled} onClick={() => onReview(false)} pendingText="Working..."
+          className="min-h-11 rounded-xl border border-[#D6E6F7] px-3 py-3 text-sm font-semibold text-[#A12A2A] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 md:rounded-lg md:font-normal md:text-red-700">Reject proof</SubmitButton>
+      </div>
+    </div>
+  </div>;
 }

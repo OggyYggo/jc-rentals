@@ -2,7 +2,8 @@ import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import { CreditBanner, type CreditState } from "@/components/owner/credit-state";
 import { bookingRevenue, earnsCommission, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
 import Link from "next/link";
-import { paymentPeso } from "@/lib/payment-format";
+import { MobileDashboard, type UpcomingHandover } from "@/components/owner/mobile-dashboard";
+import { ownerWorkCounts } from "@/lib/owner-work-counts";
 import { ArrowRight, ArrowUpRight, CalendarDays, CarFront, CircleDollarSign, ClipboardList, Plus, Receipt, Star } from "lucide-react";
 import { PageHeading, StatCard, StatusPill, formatPeso, formatShortDate } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
@@ -19,22 +20,51 @@ type BookingRow = {
   car: { brand: string; model: string } | null;
 };
 
+type HandoverRow = {
+  id: string; start_date: string; end_date: string; pickup_time: string | null;
+  car: BookingRow["car"];
+};
+const manilaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" });
+const handoverFields = "id,start_date,end_date,pickup_time,car:cars!bookings_car_id_fkey(brand,model)";
+
 export const instant = false;
 
 export default async function OwnerOverviewPage() {
-  const { supabase, owner } = await getOwnerContext();
-  const [{ data: cars }, { data: bookings }, { data: contacts }, { data: creditState }, { data: reviewSummary }] = await Promise.all([
+  const { supabase, owner, profile } = await getOwnerContext();
+  const now = new Date();
+  const today = manilaDate.format(now);
+  const [{ data: cars }, { data: bookings }, { data: contacts }, { data: creditState }, { data: reviewSummary }, workCounts, handovers] = await Promise.all([
     supabase.from("cars").select("id, brand, model, year, is_active, allows_self_drive, allows_with_driver").eq("owner_id", owner.id),
     supabase.from("bookings").select("id, reference, start_date, end_date, total_price, cancel_fee_amount, owner_earnings, status, created_at, customer_id, car:cars!bookings_car_id_fkey(brand, model)").eq("owner_id", owner.id).order("created_at", { ascending: false }).limit(100),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
     supabase.rpc("owner_credit_state", { p_owner_id: owner.id }).maybeSingle<CreditState>(),
     supabase.rpc("owner_review_counts").maybeSingle<{ rating_avg: number; rating_count: number; unanswered: number }>(),
+    ownerWorkCounts(owner.id),
+    supabase.from("owners")
+      .select(`pickups:bookings!bookings_owner_id_fkey(${handoverFields}),returns:bookings!bookings_owner_id_fkey(${handoverFields})`)
+      .eq("id", owner.id)
+      .eq("pickups.status", "confirmed").gte("pickups.start_date", today)
+      .order("start_date", { referencedTable: "pickups" }).order("pickup_time", { referencedTable: "pickups", nullsFirst: false }).order("id", { referencedTable: "pickups" }).limit(3, { referencedTable: "pickups" })
+      .eq("returns.status", "picked_up").gte("returns.end_date", today)
+      .order("end_date", { referencedTable: "returns" }).order("id", { referencedTable: "returns" }).limit(3, { referencedTable: "returns" })
+      .maybeSingle<{ pickups: HandoverRow[]; returns: HandoverRow[] }>(),
   ]);
+  if (handovers.error) console.error("Could not load upcoming owner handovers");
 
   const contactByBooking = new Map((contacts ?? []).map((contact) => [contact.booking_id, contact]));
   const allBookings = (bookings ?? []).map((booking) => ({ ...booking, customer: contactByBooking.get(booking.id) ?? null })) as unknown as (BookingRow & { created_at: string })[];
   const carList = cars ?? [];
-  const now = new Date();
+  const upcoming: UpcomingHandover[] = [
+    ...(handovers.data?.pickups ?? []).map(booking => ({
+      id: booking.id, date: booking.start_date, time: booking.pickup_time, kind: "Pickup" as const,
+      car: booking.car, customer: contactByBooking.get(booking.id) ?? null,
+    })),
+    ...(handovers.data?.returns ?? []).map(booking => ({
+      id: booking.id, date: booking.end_date, kind: "Return" as const,
+      car: booking.car, customer: contactByBooking.get(booking.id) ?? null,
+    })),
+  ];
+  upcoming.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "24:00").localeCompare(b.time ?? "24:00"));
   const monthKey = manilaMonth(now);
   const { count: refundCount, error: refundError } = await supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("deposit_refund_status", "owed");
   if (refundError) throw new Error("Could not load pending refunds.");
@@ -62,50 +92,18 @@ export default async function OwnerOverviewPage() {
   const recentBookings = (
       <article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="flex items-center justify-between border-b border-[#edf0f4] px-4 py-4 sm:px-5"><div><h2 className="text-sm font-semibold text-[#33445b]">Recent bookings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">The latest activity across your fleet</p></div><Link href="/owner/bookings" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">See all</Link></div>
         {recent.length ? <>
-          <ul className="divide-y divide-slate-100 sm:hidden">
-            {recent.map(booking => <li key={booking.id} className="flex items-start justify-between gap-2 px-3 py-2.5">
-              <div className="min-w-0">
-                <p className="break-words text-sm font-semibold text-slate-800">{booking.customer?.full_name || "Customer"}</p>
-                <p className="mt-0.5 break-words text-xs text-slate-600">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"} · {formatShortDate(booking.start_date)}</p>
-                <p className="mt-0.5 break-words text-xs text-slate-600">{booking.reference} · {formatPeso(bookingRevenue(booking))}</p>
-              </div>
-              {hasKeptFee(booking) ? <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-700">Cancelled (fee kept)</span> : <StatusPill status={booking.status}/>}
-            </li>)}
-          </ul>
           <div className="hidden overflow-x-auto sm:block"><table className="w-full min-w-[620px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Customer</th><th className="px-4 py-3">Vehicle</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{recent.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-medium text-[#42536a]">{booking.customer?.full_name || "Customer"}</span><span className="mt-0.5 block text-[9px] text-[#9aa4b2]">{booking.reference}</span></td><td className="px-4 py-3.5 text-[#53637a]">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "Vehicle"}</td><td className="px-4 py-3.5">{formatShortDate(booking.start_date)}</td><td className="px-4 py-3.5 font-semibold text-[#42536a]">{formatPeso(bookingRevenue(booking))}</td><td className="px-4 py-3.5">{hasKeptFee(booking) ? "Cancelled (fee kept)" : <StatusPill status={booking.status}/>}</td></tr>)}</tbody></table></div></> : <div className="px-5 py-12 text-center"><p className="text-xs font-medium text-[#56657b]">No bookings yet</p><p className="mt-1 text-[10px] text-[#8b97a8]">Your booking activity will appear here.</p></div>}
       </article>
   );
 
   return <>
+    <MobileDashboard name={(owner.business_name?.trim() || profile.full_name?.trim() || "Owner").split(/\s+/)[0]}
+      now={now} today={today} deposits={workCounts.pendingBookings} requests={workCounts.bookingRequests}
+      refunds={refunds} reviews={reviewSummary?.unanswered ?? 0} gross={gross} net={net} rate={rate} chartMonths={chartMonths}
+      credits={showCredits ? creditState : null} upcoming={upcoming.slice(0, 3)} recent={recent.slice(0, 3)}
+      fleet={{ total: carList.length, active: carList.filter(car => car.is_active).length }} />
+    <div className="hidden sm:block">
     <PageHeading eyebrow="Owner dashboard" title={`Good morning, ${owner.business_name}`} description="Here’s how your rental business is doing today." action={<div className="flex flex-wrap gap-2"><ScanPickupLink className="inline-flex h-9 items-center rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-semibold text-blue-800">Scan pickup pass</ScanPickupLink><Link href="/owner/calendar" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>Calendar</Link><Link href="/owner/cars?new=1" className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"><Plus size={14}/>Add car</Link></div>} />
-
-    <section aria-label="Credits, refunds and reviews" className="mb-3 overflow-hidden rounded-xl border border-slate-200 bg-white sm:hidden">
-      {showCredits && <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <CircleDollarSign size={17} className="shrink-0 text-blue-700" aria-hidden />
-          <div className="min-w-0">
-            <h2 className="text-xs font-semibold text-slate-800">Owner credits</h2>
-            <p className="break-words text-xs text-slate-600">
-              {paymentPeso(creditState.available)} available
-              {creditState.available <= 0 || creditState.available < creditState.low_threshold ? <span className="text-amber-800"> · {creditState.available <= 0 ? "No credits left" : "Low credits"}</span> : null}
-            </p>
-          </div>
-        </div>
-        <Link href="/owner/credits#top-up" className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-blue-50 px-3 text-xs font-semibold text-blue-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700">Top up</Link>
-      </div>}
-      <div className={`grid ${reviewSummary ? "grid-cols-2 divide-x" : ""} divide-slate-100 ${showCredits ? "border-t border-slate-100" : ""}`}>
-        <Link href="/owner/payments?tab=refunds" className="flex min-h-14 min-w-0 items-center justify-between gap-1 px-3 py-2 text-slate-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700">
-          <div><h2 className="text-xs font-semibold">Refunds to send</h2><p className={`text-xs ${refunds ? "font-semibold text-amber-800" : "text-slate-600"}`}>{refunds ? `${refunds} pending` : "None pending"}</p></div>
-          <ArrowRight size={14} className="shrink-0 text-blue-700" aria-hidden />
-        </Link>
-        {reviewSummary && <Link href="/owner/reviews" className="flex min-h-14 min-w-0 items-center justify-between gap-1 px-3 py-2 text-slate-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700">
-          <div><h2 className="text-xs font-semibold">Trip reviews</h2><p className="text-xs text-slate-600">
-            {reviewSummary.rating_count > 0 ? `${Number(reviewSummary.rating_avg).toFixed(1)}/5${reviewSummary.unanswered > 0 ? ` · ${reviewSummary.unanswered} to reply` : ""}` : "No reviews yet"}
-          </p></div>
-          <ArrowRight size={14} className="shrink-0 text-blue-700" aria-hidden />
-        </Link>}
-      </div>
-    </section>
 
     <section aria-label="Credits, refunds and reviews" className={`mb-5 hidden gap-3 sm:grid sm:grid-cols-2 ${showCredits && reviewSummary ? "xl:grid-cols-3" : ""}`}>
       {showCredits && <CreditBanner state={creditState} className={reviewSummary ? "sm:col-span-2 xl:col-span-1" : ""} />}
@@ -143,7 +141,6 @@ export default async function OwnerOverviewPage() {
         </div>
       </Link>}
     </section>
-    <div className="mb-4 sm:hidden">{recentBookings}</div>
     <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       <StatCard title="Total vehicles" value={String(carList.length)} note={`${carList.filter((car) => car.is_active).length} active in fleet`} icon={CarFront} tone="blue"/>
       <StatCard title="Booking requests" value={String(pendingCount).padStart(2, "0")} note="Waiting for your response" icon={ClipboardList} tone="orange"/>
@@ -166,5 +163,6 @@ export default async function OwnerOverviewPage() {
 
       <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold text-[#33445b]">Fleet at a glance</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Vehicle availability overview</p></div><Link href="/owner/cars" className="text-[10px] font-semibold text-[#4b6dc4] hover:underline">Manage</Link></div><div className="mt-5 space-y-3">{carList.slice(0, 4).map((car, index) => <div key={car.id} className="flex items-center gap-3 rounded-lg border border-[#eef1f5] p-2.5"><span className={`flex h-9 w-9 items-center justify-center rounded-lg ${["bg-[#edf2ff] text-[#4d6ec7]", "bg-[#edf7f1] text-[#438664]", "bg-[#fff5e8] text-[#bb8235]", "bg-[#f2efff] text-[#755eb4]"][index % 4]}`}><CarFront size={17}/></span><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-semibold text-[#45556c]">{car.year ? `${car.year} ` : ""}{car.brand} {car.model}</p><p className="mt-0.5 text-[9px] text-[#8b97a8]">{car.allows_self_drive && car.allows_with_driver ? "Two rental options" : car.allows_with_driver ? "With driver" : "Self drive"}</p></div><span className={`rounded-full px-2 py-1 text-[9px] ${car.is_active ? "bg-[#edf7f1] text-[#39825f]" : "bg-[#f1f3f6] text-[#7d8999]"}`}>{car.is_active ? "Active" : "Hidden"}</span></div>)}</div>{carList.length === 0 && <div className="py-8 text-center text-[10px] text-[#8b97a8]">Add your first vehicle to get started.</div>}<Link href="/owner/cars?new=1" className="mt-4 flex h-9 items-center justify-center gap-2 rounded-lg border border-dashed border-[#d8e0eb] text-[10px] font-semibold text-[#64748a] hover:border-[#9cb1e7] hover:text-[#4567be]"><Plus size={13}/>Add a vehicle</Link></article>
     </section>
+    </div>
   </>;
 }

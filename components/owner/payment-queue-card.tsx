@@ -40,3 +40,25 @@ export function PaymentQueueEmpty({ children }: { children: ReactNode }) {
     <p className="text-sm font-medium text-[#405775]">{children}</p>
   </div>;
 }
+
+export function OwnerDepositCard({ amount, booking, timeLeft, option, flags, onReview }: {
+  amount: string; booking: string; timeLeft: ReactNode; option?: string | null; flags?: string; onReview: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return <article className="min-w-0 space-y-3 rounded-2xl border border-[#D6E6F7] bg-white p-4 font-body text-[#0F2342]">
+    <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+      <div className="min-w-0">
+        <h2 className="break-words font-heading text-xl font-bold tabular-nums">{amount}</h2>
+        <p className="mt-0.5 break-words text-sm text-[#5B6F89]">{booking}</p>
+      </div>
+      {timeLeft}
+    </div>
+    {(option || flags) && <div className="flex min-w-0 items-center justify-between gap-2">
+      {option ? <p className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+        <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#EAF4FF] text-[#0A47B1]">{Array.from(option.trim())[0]?.toUpperCase()}</span>
+        <span className="min-w-0 break-words">{option}</span>
+      </p> : <span />}
+      {flags && <span className="shrink-0 rounded-full bg-[#FFF2D6] px-2 py-1 text-xs font-semibold text-[#8A5A00]">{flags}</span>}
+    </div>}
+    <button type="button" onClick={onReview} className="min-h-[46px] w-full rounded-xl bg-[#0A47B1] px-3 text-sm font-semibold text-white hover:bg-[#0A3D91] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A47B1]">Review deposit</button>
+  </article>;
+}

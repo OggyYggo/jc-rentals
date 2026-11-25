@@ -19,6 +19,7 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
   if (statsError) throw new Error("Could not load payment performance.");
 
   let content;
+  let reviewCount = 0;
   if (tab === "refunds") {
     const { data, error } = await supabase.from("booking_refunds")
       .select("id,booking_id,amount,due_at,status,refund_proof_path,booking:bookings(reference)").eq("owner_id", owner.id).order("due_at").returns<RefundRow[]>();
@@ -31,9 +32,10 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
     content = <DisputeList disputes={data ?? []} role="owner" />;
   } else {
     const { data, error } = await supabase.from("payments")
-      .select("id,booking_id,amount,reference_no,payment_provider,payment_label,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
+      .select("id,booking_id,amount,reference_no,payment_provider,payment_label,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags,car:cars!bookings_car_id_fkey(brand,model))")
       .eq("owner_id", owner.id).eq("status", "pending").order("paid_at");
     if (error) throw new Error("Could not load payment review queue.");
+    reviewCount = data?.length ?? 0;
     content = <OwnerPaymentReview payments={(data ?? []) as never} />;
   }
 
@@ -45,8 +47,15 @@ export default async function OwnerPaymentsPage({ searchParams }: { searchParams
   ];
 
   return <>
-    <PageHeading title="Booking payments" description="Check each transfer in your wallet or bank history before confirming it." />
-    <section aria-labelledby="payment-performance" className="mb-4 rounded-xl border border-[#dce5f1] bg-white p-3 lg:mb-5 lg:rounded-2xl lg:p-5">
+    {tab === "review" ? <>
+      <div className="mb-4 font-body md:hidden">
+        <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-[28px] font-bold tracking-tight text-[#0F2342]">Deposits</h1>
+          <span className="rounded-full bg-[#EAF4FF] px-2.5 py-1 text-xs font-semibold text-[#0A47B1]">{reviewCount} to review</span></div>
+        <p className="mt-1 text-sm text-[#5B6F89]">Check each payment in your app, then confirm.</p>
+      </div>
+      <div className="hidden md:block"><PageHeading title="Booking payments" description="Check each payment in your app, then confirm." /></div>
+    </> : <PageHeading title="Booking payments" description="Check each transfer in your wallet or bank history before confirming it." />}
+    <section aria-labelledby="payment-performance" className={`mb-4 rounded-xl border border-[#dce5f1] bg-white p-3 lg:mb-5 lg:rounded-2xl lg:p-5 ${tab === "review" ? "hidden md:block" : ""}`}>
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 lg:mb-4">
         <h2 id="payment-performance" className="text-sm font-semibold text-[#20334e]">Payment performance</h2>
         <p className="text-xs text-[#51647f]">Last 90 days</p>

@@ -10,7 +10,7 @@ export function StatCard({ title, value, note, icon: Icon, trend, tone = "blue" 
   return <article className="rounded-xl border border-[#e7ecf3] bg-white p-4 shadow-[0_2px_6px_rgba(20,42,78,.025)] sm:p-5"><div className="flex items-start justify-between gap-2"><p className="text-[11px] font-medium text-[#7d8a9e]">{title}</p><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}><Icon size={16}/></span></div><p className="mt-3 text-[23px] font-semibold tracking-tight text-[#26374e]">{value}</p><div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-[#8995a6]">{trend && <span className="font-semibold text-[#318565]">{trend}</span>}{note}</div></article>;
 }
 
-export function StatusPill({ status }: { status: string }) {
+export function StatusPill({ status, mobile = false }: { status: string; mobile?: boolean }) {
   const styles: Record<string, string> = {
     pending: "bg-[#fff6e8] text-[#a57120]",
     confirmed: "bg-[#edf2ff] text-[#4164bd]",
@@ -20,7 +20,7 @@ export function StatusPill({ status }: { status: string }) {
     cancelled: "bg-[#f1f3f6] text-[#7d8999]",
     rejected: "bg-[#fff0f0] text-[#a94a4a]",
   };
-  return <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium capitalize ${styles[status] ?? "bg-[#f1f3f6] text-[#7d8999]"}`}>{status.replaceAll("_", " ")}</span>;
+  return <span className={`inline-flex rounded-full px-2.5 py-1 font-medium capitalize ${mobile ? "text-[13px]" : "whitespace-nowrap text-[10px]"} ${styles[status] ?? "bg-[#f1f3f6] text-[#7d8999]"}`}>{status.replaceAll("_", " ")}</span>;
 }
 
 export function formatPeso(value: number) {
@@ -29,4 +29,8 @@ export function formatPeso(value: number) {
 
 export function formatShortDate(value: string) {
   return new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+}
+
+export function ownerInitials(name: string) {
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join("").toUpperCase();
 }

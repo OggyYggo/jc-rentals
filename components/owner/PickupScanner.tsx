@@ -115,7 +115,7 @@ export function PickupScanner({ origins }: { origins: string[] }) {
     setResult(undefined); setCode(""); prevScan.current = { value: "", time: 0 };
   }} />;
 
-  return <div className="flex flex-col gap-3">
+  return <div className="flex flex-col gap-3" data-owner-camera={camera ? "" : undefined}>
     {camera ? <>
       <Camera stream={camera} onScan={scan} onError={() => {
         closeCamera();

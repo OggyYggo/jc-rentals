@@ -1,3 +1,5 @@
+import type { Viewport } from "next";
+import { ownerWorkCounts } from "@/lib/owner-work-counts";
 import { Suspense, type ReactNode } from "react";
 import { OwnerShell } from "@/components/owner/owner-shell";
 import { getOwnerContext } from "@/lib/owner-context";
@@ -5,14 +7,15 @@ import { getOwnerContext } from "@/lib/owner-context";
 export const metadata = { robots: { index: false, follow: false } };
 
 export const instant = false;
+export const viewport: Viewport = { viewportFit: "cover" };
 
 async function OwnerLayoutContent({ children }: { children: ReactNode }) {
   const { user, owner, supabase } = await getOwnerContext();
-  const [{ count }, { data: reviews }] = await Promise.all([
-    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("owner_id", owner.id).eq("status", "payment_review"),
+  const [{ pendingBookings, bookingRequests }, { data: reviews }] = await Promise.all([
+    ownerWorkCounts(owner.id),
     supabase.rpc("owner_review_counts").maybeSingle<{ unanswered: number }>(),
   ]);
-  return <OwnerShell userId={user.id} email={user.email ?? "Owner"} businessName={owner.business_name} pendingBookings={count ?? 0} unansweredReviews={reviews?.unanswered ?? 0}>{children}</OwnerShell>;
+  return <OwnerShell userId={user.id} email={user.email ?? "Owner"} businessName={owner.business_name} pendingBookings={pendingBookings} bookingRequests={bookingRequests ?? 0} unansweredReviews={reviews?.unanswered ?? 0}>{children}</OwnerShell>;
 }
 
 function OwnerLoading() {
