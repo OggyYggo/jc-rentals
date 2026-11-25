@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { documentPrivacyPolicyVersion } from "@/lib/policies/privacy";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -25,6 +26,20 @@ export async function POST(request: Request) {
   }
   if ((!IMAGE_TYPES.has(file.type) && file.type !== "application/pdf") || file.size === 0 || file.size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: "Use a PDF, JPG, PNG, or WebP file up to 10 MB." }, { status: 400 });
+  }
+
+  if (form.get("privacy_consent") !== documentPrivacyPolicyVersion) {
+    return NextResponse.json({ error: "Accept the Privacy Policy before uploading documents." }, { status: 400 });
+  }
+  const admin = createAdminClient();
+  const authorization = await admin?.rpc("authorize_customer_document_upload", {
+    p_customer: user.id, p_kind: kind, p_policy: form.get("privacy_consent"),
+  });
+  if (authorization?.data === false) {
+    return NextResponse.json({ error: "You can upload up to 10 documents per hour. Try again later." }, { status: 429 });
+  }
+  if (authorization?.error || authorization?.data !== true) {
+    return NextResponse.json({ error: "Could not authorize your upload. Try again." }, { status: 503 });
   }
 
   if (kind === "selfie") {
@@ -70,13 +85,15 @@ export async function POST(request: Request) {
     const { error: uploadError } = await bucket.upload(path, body, { contentType, cacheControl: "0" });
     if (uploadError) throw uploadError;
 
-    const profileUpdate = kind === "license"
-      ? await supabase.from("profiles").update({ license_path: path }).eq("id", user.id)
-      : await supabase.from("profiles").update({ id_path: path }).eq("id", user.id);
-    const profileUpdateError = profileUpdate.error;
-    if (profileUpdateError) {
+    const column = kind === "license" ? "license_path" : "id_path";
+    const update = supabase.from("profiles").update({ [column]: path }).eq("id", user.id);
+    const { data: saved, error: profileUpdateError } = await (previousPath == null
+      ? update.is(column, null)
+      : update.eq(column, previousPath)).select("id").maybeSingle();
+    if (profileUpdateError || !saved) {
       await bucket.remove([path]);
-      throw profileUpdateError;
+      if (profileUpdateError) throw profileUpdateError;
+      return NextResponse.json({ error: "This document was updated elsewhere. Refresh and try again." }, { status: 409 });
     }
 
     if (previousPath && previousPath !== path) await bucket.remove([previousPath]);

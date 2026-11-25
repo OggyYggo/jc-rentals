@@ -4,6 +4,7 @@ import { useId, useRef, useState, useTransition } from "react";
 import type { FormEvent } from "react";
 import { CheckCircle2, FileCheck2, FileUp, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { documentPrivacyPolicyVersion } from "@/lib/policies/privacy";
 import { createClient } from "@/lib/supabase/client";
 import { SubmitButton } from "@/components/loading/SubmitButton";
 import { documentStatus } from "./document-status";
@@ -46,6 +47,12 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [consent, setConsent] = useState(false);
+  const hasNewDocuments = Boolean(licenseFile || idFile || selfieFile);
+  const consentField = hasNewDocuments && <label className="flex items-start gap-2 text-sm text-[#43536a]">
+    <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} required className="mt-1" />
+    <span>I agree to the <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold text-[#0A47B1] underline">Privacy Policy</a> and allow Kuyog Bohol to review my documents and share them with the owner of my booked vehicle when needed for the rental.</span>
+  </label>;
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,6 +63,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
     setMessage("");
     let uploaded = false;
     try {
+      if (hasNewDocuments && !consent) throw new Error("Accept the Privacy Policy before uploading documents.");
       const documents = [
         { kind: "license", label: "Driver’s license", file: licenseFile, clear: () => { setLicenseFile(null); setLicenseKey(key => key + 1); } },
         { kind: "id", label: "Valid ID", file: idFile, clear: () => { setIdFile(null); setIdKey(key => key + 1); } },
@@ -73,6 +81,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
         if (!file) continue;
         const form = new FormData();
         form.append("kind", kind);
+        form.append("privacy_consent", documentPrivacyPolicyVersion);
         form.append("file", file, file.name);
         const response = await fetch("/api/account/documents", { method: "POST", body: form }).catch(() => null);
         if (!response) throw new Error("Could not connect to upload the document. Try again.");
@@ -96,6 +105,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
       if (uploaded) startTransition(() => router.refresh());
       setError(saveError instanceof Error ? saveError.message : "Could not save your profile. Please try again.");
     } finally {
+      if (uploaded) setConsent(false);
       saving.current = false;
       setBusy(false);
     }
@@ -116,7 +126,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
     return <div className="space-y-4 font-body">
       <header>
         <h1 className="font-heading text-[24px] font-bold tracking-tight text-[#0F2342]">Documents and ID</h1>
-        <p className="mt-1 text-sm leading-5 text-[#5B6F89]">Upload clear photos. Only you and the Kuyog Bohol admin can see them.</p>
+        <p className="mt-1 text-sm leading-5 text-[#5B6F89]">Upload clear photos. Kuyog Bohol reviews documents privately.</p>
         {license === "Approved" && id === "Approved" && <p className="mt-2 text-sm font-semibold text-[#12703A]">Your license and ID are verified for booking.</p>}
       </header>
       <ol aria-label="Document review steps" className="grid grid-cols-4 gap-1.5 rounded-2xl border border-[#D6E6F7] bg-white px-2.5 py-3">
@@ -136,6 +146,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
           note={selfieUnavailable ? "Selfie upload is temporarily unavailable." : "Hold your ID next to your face. Make sure both are readable."}
           file={selfieFile} onChange={setSelfieFile} selfie disabled={selfieUnavailable} busy={savingDocuments} />
         <div className="rounded-2xl border border-[#D6E6F7] bg-white px-3 pb-3">{licenseClasses}</div>
+        {consentField}
         <div aria-live="polite">
           {error && <p className="rounded-lg bg-[#FDE8E8] p-3 text-sm text-[#A12A2A]">{error}</p>}
           {message && !refreshing && <p className="flex items-center gap-2 rounded-lg bg-[#E3F7EA] p-3 text-sm text-[#12703A]"><CheckCircle2 size={17} aria-hidden="true" />{message}</p>}
@@ -163,6 +174,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
               <DocumentUpload key={`id-${idKey}`} label="Government ID" present={hasId} file={idFile} onChange={setIdFile} />
             </div>
             {licenseClasses}
+            {consentField && <div className="mt-4">{consentField}</div>}
             <div className="mt-3 flex items-center gap-2 text-[11px] text-[#8490a0]"><ShieldCheck size={13} className="text-[#5680db]"/> Private storage · PDF, JPG, PNG, or WebP · Up to 10 MB each</div>
             {verification !== "none" && <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#edf2ff] px-2.5 py-1 text-[10px] font-medium capitalize text-[#4568b6]"><FileCheck2 size={12}/> Verification {verification}</p>}
             {verification === "rejected" && verificationNote && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-red-800">{verificationNote}</p>}

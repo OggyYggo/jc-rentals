@@ -4,18 +4,24 @@ const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
   : "https://*.supabase.co";
 const supabaseRealtimeOrigin = supabaseOrigin.replace(/^https:/, "wss:");
+const sentryOrigin = process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? new URL(process.env.NEXT_PUBLIC_SENTRY_DSN).origin
+  : "";
+const cspMode = process.env.CSP_ENFORCE === "0" ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy";
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseRealtimeOrigin} https://challenges.cloudflare.com`,
-  "frame-src 'self' blob: https://challenges.cloudflare.com",
+  `connect-src 'self' ${supabaseOrigin} ${supabaseRealtimeOrigin} https://challenges.cloudflare.com${sentryOrigin ? ` ${sentryOrigin}` : ""}`,
+  "frame-src https://challenges.cloudflare.com",
+  "worker-src 'self' blob:",
+  "report-uri /api/csp-report",
 ].join("; ");
 
 const securityHeaders = [
@@ -24,7 +30,7 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
-  { key: "Content-Security-Policy-Report-Only", value: contentSecurityPolicy },
+  { key: cspMode, value: contentSecurityPolicy },
 ];
 
 const nextConfig: NextConfig = {

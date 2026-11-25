@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
 import { LoaderCircle } from "lucide-react";
+import { TurnstileBox, type TurnstileBoxHandle } from "@/components/turnstile/TurnstileBox";
 import { Logo } from "@/components/logo";
 import { accountReturnPath, defaultCustomerDestination, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/client";
@@ -18,9 +19,14 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const isSignup = mode === "signup";
+  const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const turnstile = useRef<TurnstileBoxHandle>(null);
+  const captchaPending = captchaEnabled && !captchaToken;
 
   async function handleEmailAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!configured || busy || captchaPending) return;
     setError("");
     setMessage("");
     setShowResendConfirmation(false);
@@ -34,6 +40,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
           email: normalizedEmail,
           password,
           options: {
+            captchaToken: captchaToken || undefined,
             data: { full_name: fullName.trim() },
             emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome`,
           },
@@ -45,7 +52,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
           return;
         }
       } else {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+        const { error: authError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password, options: { captchaToken: captchaToken || undefined } });
         if (authError) throw authError;
       }
       let destination = defaultCustomerDestination;
@@ -72,11 +79,13 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
         setError(authError instanceof Error ? authError.message : "We could not sign you in. Please try again.");
       }
     } finally {
+      turnstile.current?.reset();
       setBusy(false);
     }
   }
 
   async function resendConfirmation() {
+    if (!configured || busy || captchaPending) return;
     setBusy(true);
     setError("");
     setMessage("");
@@ -85,7 +94,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: email.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome` },
+        options: { captchaToken: captchaToken || undefined, emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome` },
       });
       if (resendError) throw resendError;
       setMessage("A new confirmation email has been sent. Check your inbox and spam folder.");
@@ -93,11 +102,13 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
     } catch (resendError) {
       setError(resendError instanceof Error ? resendError.message : "We could not resend the confirmation email. Please try again.");
     } finally {
+      turnstile.current?.reset();
       setBusy(false);
     }
   }
 
   async function sendPasswordReset() {
+    if (!configured || busy || captchaPending) return;
     setError("");
     setMessage("");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -107,6 +118,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
     setBusy(true);
     try {
       const { error: resetError } = await createClient().auth.resetPasswordForEmail(email.trim(), {
+        captchaToken: captchaToken || undefined,
         redirectTo: `${window.location.origin}/auth/confirm?next=/auth/reset-password`,
       });
       if (resetError) throw resetError;
@@ -115,6 +127,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We could not send a reset link. Please try again.");
     } finally {
+      turnstile.current?.reset();
       setBusy(false);
     }
   }
@@ -158,12 +171,14 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
       <form onSubmit={handleEmailAuth} className="space-y-4">
         {isSignup && <label className="block text-xs font-medium text-[#43536a]">Full name<input required autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="Your name" /></label>}
         <label className="block text-xs font-medium text-[#43536a]">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="you@example.com" /></label>
-        <label className="block text-xs font-medium text-[#43536a]">Password<input required minLength={8} type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="At least 8 characters" /></label>
+        <label className="block text-xs font-medium text-[#43536a]">Password<input required minLength={isSignup ? 8 : undefined} type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="At least 8 characters" /></label>
         {!isSignup && <button type="button" onClick={() => { setShowForgotPassword((value) => !value); setError(""); setMessage(""); }} className="text-xs font-semibold text-[#2457d6] hover:underline">{showForgotPassword ? "Cancel password reset" : "Forgot password?"}</button>}
-        {showForgotPassword && <button type="button" onClick={sendPasswordReset} disabled={!configured || busy} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Email me a reset link</button>}
-        <button type="submit" disabled={!configured || busy} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
+        {configured && captchaEnabled && <TurnstileBox ref={turnstile} id="email-auth-turnstile" onTokenChange={setCaptchaToken} disabled={busy} />}
+        {showForgotPassword && <button type="button" onClick={sendPasswordReset} disabled={!configured || busy || captchaPending} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Email me a reset link</button>}
+        <button type="submit" disabled={!configured || busy || captchaPending} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
       </form>
-      {showResendConfirmation && <button type="button" onClick={resendConfirmation} disabled={!configured || busy || !email.trim()} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] hover:bg-[#edf2ff] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Resend confirmation email</button>}
+      {showResendConfirmation && <button type="button" onClick={resendConfirmation} disabled={!configured || busy || captchaPending || !email.trim()} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] hover:bg-[#edf2ff] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Resend confirmation email</button>}
+      {isSignup && <p className="mt-4 text-center text-xs text-[#51657F]">Review our <Link href="/terms" className="underline">Terms of Service</Link> and <Link href="/privacy" className="underline">Privacy Policy</Link> before creating an account.</p>}
       <p className="mt-6 text-center text-xs text-[#7d8998]">{isSignup ? "Already have an account?" : "New to Kuyog Bohol?"} <Link href={isSignup ? "/login" : "/signup"} className="font-semibold text-[#2457d6] hover:underline">{isSignup ? "Sign in" : "Create an account"}</Link></p>
     </div>
   );

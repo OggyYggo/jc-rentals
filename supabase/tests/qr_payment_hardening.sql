@@ -56,6 +56,56 @@ select pg_temp.create_booking(5,1);
 select pg_temp.create_booking(6,1);
 select pg_temp.create_booking(9,1);
 
+savepoint soft_launch;
+do $$ begin
+  assert (select total_price = 12000 and amount_due_now = 3600 and balance_at_pickup = 8400
+    and commission_amount = 600 from public.bookings where id = pg_temp.booking_id(1));
+  assert not public.bookings_are_paused();
+end $$;
+select pg_temp.expect_error($$insert into public.bookings (car_id,customer_id,mode,start_date,end_date)
+  values (pg_temp.car_id(1),pg_temp.person(1),'self_drive',current_date+3,current_date+4)$$, 'no_double_booking');
+
+set local role authenticated;
+select pg_temp.claim(1);
+select pg_temp.expect_error($$select public.admin_recover_booking_status(pg_temp.booking_id(1),'awaiting_payment','expired','Hold stuck')$$,'Administrator access required.');
+select pg_temp.expect_error($$select public.authorize_customer_document_upload(pg_temp.person(1),'id','2026-11-25')$$,'permission denied');
+select pg_temp.claim(4);
+update public.settings set value = 'true' where key = 'bookings_paused';
+select pg_temp.expect_error($$select public.admin_recover_booking_status(pg_temp.booking_id(1),'awaiting_payment','expired','  ')$$,'RECOVERY_REASON_REQUIRED');
+select pg_temp.expect_error($$select public.admin_recover_booking_status(pg_temp.booking_id(1),'pending','expired','Hold stuck')$$,'RECOVERY_STALE_BOOKING');
+select pg_temp.expect_error($$select public.admin_recover_booking_status(pg_temp.booking_id(1),'awaiting_payment','confirmed','Hold stuck')$$,'RECOVERY_TRANSITION_NOT_ALLOWED');
+select public.admin_recover_booking_status(pg_temp.booking_id(1),'awaiting_payment','expired','Release stuck unpaid hold');
+do $$ begin
+  assert exists (select 1 from public.audit_log where entity_id = pg_temp.booking_id(1)::text
+    and action = 'booking.status_changed' and reason = 'Release stuck unpaid hold'
+    and actor_id = pg_temp.person(4));
+end $$;
+reset role;
+
+set local role anon;
+do $$ begin
+  assert public.bookings_are_paused();
+end $$;
+reset role;
+
+set local role service_role;
+select pg_temp.expect_error($$select public.create_policy_accepted_booking(
+  pg_temp.person(1),pg_temp.car_id(1),'self_drive',current_date+3,current_date+4,null,null,null,
+  '2026-11-21',null,null,null)$$,'BOOKINGS_PAUSED');
+do $$ begin
+  for attempt in 1..10 loop
+    assert public.authorize_customer_document_upload(pg_temp.person(1),'id','2026-11-25');
+  end loop;
+  assert not public.authorize_customer_document_upload(pg_temp.person(1),'selfie','2026-11-25');
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) = 10 and bool_and(created_at is not null and metadata->>'policy_version' = '2026-11-25')
+    from public.audit_log where entity_id = pg_temp.person(1)::text and action = 'document.upload_consent');
+end $$;
+rollback to soft_launch;
+release soft_launch;
+
 insert into storage.objects(bucket_id,name)
 select 'payment-proofs',pg_temp.object_path(n,a) from generate_series(1,9) n cross join generate_series(1,4) a;
 insert into storage.objects(bucket_id,name)

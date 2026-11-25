@@ -49,6 +49,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ cust
   const format = documentFormat(path, Buffer.from(buffer));
   if (!format) return new Response(null, { status: 415, headers: privateHeaders });
 
+  if (format.type === "application/pdf" && query.get("preview") === "1") {
+    return new Response(null, { headers: { ...privateHeaders, "Content-Type": format.type } });
+  }
+
   const { error: auditError } = revision
     ? await db.rpc("admin_log_customer_selfie_view", { p_customer: customerId, p_revision: revision })
     : await db.rpc("admin_log_event", {
@@ -56,6 +60,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ cust
     p_metadata: { document: kind === "license" ? "Driver’s license" : "ID" },
   });
   if (auditError) return new Response(null, { status: 503, headers: privateHeaders });
+  if (format.type === "application/pdf") {
+    const { data: signed, error } = await admin.storage.from("customer-docs").createSignedUrl(path, 60, {
+      download: `${kind}.pdf`,
+    });
+    if (error || !signed) return new Response(null, { status: 503, headers: privateHeaders });
+    return new Response(null, {
+      status: 303, headers: { ...privateHeaders, Location: signed.signedUrl, "Referrer-Policy": "no-referrer" },
+    });
+  }
   const disposition = query.get("download") === "1" ? "attachment" : "inline";
   return new Response(buffer, { headers: {
     ...privateHeaders,

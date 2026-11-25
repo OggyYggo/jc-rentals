@@ -24,15 +24,21 @@ function DocumentPreview({ source, label }: { source: string; label: string }) {
     let objectUrl: string | undefined;
     async function load() {
       try {
-        const response = await fetch(source, { cache: "no-store", signal: controller.signal });
+        const previewSource = `${source}${source.includes("?") ? "&" : "?"}preview=1`;
+        const response = await fetch(previewSource, { cache: "no-store", signal: controller.signal });
         if (!response.ok) {
           if (!controller.signal.aborted) setPreview({ error: response.status === 404 ? "This document is missing." : "This document couldn’t be opened. Try again." });
+          return;
+        }
+        if (response.headers.get("content-type") === "application/pdf") {
+          await response.body?.cancel();
+          if (!controller.signal.aborted) setPreview({ url: source, pdf: true });
           return;
         }
         const document = await response.blob();
         if (controller.signal.aborted) return;
         objectUrl = URL.createObjectURL(document);
-        setPreview({ url: objectUrl, pdf: document.type === "application/pdf" });
+        setPreview({ url: objectUrl, pdf: false });
       } catch {
         if (!controller.signal.aborted) setPreview({ error: "This document couldn’t be opened. Check your connection." });
       }
@@ -54,10 +60,10 @@ function DocumentPreview({ source, label }: { source: string; label: string }) {
         <button type="button" className={control} onClick={() => setZoom(value => !value)}>{zoom ? "Fit image" : "Zoom to 100%"}</button>
         <button type="button" className={control} onClick={() => setTurns(value => (value + 1) % 4)}>Rotate</button>
       </>}
-      <a href={source} target="_blank" rel="noreferrer" className={control}>Open in new tab</a>
+      {!preview.pdf && <a href={source} target="_blank" rel="noreferrer" className={control}>Open in new tab</a>}
       <a href={`${source}${source.includes("?") ? "&" : "?"}download=1`} className={control}>Download</a>
     </div>
-    {preview.pdf ? <iframe title={`${label} PDF`} src={preview.url} className="h-[min(55dvh,34rem)] w-full rounded-lg border" />
+    {preview.pdf ? <p className="text-sm text-slate-600">Download the PDF to review it.</p>
       : <div className="max-h-[55dvh] overflow-auto rounded-lg border bg-slate-100 p-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={preview.url} alt={label} className={zoom ? "mx-auto max-w-none" : "mx-auto max-h-[48dvh] max-w-full object-contain"}
