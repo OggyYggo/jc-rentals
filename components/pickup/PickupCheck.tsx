@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/loading/SubmitButton";
 import { createClient } from "@/lib/supabase/client";
 import { pickupError, type PickupCredential, type PickupLookup } from "@/lib/pickup/model";
 import { paymentDate, paymentPeso } from "@/lib/payment-format";
+import "./pickup-success.css";
 
 const actionClass = "inline-flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-blue-700";
 
@@ -66,7 +67,9 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
     <section aria-labelledby="pickup-success-mobile" className="min-w-0 space-y-3 font-body text-[#0F2342] md:hidden">
       <div role="status" className="px-2 pb-3 pt-4 text-center">
         <span className="mx-auto mb-5 grid size-[88px] place-items-center rounded-full bg-[#12703A] text-white ring-[10px] ring-[#E3F7EA]">
-          <Check size={44} strokeWidth={2.7} aria-hidden="true" />
+          <span className="t-success-check" data-state="in" aria-hidden="true">
+            <Check size={44} strokeWidth={2.7} />
+          </span>
         </span>
         <h2 id="pickup-success-mobile" ref={focusSuccess} tabIndex={-1} className="font-heading text-[28px] font-bold leading-tight tracking-tight focus:outline-none">Vehicle handed over</h2>
         <p className="mt-1 text-sm text-[#5B6F89]">Booking is now <strong className="text-[#12703A]">Picked up</strong></p>

@@ -7,23 +7,17 @@ import { normalizePaymentReference, paymentDate, paymentPeso } from "@/lib/payme
 import { createClient } from "@/lib/supabase/client";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowUpRight, Check, ChevronDown, TriangleAlert } from "lucide-react";
 import { SubmitButton } from "@/components/loading/SubmitButton";
 import { OwnerDepositCard, PaymentQueueBadge, PaymentQueueCard, PaymentQueueEmpty } from "./payment-queue-card";
+import "./deposit-page-slide.css";
 
 type Payment = {
   payment_label?: string | null; payment_provider?: PaymentProvider | null;
   id: string; booking_id: string; amount: number; reference_no: string; proof_path: string; paid_at: string;
   proof_sha256: string | null; flags: string[];
   booking: { reference: string; review_due_at: string | null; payment_flags: string[]; car: { brand: string; model: string } | null } | null;
-};
-
-const focusDetail = (element: HTMLElement | null) => {
-  if (element?.getClientRects().length) {
-    element.focus({ preventScroll: true });
-    element.scrollIntoView({ block: "start" });
-  }
 };
 
 export function OwnerPaymentReview({ payments, admin = false }: { payments: Payment[]; admin?: boolean }) {
@@ -33,9 +27,25 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
   const [inputs, setInputs] = useState<Record<string, { amount: string; reference: string }>>({});
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState<number | null>(null);
-  const [openDeposit, setOpenDeposit] = useState<string>();
+  const [selectedDeposit, setSelectedDeposit] = useState<string>();
+  const [detailOpen, setDetailOpen] = useState(false);
   const reviewTrigger = useRef<HTMLButtonElement | null>(null);
-  const openedPayment = payments.find(payment => payment.id === openDeposit);
+  const depositDetail = useRef<HTMLElement | null>(null);
+  const selectedPayment = payments.find(payment => payment.id === selectedDeposit);
+  const showDetail = detailOpen && Boolean(selectedPayment);
+
+  useLayoutEffect(() => {
+    if (showDetail) {
+      const detail = depositDetail.current;
+      if (detail?.getClientRects().length) {
+        detail.focus({ preventScroll: true });
+        detail.scrollIntoView({ block: "start" });
+      }
+    } else {
+      const trigger = reviewTrigger.current;
+      if (trigger?.getClientRects().length) trigger.focus();
+    }
+  }, [showDetail, selectedDeposit]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -100,15 +110,10 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
     });
   }
 
-  function dismissDeposit() {
-    setOpenDeposit(undefined);
-    requestAnimationFrame(() => reviewTrigger.current?.focus());
-  }
-
   if (!payments.length) return admin
     ? <p className="rounded-xl border bg-white p-10 text-center text-sm text-slate-500">No deposits waiting for review.</p>
     : <PaymentQueueEmpty>No deposits waiting for review.</PaymentQueueEmpty>;
-  return <div ref={listRef} className="space-y-4">{payments.map((payment) => {
+  const rows = payments.map((payment) => {
     const input = inputs[payment.id] ?? { amount: "", reference: "" };
     const reference = normalizePaymentReference(payment.reference_no ?? "");
     const matches = input.amount !== "" && Number(input.amount) === Number(payment.amount)
@@ -141,7 +146,7 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
         </div>
       </div>;
 
-      return <article key={payment.id} className="grid gap-5 rounded-xl border bg-white p-5 md:grid-cols-[180px_minmax(0,1fr)]">{proof}{reviewControls}</article>;
+      return { desktop: <article key={payment.id} className="grid gap-5 rounded-xl border bg-white p-5 md:grid-cols-[180px_minmax(0,1fr)]">{proof}{reviewControls}</article> };
     }
 
     const amount = paymentPeso(payment.amount);
@@ -151,7 +156,7 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
     const urgent = minutes !== null && deadline && now !== null && Date.parse(deadline) - now < 3_600_000;
     const compactTime = minutes !== null && minutes > 0 && minutes < 60 ? `${minutes}m left` : timeLeft;
     const timeChip = compactTime && <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${urgent ? "bg-[#FDE8E8] text-[#A12A2A]" : "bg-[#FFF2D6] text-[#8A5A00]"}`}>{compactTime}</span>;
-    const selected = openedPayment?.id === payment.id;
+    const selected = selectedPayment?.id === payment.id;
     const formProps = {
       amount: payment.amount, reference: payment.reference_no, option: payment.payment_label, url: urls[payment.id],
       input, matches, flags, flagLabel, disabled: Boolean(busy), working: busy === payment.id,
@@ -162,10 +167,9 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
       onReview: (approve: boolean) => review(payment, approve),
     };
 
-    return <div key={payment.id} className={openedPayment && !selected ? "hidden md:block" : undefined}>
-      <div className="md:hidden">
-        {selected && <section ref={focusDetail} tabIndex={-1} aria-label="Review deposit" className="min-w-0 scroll-mt-24 space-y-3 font-body text-[#0F2342] focus:outline-none">
-          <button type="button" onClick={dismissDeposit} disabled={Boolean(busy)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#0A3D91] focus-visible:outline-2 disabled:opacity-50">
+    return {
+      detail: selected ? <section key={payment.id} ref={depositDetail} tabIndex={-1} aria-label="Review deposit" className="min-w-0 scroll-mt-24 space-y-3 font-body text-[#0F2342] focus:outline-none">
+          <button type="button" onClick={() => setDetailOpen(false)} disabled={Boolean(busy)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#0A3D91] focus-visible:outline-2 disabled:opacity-50">
             <ArrowLeft size={17} aria-hidden="true" /> Deposits
           </button>
           <header className="space-y-1 rounded-2xl bg-[#0A47B1] p-4 text-white">
@@ -177,24 +181,34 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
           </header>
           {deadline && <p className="px-1 text-xs text-[#5B6F89]">Review by {reviewDeadline(deadline)}</p>}
           <OwnerDepositDetails {...formProps} />
-        </section>}
-        <div hidden={selected}><OwnerDepositCard amount={amount} booking={bookingLabel} timeLeft={timeChip} option={payment.payment_label} flags={flagLabel}
-          onReview={(event) => {
-            reviewTrigger.current = event.currentTarget;
-            setOpenDeposit(payment.id);
-          }} /></div>
-      </div>
-
-      <div className="hidden md:block">
-        <PaymentQueueCard title={bookingLabel} amount={amount}
+        </section> : null,
+      card: <OwnerDepositCard key={payment.id} amount={amount} booking={bookingLabel} timeLeft={timeChip} option={payment.payment_label} flags={flagLabel}
+        onReview={(event) => {
+          reviewTrigger.current = event.currentTarget;
+          setSelectedDeposit(payment.id);
+          setDetailOpen(true);
+        }} />,
+      desktop: <PaymentQueueCard key={payment.id} title={bookingLabel} amount={amount}
           badge={timeChip || <PaymentQueueBadge label="Needs review" tone="amber" />}
           detail={deadline && <span>Review by {reviewDeadline(deadline)}</span>}
           action="Review deposit">
           <OwnerDepositDetails {...formProps} />
-        </PaymentQueueCard>
+        </PaymentQueueCard>,
+    };
+  });
+
+  if (admin) return <div ref={listRef} className="space-y-4">{rows.map(row => row.desktop)}</div>;
+  return <>
+    <div className="t-page-slide md:hidden" data-page={showDetail ? "2" : "1"}>
+      <div className="t-page space-y-4" data-page-id="1" inert={showDetail}>
+        {rows.map(row => row.card)}
       </div>
-    </div>;
-  })}</div>;
+      <div className="t-page" data-page-id="2" inert={!showDetail}>
+        {rows.find(row => row.detail)?.detail}
+      </div>
+    </div>
+    <div ref={listRef} className="hidden space-y-4 md:block">{rows.map(row => row.desktop)}</div>
+  </>;
 }
 
 const deadlineDay = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", month: "short", day: "numeric" });
