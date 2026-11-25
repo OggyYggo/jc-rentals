@@ -1,9 +1,10 @@
 import { bookingRevenue, commissionBookingFilter, hasKeptFee, manilaMonth } from "@/lib/booking-revenue";
-import { RecentActivity } from "@/components/admin/audit/RecentActivity";
+import { loadAdminAttention } from "@/lib/admin-attention";
+import { ActivityList, RecentActivity } from "@/components/admin/audit/RecentActivity";
 import { recentActivity } from "@/lib/audit/queries";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, CarFront, CircleDollarSign, FileCheck2, Store, Users } from "lucide-react";
-import { AdminHeading, AdminStat, AdminStatus, peso } from "@/components/admin/ui";
+import { AdminHeading, AdminStat, AdminStatus, adminMoney, mobileCard, peso } from "@/components/admin/ui";
 import { getAdminContext } from "@/lib/admin-context";
 
 import { alertBadge } from "@/lib/admin-alerts/settings";
@@ -16,7 +17,7 @@ export default async function AdminOverviewPage() {
   const { supabase } = await getAdminContext();
   const now = new Date();
   const monthStart = `${manilaMonth(now)}-01T00:00:00+08:00`;
-  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, payments, disputes, overdueRefunds, reports, pickup] = await Promise.all([
+  const [owners, cars, customers, pending, monthBookings, recent, activity, emailStatus, payments, disputes, overdueRefunds, reports, pickup, attention] = await Promise.all([
     supabase.from("owners").select("id", { count: "exact", head: true }),
     supabase.from("cars").select("id", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "customer"),
@@ -30,6 +31,7 @@ export default async function AdminOverviewPage() {
     supabase.from("booking_refunds").select("id", { count: "exact", head: true }).eq("status", "owed").lte("due_at", now.toISOString()),
     supabase.from("review_reports").select("id", { count: "exact", head: true }).eq("status","open"),
     supabase.rpc("admin_pickup_metrics").maybeSingle<{ scanned: number; manual: number; overrides: number }>(),
+    loadAdminAttention(supabase),
   ]);
   const monthlyBookings = monthBookings.data ?? [];
   const gross = monthlyBookings.reduce((sum, booking) => sum + bookingRevenue(booking), 0);
@@ -38,7 +40,56 @@ export default async function AdminOverviewPage() {
   const error = owners.error || cars.error || customers.error || pending.error || monthBookings.error || recent.error;
   if (error) throw new Error("Could not load the platform overview.");
 
+  const attentionRows = [
+    { title: "Deposit proofs", note: "Review submitted deposits", count: attention.deposits, href: "/admin/payments", icon: CircleDollarSign },
+    { title: "Open disputes", note: "Review payment disputes", count: disputes.count, href: "/admin/payments?tab=disputes", icon: CircleDollarSign },
+    { title: "Overdue refunds", note: "Follow up on outstanding refunds", count: overdueRefunds.count, href: "/admin/payments?tab=overdue", icon: CircleDollarSign },
+    { title: "Customers to verify", note: "Review submitted documents", count: attention.documents, href: "/admin/customers?verification=pending", icon: FileCheck2 },
+    { title: "Vehicle applications", note: "Review new listings", count: attention.applications, href: "/admin/owner-applications", icon: CarFront },
+    { title: "Top-ups", note: "Verify platform payments", count: attention.topups, href: "/admin/topups", icon: CircleDollarSign },
+    { title: "Plan payments", note: "Review payments for activation", count: attention.plans, href: "/admin/plan-payments", icon: CircleDollarSign },
+    { title: "Review reports", note: "Review flagged customer feedback", count: attention.reviews, href: "/admin/reviews", icon: FileCheck2 },
+  ];
+  const taskCount = attentionRows.reduce((sum, row) => sum + (row.count ?? 0), 0);
+  const scanCount = Number(pickup.data?.scanned ?? 0);
+  const manualCount = Number(pickup.data?.manual ?? 0);
+  const scanPercent = scanCount + manualCount ? Math.round(100 * scanCount / (scanCount + manualCount)) : 0;
+  const month = new Intl.DateTimeFormat("en-PH", { month: "long", timeZone: "Asia/Manila" }).format(now);
+  const date = new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: "Asia/Manila" }).format(now);
+
   return <>
+    <div className="space-y-4 lg:hidden">
+      <AdminHeading eyebrow={date} title="Admin dashboard" description="Manage the Kuyog Bohol marketplace."/>
+      <section className={mobileCard}>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-semibold">Needs attention</h2><span className="rounded-full bg-[#EAF4FF] px-2 py-1 text-[13px] font-semibold text-[#0A47B1]">{taskCount} tasks</span></div>
+        {taskCount === 0 ? <p className="mt-3 text-[#5B6F89]">{attentionRows.every(row => row.count === 0) ? "All caught up" : "Some task counts are unavailable."}</p> : <>
+          {attentionRows.slice(0, 5).map(row => <AttentionRow key={row.title} {...row}/>)}
+          {attentionRows.slice(5).some(row => row.count) && <details>
+            <summary className="min-h-11 cursor-pointer py-3 font-semibold text-[#0A47B1]">Show more</summary>
+            {attentionRows.slice(5).map(row => <AttentionRow key={row.title} {...row}/>)}
+          </details>}
+        </>}
+      </section>
+      <section className="rounded-xl bg-[#0A47B1] p-4 text-white">
+        <h2 className="text-sm font-semibold">Platform commission · {month}</h2><p className="my-2 text-3xl font-semibold">{adminMoney(commission)}</p>
+        <dl className="space-y-1 text-[13px]">{([["Gross bookings", adminMoney(gross)], ["Bookings", monthlyBookings.length], ["Cancellation fees", adminMoney(monthlyBookings.filter(hasKeptFee).reduce((sum, row) => sum + Number(row.cancel_fee_amount), 0))]] as const).map(([label, value]) => <div key={label} className="flex justify-between gap-2"><dt>{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
+      </section>
+      <section aria-label="Marketplace totals" className="grid grid-cols-3 gap-2">
+        {([["Owners", owners.count, "/admin/owners"], ["Vehicles", cars.count, "/admin/cars"], ["Customers", customers.count, "/admin/customers"]] as const).map(([label, count, href]) => <Link key={href} href={href} className="rounded-xl border border-[#E3EEF9] bg-white p-2.5 text-[13px] text-[#5B6F89]"><span className="block text-xl font-semibold text-[#0F2342]">{count ?? 0}</span>{label}</Link>)}
+      </section>
+      {pickup.data && <section className={mobileCard}>
+        <h2 className="font-semibold">Pickup activity · Last 30 days</h2><p className="mt-2">{scanPercent}% by scan</p>
+        <progress aria-label="Pickups by scan" value={scanPercent} max={100} className="my-2 h-2 w-full accent-[#0A47B1]"/>
+        <p className="text-[#5B6F89]">{scanCount} scans · {manualCount} manual · {pickup.data.overrides} overrides</p>
+      </section>}
+      <Link href="/admin/settings#email-alerts" className={`${mobileCard} flex min-h-11 items-center justify-between gap-2`}>Email alerts · {emailStatus}<ArrowRight size={16} aria-hidden/></Link>
+      {activity && <section className={mobileCard}><div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Recent activity</h2><Link href="/admin/audit-log" className="inline-flex min-h-11 items-center font-semibold text-[#0A47B1]">Audit log →</Link></div><ActivityList entries={activity.slice(0, 3)} now={0}/></section>}
+      <section className={mobileCard}>
+        <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Recent bookings</h2><Link href="/admin/bookings" className="inline-flex min-h-11 items-center font-semibold text-[#0A47B1]">View all</Link></div>
+        {recentBookings.length ? <ul className="divide-y divide-[#E3EEF9]">{recentBookings.slice(0, 3).map(booking => <li key={booking.id} className="py-2"><Link href={`/admin/bookings?reference=${encodeURIComponent(booking.reference)}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2"><span><strong>{booking.customer?.full_name || "Customer"}</strong><span className="block break-all text-[#5B6F89]">{booking.reference}</span></span><strong>{adminMoney(bookingRevenue(booking))}</strong></Link><AdminStatus status={booking.status}/></li>)}</ul> : <p>Booking activity will appear here.</p>}
+      </section>
+    </div>
+    <div className="hidden lg:block">
     <AdminHeading eyebrow="Platform overview" title="Admin dashboard" description="Monitor rental activity and manage the Kuyog Bohol marketplace." action={<Link href="/admin/bookings" className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#dfe5ed] bg-white px-3 text-[11px] font-medium text-[#5f6f85] hover:bg-[#f8faff]"><CalendarDays size={14}/>All bookings</Link>}/>
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><AdminStat title="Rental owners" href="/admin/owners" value={String(owners.count ?? 0)} note="Registered businesses" icon={Store} tone="blue"/><AdminStat title="Fleet vehicles" href="/admin/cars" value={String(cars.count ?? 0)} note="Vehicles across the platform" icon={CarFront} tone="violet"/><AdminStat title="Customers" href="/admin/customers" value={String(customers.count ?? 0)} note={`${pending.count ?? 0} awaiting verification`} icon={Users} tone="orange"/><AdminStat title="Monthly commission" href="/admin/commissions" value={peso(commission)} note={`${monthlyBookings.length} confirmed rentals · ${peso(gross)} gross`} icon={CircleDollarSign} tone="green"/></section>
     <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,.75fr)]"><article className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><div className="flex items-center justify-between border-b border-[#edf0f4] px-4 py-4 sm:px-5"><div><h2 className="text-sm font-semibold text-[#33445b]">Recent bookings</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Latest activity from all owners</p></div><Link href="/admin/bookings" className="text-[10px] rounded font-semibold text-[#4b6dc4] hover:underline focus-visible:ring-2 focus-visible:ring-blue-600">View all</Link></div>{recentBookings.length ? <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-5 py-3">Customer / reference</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Vehicle</th><th className="px-4 py-3">Gross</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{recentBookings.map((booking) => <tr key={booking.id} className="text-[10px] text-[#68778c]"><td className="px-5 py-3.5"><span className="font-medium text-[#42536a]">{booking.customer?.full_name || "Customer"}</span><span className="mt-0.5 block text-[9px] text-[#9aa4b2]">{booking.reference}</span></td><td className="px-4 py-3.5">{booking.owner?.business_name || "—"}</td><td className="px-4 py-3.5">{booking.car ? `${booking.car.brand} ${booking.car.model}` : "—"}</td><td className="px-4 py-3.5 font-semibold text-[#42536a]">{peso(bookingRevenue(booking))}</td><td className="px-4 py-3.5">{hasKeptFee(booking) ? "Cancelled (fee kept)" : <AdminStatus status={booking.status}/>}</td></tr>)}</tbody></table></div> : <div className="px-5 py-14 text-center text-xs text-[#8793a3]">Booking activity will appear here.</div>}</article>
@@ -53,5 +104,18 @@ export default async function AdminOverviewPage() {
         {Number(pickup.data.scanned) + Number(pickup.data.manual) > 0 && ` · ${Math.round(100 * Number(pickup.data.scanned) / (Number(pickup.data.scanned) + Number(pickup.data.manual)))}% by scan`}</p>
     </section>}
     <RecentActivity entries={activity} now={now.getTime()}/>
+    </div>
   </>;
+}
+
+
+function AttentionRow({ title, note, count, href, icon: Icon }: {
+  title: string; note: string; count: number | null; href: string; icon: typeof CarFront;
+}) {
+  if (!count) return null;
+  return <Link href={href} className="flex min-h-14 items-center gap-3 border-b border-[#E3EEF9] py-2 last:border-b-0 focus-visible:outline-2">
+    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#EAF4FF] text-[#0A47B1]"><Icon size={17} aria-hidden/></span>
+    <span className="min-w-0 flex-1"><strong className="block">{title}</strong><span className="text-[13px] text-[#5B6F89]">{note}</span></span>
+    <span className="rounded-full bg-[#EAF4FF] px-2 font-semibold text-[#0A47B1]">{count}</span><ArrowRight size={15} aria-hidden/>
+  </Link>;
 }

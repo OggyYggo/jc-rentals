@@ -34,5 +34,5 @@ export function CarGrid({ children, filterKey }: { children: ReactNode; filterKe
     return () => media.revert();
   }, { scope, dependencies: [filterKey], revertOnUpdate: true });
 
-  return <div ref={scope} className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
+  return <div ref={scope} className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">{children}</div>;
 }

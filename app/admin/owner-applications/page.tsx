@@ -6,13 +6,13 @@ export const instant = false;
 
 export default async function AdminOwnerApplicationsPage() {
   const { supabase } = await getAdminContext();
-  const { data, error } = await supabase.from("owner_applications").select("id,full_name,business_name,email,phone,car_make,car_model,car_year,message,status,created_at,plate_number,seats,transmission,offers_self_drive,offers_with_driver,daily_rate_self_drive,daily_rate_with_driver,admin_note,preferred_plan,vehicle_type,car_type,engine_cc,helmets_included,has_license:license_path,has_id:id_path,has_registration:orcr_path").order("created_at", { ascending: false });
+  const { data, error } = await supabase.from("owner_applications").select("id,full_name,business_name,email,phone,car_make,car_model,car_year,message,status,created_at,plate_number,seats,transmission,offers_self_drive,offers_with_driver,daily_rate_self_drive,daily_rate_with_driver,admin_note,preferred_plan,vehicle_type,car_type,engine_cc,helmets_included,car_photo_paths,has_license:license_path,has_id:id_path,has_registration:orcr_path").order("created_at", { ascending: false });
   if (error) throw new Error("Could not load vehicle listing applications.");
 
   return <>
     <AdminHeading eyebrow="Marketplace" title="Vehicle listing applications" description="Review applications, request corrections, or approve an owner and create a hidden draft vehicle." />
-    <OwnerApplications rows={(data ?? []).map(({ has_license, has_id, has_registration, ...row }) => ({
-      ...row, documents: { license: Boolean(has_license), id: Boolean(has_id), registration: Boolean(has_registration) },
+    <OwnerApplications rows={(data ?? []).map(({ has_license, has_id, has_registration, car_photo_paths, ...row }) => ({
+      ...row, photoCount: car_photo_paths?.length ?? 0, documents: { license: Boolean(has_license), id: Boolean(has_id), registration: Boolean(has_registration) },
     })) as OwnerApplication[]} />
   </>;
 }

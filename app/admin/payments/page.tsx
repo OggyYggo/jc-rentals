@@ -1,5 +1,6 @@
-import { AdminHeading } from "@/components/admin/ui";
-import { OwnerPaymentReview } from "@/components/owner/payment-review";
+import Link from "next/link";
+import { AdminHeading, mobileAction } from "@/components/admin/ui";
+import { AdminDepositReview } from "@/components/admin/deposit-review";
 import { RefundQueue, type RefundRow } from "@/components/owner/refund-queue";
 import { DisputeList, type Dispute } from "@/components/payment-disputes";
 import { PaymentTabs } from "@/components/payment-tabs";
@@ -28,6 +29,26 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
   const now = new Date().getTime();
   const before = age === "all" ? undefined : new Date(now - Number(age) * 3_600_000).toISOString();
 
+  const countOptions = { count: "exact", head: true } as const;
+  const pendingCount = supabase.from("payments").select("id", countOptions).eq("status", "pending");
+  const disputedCount = supabase.from("payment_disputes").select("id, booking:bookings!inner(owner_id)", countOptions);
+  const refundCount = supabase.from("booking_refunds").select("id", countOptions);
+  const overdueCount = supabase.from("booking_refunds").select("id", countOptions).eq("status", "owed").lte("due_at", new Date(now).toISOString());
+  const overdueDeposits = supabase.from("payments").select("id", countOptions).eq("status", "pending")
+    .lte("paid_at", new Date(Math.min(now - 28_800_000, before ? Date.parse(before) : now)).toISOString());
+  const requests = [pendingCount, disputedCount, refundCount, overdueCount, overdueDeposits] as const;
+  const countsPromise = Promise.all(requests.map(async (request, index) => {
+    if (owner) request.eq(index === 1 ? "booking.owner_id" : "owner_id", owner);
+    if (before && index < 4) request.lte(index === 0 ? "paid_at" : "created_at", before);
+    const result = await request;
+    if (result.error) console.error("Could not load admin payment tab count", index);
+    return result.error ? null : result.count;
+  }));
+
+  const riskPromise = matchedRiskPayments(supabase, owner, before).then(
+    rows => ({ rows, error: false as const }),
+    () => ({ rows: new Map<string, RiskPayment>(), error: true as const }),
+  );
   let content;
   if (tab === "refunds" || tab === "overdue") {
     let request = supabase.from("booking_refunds")
@@ -39,7 +60,7 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
     if (error) throw new Error("Could not load refunds.");
     content = <>
       {tab === "overdue" && <><h2 className="mb-3 font-semibold">Payments waiting at least eight hours</h2>
-        <PendingReview owner={owner} before={before && Date.parse(before) < now - 28_800_000 ? before : new Date(now - 28_800_000).toISOString()} />
+        <PendingReview now={now} owner={owner} before={before && Date.parse(before) < now - 28_800_000 ? before : new Date(now - 28_800_000).toISOString()} />
         <h2 className="my-3 font-semibold">Overdue refunds</h2></>}
       <RefundQueue refunds={data ?? []} userId={user.id} admin />
     </>;
@@ -51,25 +72,11 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
     if (error) throw new Error("Could not load disputes.");
     content = <DisputeList disputes={data ?? []} role="admin" />;
   } else if (tab === "risk") {
-    const columns = "id,proof_path,proof_sha256,flags,paid_at,amount,status,booking:bookings(reference,payment_flags),owner:owners(business_name)";
-    let request = supabase.from("payments").select(columns).neq("flags", "{}").order("paid_at", { ascending: false }).limit(100);
-    if (owner) request = request.eq("owner_id", owner);
-    if (before) request = request.lte("paid_at", before);
-    let bookingRequest = supabase.from("bookings").select("id")
-      .neq("payment_flags", "{}").order("created_at", { ascending: false }).limit(100);
-    if (owner) bookingRequest = bookingRequest.eq("owner_id", owner);
-    const [{ data: rows, error }, { data: flaggedBookings, error: bookingError }] = await Promise.all([request.returns<RiskPayment[]>(), bookingRequest]);
-    if (error || bookingError) throw new Error("Could not load flagged payments.");
-    const merged = new Map((rows ?? []).map(row => [row.id, row]));
-    if (flaggedBookings?.length) {
-      let related = supabase.from("payments").select(columns).in("booking_id", flaggedBookings.map(row => row.id))
-        .order("paid_at", { ascending: false }).limit(100);
-      if (before) related = related.lte("paid_at", before);
-      const { data, error } = await related.returns<RiskPayment[]>();
-      if (error) throw new Error("Could not load booking risk flags.");
-      for (const row of data ?? []) merged.set(row.id, row);
-    }
+    const risk = await riskPromise;
+    if (risk.error) throw new Error("Could not load flagged payments.");
+    const merged = new Map(risk.rows);
     const matchedIds = Array.from(merged.keys());
+    const columns = riskColumns;
     const hashes = Array.from(new Set(Array.from(merged.values()).flatMap(row =>
       row.proof_sha256 && row.flags.includes("duplicate_proof") ? [row.proof_sha256] : [])));
     if (hashes.length) {
@@ -98,9 +105,9 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
         Owner performance · {performance.confirmed} confirmed · {performance.no_response} without response · {performance.refunds_overdue} overdue refunds
         {performance.median_seconds_to_act !== null && ` · Median review ${Math.round(performance.median_seconds_to_act / 60)} min`}
       </p>}
-      <PendingReview owner={owner} before={before} />
+      <PendingReview now={now} owner={owner} before={before} />
       <h2 className="my-3 font-semibold">Recent payment activity</h2>
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="admin-card-table overflow-x-auto rounded-xl border bg-white">
         <table className="w-full min-w-[680px] text-left text-sm">
           <thead className="bg-slate-50"><tr>{["Booking", "Owner", "Customer", "Amount", "Reference", "Status", "Submitted (Manila)"].map(label =>
             <th key={label} className="p-3">{label}</th>)}</tr></thead>
@@ -112,9 +119,16 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
       </div>
     </>;
   }
+  const [[reviewCount, disputeCount, refundsCount, overdueRefunds, overduePayments], risk] = await Promise.all([countsPromise, riskPromise]);
+  if (risk.error) console.error("Could not load admin payment risk count");
+  const tabCounts = { review: reviewCount, risk: risk.error ? null : risk.rows.size, disputes: disputeCount, refunds: refundsCount, overdue: overdueRefunds === null || overduePayments === null ? null : overdueRefunds + overduePayments };
   return <>
     <AdminHeading eyebrow="Payments" title="Booking deposits" description="Review proofs, disputes and refunds." />
-    <PaymentTabs path="/admin/payments" active={tab} tabs={tabs} filters={{ ...(owner ? { owner } : {}), age }} />
+    <div className="hidden lg:block"><PaymentTabs path="/admin/payments" active={tab} tabs={tabs} filters={{ ...(owner ? { owner } : {}), age }} /></div>
+    <nav aria-label="Payment views" className="mb-4 flex gap-2 overflow-x-auto p-1 lg:hidden">
+      {Object.entries(tabs).map(([key, label]) => <Link key={key} href={`/admin/payments?${new URLSearchParams({ ...(owner ? { owner } : {}), age, tab: key })}`} aria-current={tab === key ? "page" : undefined}
+        className={`${mobileAction} shrink-0 whitespace-nowrap bg-white aria-[current=page]:bg-[#EAF4FF]`}>{label}{tabCounts[key as keyof typeof tabs] !== null && <span className="ml-1">{tabCounts[key as keyof typeof tabs]}</span>}</Link>)}
+    </nav>
     <form className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border bg-white p-3 text-sm">
       <input type="hidden" name="tab" value={tab} />
       <label>Owner<select name="owner" defaultValue={owner ?? ""} className="mt-1 block max-w-full rounded-lg border p-2">
@@ -129,14 +143,38 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
   </>;
 }
 
-async function PendingReview({ owner, before }: { owner?: string; before?: string }) {
+async function PendingReview({ owner, before, now }: { owner?: string; before?: string; now: number }) {
   const { supabase } = await getAdminContext();
   let request = supabase.from("payments")
-    .select("id,booking_id,amount,reference_no,payment_provider,payment_label,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
+    .select("id,booking_id,owner_id,owner:owners(business_name),amount,reference_no,payment_provider,payment_label,proof_path,paid_at,proof_sha256,flags,booking:bookings(reference,review_due_at,payment_flags)")
     .eq("status", "pending").order("paid_at");
   if (owner) request = request.eq("owner_id", owner);
   if (before) request = request.lte("paid_at", before);
   const { data, error } = await request;
   if (error) throw new Error("Could not load pending payments.");
-  return <OwnerPaymentReview admin payments={(data ?? []) as never} />;
+  return <AdminDepositReview payments={(data ?? []) as never} renderedAt={now}/>;
+}
+
+
+const riskColumns = "id,proof_path,proof_sha256,flags,paid_at,amount,status,booking:bookings(reference,payment_flags),owner:owners(business_name)";
+
+async function matchedRiskPayments(supabase: Awaited<ReturnType<typeof getAdminContext>>["supabase"], owner?: string, before?: string) {
+    let request = supabase.from("payments").select(riskColumns).neq("flags", "{}").order("paid_at", { ascending: false }).limit(100);
+    if (owner) request = request.eq("owner_id", owner);
+    if (before) request = request.lte("paid_at", before);
+    let bookingRequest = supabase.from("bookings").select("id")
+      .neq("payment_flags", "{}").order("created_at", { ascending: false }).limit(100);
+    if (owner) bookingRequest = bookingRequest.eq("owner_id", owner);
+    const [{ data: rows, error }, { data: flaggedBookings, error: bookingError }] = await Promise.all([request.returns<RiskPayment[]>(), bookingRequest]);
+    if (error || bookingError) throw new Error("Could not load flagged payments.");
+    const merged = new Map((rows ?? []).map(row => [row.id, row]));
+    if (flaggedBookings?.length) {
+      let related = supabase.from("payments").select(riskColumns).in("booking_id", flaggedBookings.map(row => row.id))
+        .order("paid_at", { ascending: false }).limit(100);
+      if (before) related = related.lte("paid_at", before);
+      const { data, error } = await related.returns<RiskPayment[]>();
+      if (error) throw new Error("Could not load booking risk flags.");
+      for (const row of data ?? []) merged.set(row.id, row);
+    }
+  return merged;
 }

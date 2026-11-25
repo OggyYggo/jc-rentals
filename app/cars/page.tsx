@@ -3,9 +3,11 @@ import { CarGrid } from "@/components/motion/CarGrid";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { CarTile } from "@/components/customer/car-tile";
+import { CarFilterRow } from "@/components/cars/CarFilterRow";
 import { CarFilterTabs } from "@/components/cars/CarFilterTabs";
 import { VehicleFilterTabs } from "@/components/cars/VehicleFilterTabs";
-import { CarListFilters } from "@/components/cars/CarListFilters";
+import { Search } from "lucide-react";
+import { CarListFilters, CarSearchBar, CarSort } from "@/components/cars/CarListFilters";
 import { PublicFooter } from "@/components/public-footer";
 import { parseCarSearch, carsUrl } from "@/lib/cars/searchParams";
 
@@ -112,16 +114,70 @@ export default async function CarsPage({ searchParams }: Props) {
   const resultLabel = search.vehicle === "motorcycle" ? `Showing ${shownCars.length} motorcycles` : activeMode === "driver" ? `Showing ${shownCars.length} cars with a driver` : activeMode === "self" ? `Showing ${shownCars.length} self-drive vehicles` : `Showing all ${shownCars.length} vehicles`;
   const dateNotice = activeMode === "driver" && search.from && search.to && !shownCars.length;
 
-  return <><main className="theme-public min-h-screen bg-white px-5 py-10 text-[#0F2342] sm:px-8 md:py-14"><div className="mx-auto max-w-6xl">
-    <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#0B63CE]">Explore Bohol</p><h1 className="mt-2 text-3xl font-semibold md:text-4xl">Cars and motorcycles for rent in Bohol</h1>
-    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#51657F]">Browse rentals from local owners for trips around Panglao and the rest of Bohol. Go at your own pace with a self-drive vehicle, or choose a car with a local driver.</p>
-    {invalidDates && <p role="status" className="mt-4 rounded-xl bg-[#fff7e8] px-4 py-3 text-sm text-[#76551b]">Please choose valid dates.</p>}
-    <VehicleFilterTabs current={search.vehicle} counts={vehicleCounts} search={search}/>
-    {search.vehicle === "motorcycle" && search.mode === "driver" && <p role="status" className="mt-3 text-xs text-[#51657F]">Motorcycles are self-drive only. Showing self-drive rentals.</p>}<CarFilterTabs current={search.vehicle === "motorcycle" ? "self" : activeMode ?? "all"} counts={search.vehicle === "motorcycle" ? { all: counts.self, self: counts.self, driver: 0 } : counts} search={search} motorcycle={search.vehicle === "motorcycle"}/>
-    {search.pickup && <p className="mt-4 text-xs text-[#51657F]">Pickup: {search.pickup}</p>}
-    <details className="mobile-filters mt-4 rounded-xl border border-[#D6E6F7] bg-white p-4 md:hidden"><summary className="flex min-h-11 cursor-pointer list-none items-center font-semibold text-[#0A3D91]">Filters</summary><div className="mt-3"><CarListFilters search={search}/></div></details>
-    <div className="mt-4 hidden rounded-2xl border border-[#D6E6F7] bg-[#EAF4FF] p-4 md:block"><CarListFilters search={search}/></div>
-    <p aria-live="polite" className="mt-6 text-sm text-[#51657F]">{resultLabel}</p>
-    {loadError ? <div role="alert" className="mt-5 rounded-2xl border border-[#D6E6F7] p-10 text-center"><p className="font-semibold">We couldn’t load cars right now.</p><Link href={carsUrl(search)} className="mt-3 inline-flex text-sm font-semibold text-[#0B63CE] underline">Try again</Link></div> : shownCars.length ? <CarGrid filterKey={JSON.stringify([search.vehicle, activeMode, search.type, search.transmission, search.sort])}>{shownCars.map((car) => <CarTile key={car.id} car={car} available={!!search.from && !!search.to} mode={activeMode} searchParams={search}/>)}</CarGrid> : <div className="mt-5 rounded-2xl border border-dashed border-[#B7D6F4] bg-[#F5FAFF] p-10 text-center"><h2 className="font-semibold text-[#0F2342]">{search.vehicle === "motorcycle" ? "No motorcycles match your search." : dateNotice ? "No vehicles with a driver on those dates." : "No vehicles match your search."}</h2><div className="mt-4 flex flex-wrap justify-center gap-3">{dateNotice && <><Link href={carsUrl({ mode: "self", from: search.from, to: search.to, pickup: search.pickup })} className="rounded-full bg-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-white">Try self-drive</Link><Link href="/#top" className="rounded-full border border-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-[#0B63CE]">Change dates</Link></>}<Link href={carsUrl({ mode: search.mode })} className="rounded-full border border-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-[#0B63CE]">Clear filters</Link><Link href="/cars" className="rounded-full border border-[#0B63CE] px-5 py-2.5 text-sm font-semibold text-[#0B63CE]">See all vehicles</Link></div></div>}
-  </div></main><PublicFooter/></>;
+  const price = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 20 })}`;
+  const activeFilters = [
+    search.type, search.seats && `${search.seats}+ ${search.vehicle === "motorcycle" ? "passengers" : "seats"}`, search.transmission,
+    search.minPrice != null && search.maxPrice != null ? `${price(search.minPrice)} to ${price(search.maxPrice)}`
+      : search.minPrice != null ? `From ${price(search.minPrice)}` : search.maxPrice != null ? `Up to ${price(search.maxPrice)}` : null,
+    search.rating && `${search.rating}+ stars`,
+    search.sort !== "recommended" && ({ price_asc: "Lowest price first", price_desc: "Highest price first", rating: "Highest rated" })[search.sort as "price_asc" | "price_desc" | "rating"],
+    search.from && search.to && "Rental dates",
+  ].filter(Boolean);
+  const searchKey = JSON.stringify(search);
+  const recoveryButton = "inline-flex min-h-11 items-center justify-center rounded-xl border px-4 text-center text-sm font-semibold";
+  const recovery = `${recoveryButton} border-[#D6E6F7] bg-white text-[#0A3D91] hover:border-[#0B63CE] hover:bg-[#EAF4FF]`;
+  const error = <div role="alert" className="rounded-2xl border border-dashed border-[#D6E6F7] bg-[#F3F9FF] p-6 text-center">
+    <Search size={28} className="mx-auto mb-3 text-[#0B63CE]" aria-hidden/>
+    <h2 className="font-semibold">We couldn’t load cars right now.</h2>
+    <Link href={carsUrl(search)} className={`mt-3 ${recovery}`}>Try again</Link>
+  </div>;
+
+  return <>
+    <main className="theme-public min-h-screen bg-[#F3F9FF] py-4 text-[#0F2342] md:py-10">
+      <div className="mx-auto w-full max-w-[1280px] space-y-3 px-5 sm:px-8 md:space-y-4 lg:px-12">
+        <header>
+          <p className="text-[13px] font-semibold text-[#0B63CE]">Explore Bohol</p>
+          <h1 className="mt-1 text-[26px] leading-tight font-semibold md:text-[40px]">Cars and motorcycles for rent in Bohol</h1>
+          <p className="mt-1 text-[13px] text-[#5B6F89] md:hidden">Local owners. Go self-drive or book a local driver.</p>
+          <p className="mt-2 hidden max-w-[640px] text-sm leading-6 text-[#5B6F89] md:block">Browse rentals from local owners for trips around Panglao and the rest of Bohol. Go at your own pace with a self-drive vehicle, or choose a car with a local driver.</p>
+        </header>
+        <CarSearchBar search={search} activeCount={activeFilters.length}/>
+        {invalidDates && <p role="status" className="rounded-xl bg-[#FFF2D6] px-4 py-3 text-sm text-[#8A5A00]">Please choose valid dates.</p>}
+        <div className="grid min-w-0 gap-5 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[272px_minmax(0,1fr)]">
+          <aside aria-label="Vehicle filters" className="hidden min-w-0 md:sticky md:top-24 md:block md:max-h-[calc(100dvh-7rem)] md:self-start md:overflow-y-auto">
+            <CarListFilters key={searchKey} search={search}/>
+          </aside>
+          <div className="min-w-0 space-y-3">
+            <CarFilterRow>
+              <VehicleFilterTabs current={search.vehicle} counts={vehicleCounts} search={search}/>
+              <span aria-hidden className="h-7 w-px shrink-0 bg-[#D6E6F7]"/>
+              <CarFilterTabs current={search.vehicle === "motorcycle" ? "self" : activeMode ?? "all"} counts={search.vehicle === "motorcycle" ? { all: counts.self, self: counts.self, driver: 0 } : counts} search={search} motorcycle={search.vehicle === "motorcycle"}/>
+              <span aria-hidden className="h-7 w-px shrink-0 bg-[#D6E6F7]"/>
+              <CarSort search={search}/>
+            </CarFilterRow>
+            {search.vehicle === "motorcycle" && search.mode === "driver" && <p role="status" className="text-[13px] text-[#5B6F89]">Motorcycles are self-drive only. Showing self-drive rentals.</p>}
+            <p aria-live="polite" className="text-[13px] text-[#5B6F89]">{resultLabel}</p>
+            {loadError ? error : shownCars.length ? <CarGrid filterKey={JSON.stringify([search.vehicle, activeMode, search.type, search.transmission, search.sort])}>
+              {shownCars.map((car, index) => <CarTile key={car.id} car={car} available={!!search.from && !!search.to} mode={activeMode} searchParams={search}
+                listingPrice={priceFor(car, activeMode)} prioritizeCover={index === 0}/>)}
+            </CarGrid> : <>
+              <div className="rounded-2xl border border-dashed border-[#B7D6F4] bg-white p-5 text-center md:p-9">
+                <Search size={28} className="mx-auto mb-3 text-[#0B63CE]" aria-hidden/>
+                <h2 className="font-semibold">{search.from && search.to && dateNotice ? "No vehicles on those dates" : "No vehicles match your search."}</h2>
+                <p className="mt-2 text-sm text-[#5B6F89]">Try different dates or clear your filters.</p>
+                <div className="mx-auto mt-4 grid max-w-md grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
+                  <Link href="/#top" className={`${recoveryButton} border-transparent bg-[#0B63CE] text-white hover:bg-[#0A3D91]`}>Change dates</Link>
+                  <Link href={carsUrl({ mode: search.mode })} className={recovery}>Clear filters</Link>
+                  {search.mode && <Link href="/cars" className={`${recovery} col-span-2`}>See all vehicles</Link>}
+                </div>
+                {dateNotice && <Link href={carsUrl({ mode: "self", from: search.from, to: search.to, pickup: search.pickup })} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-[#0B63CE] underline focus-visible:outline-2">Try self-drive instead</Link>}
+              </div>
+              {!!activeFilters.length && <p className="rounded-xl bg-[#FFF2D6] p-3 text-sm text-[#8A5A00]">Filters on: {activeFilters.join(", ")}</p>}
+            </>}
+          </div>
+        </div>
+      </div>
+    </main>
+    <PublicFooter/>
+  </>;
 }

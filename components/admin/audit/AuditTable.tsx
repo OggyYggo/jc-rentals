@@ -1,5 +1,6 @@
 "use client";
 
+import { ScrollText } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { actorName, entityLabel, exactTime, humanize, recordHref, relativeTime } from "@/lib/audit/labels";
@@ -23,7 +24,13 @@ export function AuditTable({ rows, now }: { rows: AuditRow[]; now: number }) {
     requestAnimationFrame(() => focused.current?.focus());
   }
   return <>
-    <table className="block w-full table-fixed text-left text-sm lg:table">
+    <ol className="space-y-3 lg:hidden">{rows.map(row => <li key={row.id}>
+      <button type="button" onClick={event => open(row, event.currentTarget)} className="flex w-full items-start gap-3 rounded-xl border border-[#E3EEF9] bg-white p-3 text-left text-sm">
+        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#EAF4FF] text-[#0A47B1]"><ScrollText size={18} aria-hidden/></span>
+        <span className="min-w-0"><strong className="block">{row.summary}</strong><span className="mt-1 block text-[13px] text-[#5B6F89]">{actorName(row)} · <time dateTime={row.created_at}>{exactTime(row.created_at)}</time></span><span className="mt-2 inline-block"><ActionChip action={row.action} rejected={row.changes.status?.to === "rejected"}/></span></span>
+      </button>
+    </li>)}</ol>
+    <table className="hidden w-full table-fixed text-left text-sm lg:table">
       <thead className="sr-only lg:not-sr-only"><tr>{headers.map((header, i) =>
         <th key={header} scope="col" className={`px-3 py-2 ${i === 2 ? "w-1/4" : ""}`}>{header}</th>)}</tr></thead>
       <tbody className="block space-y-3 lg:table-row-group lg:divide-y lg:space-y-0">

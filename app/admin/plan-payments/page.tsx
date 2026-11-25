@@ -12,11 +12,11 @@ export default async function AdminPlanPaymentsPage() {
   const planIds = [...new Set((payments ?? []).map((payment) => payment.plan_id))];
   const [{ data: owners }, { data: plans }] = await Promise.all([
     ownerIds.length ? supabase.from("owners").select("id,business_name").in("id", ownerIds) : Promise.resolve({ data: [] }),
-    planIds.length ? supabase.from("plans").select("id,name").in("id", planIds) : Promise.resolve({ data: [] }),
+    planIds.length ? supabase.from("plans").select("id,name,max_active_cars").in("id", planIds) : Promise.resolve({ data: [] }),
   ]);
   const rows = await Promise.all((payments ?? []).map(async (payment) => {
     const { data: proof } = payment.proof_path ? await supabase.storage.from("owner-plan-proofs").createSignedUrl(payment.proof_path, 300) : { data: null };
-    return { ...payment, owner_name: owners?.find((owner) => owner.id === payment.owner_id)?.business_name ?? "Owner", plan_name: plans?.find((plan) => plan.id === payment.plan_id)?.name ?? "Plan", proof_url: proof?.signedUrl ?? null };
+    return { ...payment, owner_name: owners?.find((owner) => owner.id === payment.owner_id)?.business_name ?? "Owner", vehicleAllowance: plans?.find(plan => plan.id === payment.plan_id)?.max_active_cars ?? null, plan_name: plans?.find((plan) => plan.id === payment.plan_id)?.name ?? "Plan", proof_url: proof?.signedUrl ?? null };
   }));
   return <><AdminHeading eyebrow="Subscriptions" title="Plan payments" description="Review QR payments and activate or reject owner plan requests."/><PlanPaymentReview rows={rows as PlanPaymentRow[]}/></>;
 }

@@ -6,6 +6,7 @@ export const instant = false;
 
 const customerColumns = "id, full_name, phone, verification, created_at, license_path, id_path";
 const licenseColumns = "id, license_declared_classes, license_classes";
+const bookingColumns = "id, bookings!bookings_customer_id_fkey(count)";
 const archiveColumns = "id, customer_archived_at";
 const reasonColumns = "id, verification_rejection_reason";
 
@@ -20,10 +21,11 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
   const loadCustomers = <Columns extends string>(columns: Columns) =>
     supabase.from("profiles").select(columns).eq("role", "customer").order("created_at", { ascending: false });
 
-  const [result, access, selfies] = await Promise.all([
+  const [result, access, selfies, bookingCounts] = await Promise.all([
     loadCustomers(`${customerColumns}, license_declared_classes, license_classes, verification_rejection_reason, customer_archived_at`),
     supabase.rpc("is_super_admin"),
     supabase.from("customer_selfies").select("customer_id,revision,status"),
+    loadCustomers(bookingColumns),
   ]);
   let customers: AdminCustomer[] = result.data ?? [];
   let canReject = true;
@@ -56,7 +58,8 @@ export default async function AdminCustomersPage({ searchParams }: { searchParam
   }
 
   const selfiesByCustomer = new Map(selfies.data?.map(row => [row.customer_id, { revision: row.revision, status: row.status }]));
-  customers = customers.map(customer => ({ ...customer, selfie: selfiesByCustomer.get(customer.id) }));
+  const bookingsByCustomer = new Map(bookingCounts.data?.map(row => [row.id, row.bookings[0]?.count ?? 0]));
+  customers = customers.map(customer => ({ ...customer, selfie: selfiesByCustomer.get(customer.id), bookingCount: bookingsByCustomer.get(customer.id) }));
 
   return <>
     <AdminHeading eyebrow="People" title="Customers" description="Review customer records and privately inspect submitted verification documents." />

@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { LoaderCircle, Plus, Search, Store } from "lucide-react";
-import { AdminStatus, adminInputClass } from "@/components/admin/ui";
+import { AdminFilterChips, AdminStatus, adminInputClass, mobileAction, mobileCard, mobilePrimaryAction } from "@/components/admin/ui";
 import { createClient } from "@/lib/supabase/client";
 
 export type CustomerOption = { id: string; full_name: string; phone: string | null };
-export type OwnerRow = { id: string; profile_id: string; business_name: string; contact_phone: string | null; commission_rate: number; is_active: boolean; archived_at: string | null; active_before_archive: boolean | null; payment_options: { is_active: boolean; verified: boolean }[]; profile: { full_name: string; phone: string | null } | null };
+export type OwnerRow = { id: string; profile_id: string; business_name: string; contact_phone: string | null; commission_rate: number; is_active: boolean; archived_at: string | null; active_before_archive: boolean | null; fee_mode: string; cars: { count: number }[]; lowCredits?: boolean; payment_options: { is_active: boolean; verified: boolean }[]; profile: { full_name: string; phone: string | null } | null };
 
 const ownerViewClass = "rounded-lg border border-[#dbe4fb] px-3 py-2 text-xs font-semibold text-[#4568bd] aria-pressed:bg-[#2457d6] aria-pressed:text-white";
 
@@ -18,6 +18,8 @@ export function OwnerManager({ owners, customers, defaultCommission, canArchive 
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [mobileFilter, setMobileFilter] = useState("all");
+  const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -25,6 +27,14 @@ export function OwnerManager({ owners, customers, defaultCommission, canArchive 
   const [drafts, setDrafts] = useState<Record<string, { business_name: string; contact_phone: string; commission_rate: string }>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const filtered = useMemo(() => owners.filter((owner) => Boolean(owner.archived_at) === showArchived && `${owner.business_name} ${owner.profile?.full_name ?? ""}`.toLowerCase().includes(search.toLowerCase())), [owners, search, showArchived]);
+
+  const matching = owners.filter(owner => `${owner.business_name} ${owner.profile?.full_name ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+  const ownerOptions = [
+    { value: "all", label: "All", count: matching.length },
+    { value: "active", label: "Active", count: matching.filter(owner => !owner.archived_at && owner.is_active).length },
+    { value: "archived", label: "Archived", count: matching.filter(owner => owner.archived_at).length },
+  ];
+  const mobileRows = matching.filter(owner => mobileFilter === "all" || (mobileFilter === "archived" ? !!owner.archived_at : !owner.archived_at && owner.is_active));
 
   function addOwner(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,12 +120,47 @@ export function OwnerManager({ owners, customers, defaultCommission, canArchive 
   }
 
   return <div className="space-y-4">
-    <div role="group" aria-label="Owner list" className="flex gap-2">
+    <div role="group" aria-label="Owner list" className="hidden gap-2 lg:flex">
       <button type="button" aria-pressed={!showArchived} onClick={() => setShowArchived(false)} className={ownerViewClass}>Current owners</button>
       <button type="button" aria-pressed={showArchived} onClick={() => { setShowArchived(true); setCreating(false); }} className={ownerViewClass}>Archived owners</button>
     </div>
-    <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-xs"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b97a8]"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search owners..." className={`${adminInputClass} pl-9`}/></div>{!showArchived && <button onClick={() => { setCreating((value) => !value); }} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8]"><Plus size={14}/>Add owner</button>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="relative w-full max-w-xs"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b97a8]"/><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search owners" placeholder="Search owners..." className={`${adminInputClass} pl-9`}/></div>{!showArchived && <button onClick={() => { setCreating((value) => !value); }} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-3.5 text-[11px] font-semibold text-white hover:bg-[#1d4ed8]"><Plus size={14}/>Add owner</button>}</div>
     {creating && <form onSubmit={addOwner} className="rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-5"><div className="mb-4"><h2 className="text-sm font-semibold text-[#33445b]">Create owner account</h2><p className="mt-1 text-[10px] text-[#8793a3]">Promote an existing customer and create their business workspace.</p></div><div className="grid gap-3 sm:grid-cols-3"><label className="text-[10px] font-medium text-[#69788e]">Customer profile<select required value={customerId} onChange={(event) => setCustomerId(event.target.value)} className={`${adminInputClass} mt-1.5`}><option value="">Choose a customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name || customer.phone || customer.id.slice(0, 8)} · {customer.phone || "No phone"}</option>)}</select></label><label className="text-[10px] font-medium text-[#69788e]">Business name<input required value={businessName} onChange={(event) => setBusinessName(event.target.value)} className={`${adminInputClass} mt-1.5`} placeholder="Business name"/></label><label className="text-[10px] font-medium text-[#69788e]">Commission rate (%)<input required type="number" min="0" max="100" step="0.1" value={Number(commissionRate) * 100} onChange={(event) => setCommissionRate(String(Number(event.target.value) / 100))} className={`${adminInputClass} mt-1.5`}/></label></div>{!customers.length && <p className="mt-3 text-[10px] text-[#9a6c2b]">No customer profiles are available to promote yet.</p>}<div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setCreating(false)} className="h-8 rounded-lg border border-[#e1e7ef] px-3 text-[10px] font-medium text-[#68778c]">Cancel</button><button disabled={!customers.length || busyId === "new"} className="inline-flex h-8 items-center gap-2 rounded-lg bg-[#2457d6] px-3 text-[10px] font-semibold text-white disabled:opacity-50">{busyId === "new" && <LoaderCircle size={13} className="animate-spin"/>}Create owner</button></div></form>}
+    <div className="space-y-3 lg:hidden">
+      <AdminFilterChips label="Owner list" value={mobileFilter} options={ownerOptions} onChange={value => {
+        setMobileFilter(value);
+        setShowArchived(value === "archived");
+        if (value === "archived") setCreating(false);
+      }}/>
+      {mobileRows.map(owner => {
+        const draft = draftFor(owner);
+        return <article className={mobileCard} key={owner.id}>
+          <div className="flex items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#EAF4FF] font-semibold text-[#0A47B1]">{owner.business_name.split(/\s+/).slice(0, 2).map(word => word[0]).join("").toUpperCase()}</span>
+            <div className="min-w-0"><h2 className="font-semibold">{owner.business_name}</h2><p className="text-[#5B6F89]">{owner.profile?.full_name || "Owner"}{owner.contact_phone && ` · ${owner.contact_phone}`}</p></div>
+          </div>
+          <div className="my-3 flex flex-wrap items-center gap-2 text-[13px] text-[#5B6F89]">
+            <AdminStatus status={owner.archived_at ? "archived" : owner.is_active ? "active" : "inactive"}/>
+            <span className="capitalize">{owner.fee_mode}</span><span>{Number(owner.commission_rate) * 100}% commission</span><span>{owner.cars?.[0]?.count ?? 0} vehicles</span>
+            {owner.lowCredits && <span className="rounded-full bg-[#FFF2D6] px-2 py-1 text-[#8A5A00]">Low credits</span>}
+          </div>
+          {editing === owner.id && <div className="mb-3 space-y-2">
+            <label className="block">Business name<input value={draft.business_name} onChange={event => setDrafts(current => ({ ...current, [owner.id]: { ...draft, business_name: event.target.value } }))} className={adminInputClass}/></label>
+            <label className="block">Contact phone<input value={draft.contact_phone} onChange={event => setDrafts(current => ({ ...current, [owner.id]: { ...draft, contact_phone: event.target.value } }))} className={adminInputClass}/></label>
+            <label className="block">Commission (%)<input type="number" min="0" max="100" step="0.1" value={Number(draft.commission_rate) * 100} onChange={event => setDrafts(current => ({ ...current, [owner.id]: { ...draft, commission_rate: String(Number(event.target.value) / 100) } }))} className={adminInputClass}/></label>
+            <div className="flex flex-wrap gap-2"><button type="button" disabled={busyId !== null} onClick={() => saveOwner(owner)} className={mobilePrimaryAction}>Save</button>
+            <button type="button" disabled={busyId !== null} onClick={() => toggleOwner(owner)} className={mobileAction}>{owner.is_active ? "Deactivate" : "Activate"}</button>
+            <Link href={`/admin/owners/${owner.id}`} className={mobileAction}>Review payment</Link></div>
+          </div>}
+          <div className="flex flex-wrap justify-between gap-2 border-t border-[#E3EEF9] pt-3">
+            {!owner.archived_at && <button type="button" aria-expanded={editing === owner.id} onClick={() => setEditing(editing === owner.id ? null : owner.id)} className={mobilePrimaryAction}>{editing === owner.id ? "Close edit" : "Edit"}</button>}
+            {canArchive && <button type="button" disabled={busyId !== null} onClick={() => setArchived(owner, !owner.archived_at)} className={mobileAction}>{owner.archived_at ? "Restore" : "Archive"}</button>}
+          </div>
+        </article>;
+      })}
+      {!mobileRows.length && <p className={mobileCard}>{mobileFilter === "archived" ? "No archived owners match." : "No owners found"}</p>}
+    </div>
+    <div className="hidden lg:block">
     {showArchived ? (
       filtered.length ? <ul className="space-y-2">
         {filtered.map((owner) => <li key={owner.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e7ecf3] bg-white p-4">
@@ -127,5 +172,6 @@ export function OwnerManager({ owners, customers, defaultCommission, canArchive 
         </li>)}
       </ul> : <p className="rounded-xl border border-[#e7ecf3] bg-white p-8 text-center text-sm text-[#68778c]">No archived owners match.</p>
     ) : filtered.length ? <div className="overflow-x-auto rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]"><table className="w-full min-w-[1100px] text-left"><thead className="bg-[#f9fafc] text-[9px] font-medium uppercase tracking-wide text-[#8d99aa]"><tr><th className="px-4 py-3">Business / account</th><th className="px-3 py-3">Contact phone</th><th className="px-3 py-3">Commission</th><th className="px-3 py-3">Access</th><th className="px-3 py-3">Payment options</th><th className="px-3 py-3">Update</th></tr></thead><tbody className="divide-y divide-[#f0f2f6]">{filtered.map((owner) => { const draft = draftFor(owner); return <tr key={owner.id} className="align-middle"><td className="px-4 py-3.5"><div className="flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf2ff] text-[#4c6fc9]"><Store size={15}/></span><div><input aria-label="Business name" value={draft.business_name} onChange={(event) => setDrafts((current) => ({ ...current, [owner.id]: { ...draft, business_name: event.target.value } }))} className="w-48 border-0 bg-transparent text-[11px] font-semibold text-[#43536a] outline-none focus:underline"/><p className="mt-0.5 text-[9px] text-[#8b97a8]">{owner.profile?.full_name || "Owner"} · {owner.profile_id.slice(0, 8)}</p></div></div></td><td className="px-3 py-3.5"><input aria-label="Contact phone" value={draft.contact_phone} onChange={(event) => setDrafts((current) => ({ ...current, [owner.id]: { ...draft, contact_phone: event.target.value } }))} placeholder="Phone" className="h-8 w-32 rounded-md border border-[#e3e8ef] px-2 text-[10px] text-[#56657b]"/></td><td className="px-3 py-3.5"><div className="flex items-center gap-1"><input aria-label="Commission rate percent" type="number" min="0" max="100" step="0.1" value={Number(draft.commission_rate) * 100} onChange={(event) => setDrafts((current) => ({ ...current, [owner.id]: { ...draft, commission_rate: String(Number(event.target.value) / 100) } }))} className="h-8 w-16 rounded-md border border-[#e3e8ef] px-2 text-[10px] text-[#56657b]"/><span className="text-[10px] text-[#8793a3]">%</span></div></td><td className="px-3 py-3.5"><div className="flex items-center gap-2"><AdminStatus status={owner.is_active ? "active" : "inactive"}/><button disabled={busyId === owner.id} onClick={() => toggleOwner(owner)} className="text-[9px] font-semibold text-[#4e6fc4]">{owner.is_active ? "Deactivate" : "Activate"}</button></div></td><td className="px-3 py-3.5"><div className="flex flex-col items-start gap-1"><span className="text-xs font-medium">{owner.payment_options.filter(option => option.is_active && option.verified).length} verified options</span><Link href={`/admin/owners/${owner.id}`} className="text-[9px] font-semibold text-[#4e6fc4] hover:underline">Review payment</Link></div></td><td className="px-3 py-3.5"><button disabled={busyId === owner.id} onClick={() => saveOwner(owner)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] px-2.5 text-[10px] font-semibold text-[#4568bd] disabled:opacity-50">{busyId === owner.id && <LoaderCircle size={12} className="animate-spin"/>}Save</button>{canArchive && <button type="button" disabled={busyId !== null} onClick={() => setArchived(owner, true)} className="ml-2 rounded-lg border border-red-200 px-2.5 py-2 text-[10px] font-semibold text-red-700 disabled:opacity-50">Archive owner</button>}</td></tr>; })}</tbody></table></div> : <div className="rounded-xl border border-[#e7ecf3] bg-white px-6 py-14 text-center"><Store size={22} className="mx-auto text-[#94a1b2]"/><h2 className="mt-3 text-sm font-semibold text-[#43536a]">No owners found</h2><p className="mt-1 text-xs text-[#8793a3]">Add an owner or adjust your search.</p></div>}
+    </div>
   </div>;
 }
