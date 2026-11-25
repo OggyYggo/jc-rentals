@@ -21,8 +21,8 @@ export function createPublicServerClient() {
 }
 
 export async function createClient() {
-  const { url, key } = publicCredentials();
   const cookieStore = await cookies();
+  const { url, key } = publicCredentials();
 
   return createServerClient(url, key, {
     cookies: {

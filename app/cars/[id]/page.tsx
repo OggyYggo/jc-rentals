@@ -3,7 +3,7 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { publicMetadata } from "@/lib/site/public-metadata";
 import { SITE_URL } from "@/lib/site-url";
 import { paymentPeso } from "@/lib/payment-format";
-import { DateUpdateForm } from "@/components/booking/DateUpdateForm";
+import { DateUpdateForm, ListingAvailabilityCalendar } from "@/components/booking/DateUpdateForm";
 import { BookingPolicyDialog } from "@/components/booking/BookingPolicyDialog";
 import { CANCELLATION_POLICY_VERSION } from "@/lib/policies/cancellation";
 import { cancellationRule } from "@/lib/cancellation";
@@ -22,7 +22,8 @@ import type { Metadata } from "next";
 import { Bike, CalendarDays, CarFront, Fuel, Settings2, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { carPhotoUrl } from "@/lib/car-photo";
-import { AvailabilityCalendar } from "@/components/customer/availability-calendar";
+import { addCalendarDays, nextFreeRange, overlapsAvailability } from "@/lib/cars/availability";
+import { readAvailability } from "@/lib/cars/read-availability";
 import { CarPhotoCarousel } from "@/components/customer/car-photo-carousel";
 import { PublicFooter } from "@/components/public-footer";
 import { getPublicPromoCar } from "@/lib/promo/data";
@@ -53,7 +54,6 @@ function lowestDailyRate(
 export const instant = false;
 type Props = { params: Promise<{id:string}>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-function isoDate(date: Date) { return date.toISOString().slice(0, 10); }
 function isIsoDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00.000Z`);
@@ -143,24 +143,16 @@ async function CarDetailContent({ params, searchParams }: Props) {
   }
 
   const today = manilaToday();
-  const windowEndDate = new Date(`${today}T00:00:00`);
-  windowEndDate.setDate(windowEndDate.getDate() + 120);
-  const windowEnd = isoDate(windowEndDate);
-  const unavailable: string[] = [];
-  try {
-    const [{data:blocks},{data:bookings}] = await Promise.all([
-      db.from("public_car_blocked_dates").select("start_date,end_date").eq("car_id", id).lte("start_date", windowEnd).gte("end_date", today),
-      db.from("public_car_booking_dates").select("start_date,end_date").eq("car_id", id).lte("start_date", windowEnd).gte("end_date", today),
-    ]);
-    for (const period of [...(blocks ?? []), ...(bookings ?? [])]) {
-      const from = new Date(`${period.start_date < today ? today : period.start_date}T00:00:00`);
-      const until = new Date(`${period.end_date > windowEnd ? windowEnd : period.end_date}T00:00:00`);
-      for (const day = from; day <= until; day.setDate(day.getDate() + 1)) unavailable.push(isoDate(day));
-    }
-  } catch {}
+  const windowEnd = addCalendarDays(today, 120);
+  const through = end && end > windowEnd ? end : windowEnd;
+  const periods = await readAvailability(db, id, today, through);
+  const availabilityError = periods === null;
+  const dateConflict = Boolean(start && end && periods && overlapsAvailability(start, end, periods));
+  const nextRange = dateConflict && start && end && periods ? nextFreeRange(start, end, through, periods) : null;
+  const datePicker = { path: `/cars/${id}`, from: start, to: end, mode: mode === "with_driver" ? "driver" : "self", pickup, today, through, periods };
 
   const rate = car.car_rates?.find((item) => item.mode === mode);
-  const days = start && end ? Math.max(1, Math.ceil((new Date(`${end}T00:00:00`).getTime() - new Date(`${start}T00:00:00`).getTime()) / 86_400_000)) : 0;
+  const days = start && end ? (Date.parse(end) - Date.parse(start)) / 86_400_000 : 0;
   const carListQuery = new URLSearchParams();
   if (start) carListQuery.set("from", start);
   if (end) carListQuery.set("to", end);
@@ -208,12 +200,10 @@ async function CarDetailContent({ params, searchParams }: Props) {
     if (profile.verification !== "approved") redirect(`${detailUrl}&bookingError=verification`);
     if (mode === "self_drive" && vehicleType === "motorcycle" && !(profile.license_classes ?? []).includes("motorcycle")) redirect(`${detailUrl}&bookingError=license_class`);
 
-    const [{ data: blocks, error: blocksError }, { data: booked, error: bookingsError }] = await Promise.all([
-      client.from("public_car_blocked_dates").select("start_date,end_date").eq("car_id", id).lte("start_date", endDate).gte("end_date", startDate),
-      client.from("public_car_booking_dates").select("start_date,end_date").eq("car_id", id).lte("start_date", endDate).gte("end_date", startDate),
-    ]);
-    if (blocksError || bookingsError) redirect(`${detailUrl}&bookingError=retry`);
-    if ((blocks?.length ?? 0) || (booked?.length ?? 0)) redirect(`${detailUrl}&bookingError=unavailable`);
+    const availability = await readAvailability(client, id, startDate, endDate);
+    if (!availability) redirect(`${detailUrl}&bookingError=availability#booking-summary`);
+    if (availability.some(period => period.kind !== "blocked")) redirect(`${detailUrl}&bookingError=taken#booking-summary`);
+    if (availability.length) redirect(`${detailUrl}&bookingError=unavailable#booking-summary`);
 
     // Send only booking choices. The database insert trigger fetches the saved rate
     // and calculates the authoritative total, deposit, commission, and owner earnings.
@@ -243,7 +233,7 @@ async function CarDetailContent({ params, searchParams }: Props) {
       const message = bookingError?.message ?? "";
       const conflict = bookingError?.code === "23P01" || /blocked|overlap/i.test(message);
       const listingUnavailable = /car is unavailable for bookings/i.test(message);
-      const error = message.includes("BOOKINGS_PAUSED") ? "paused" : message.includes("CUSTOMER_VERIFICATION_REQUIRED") ? "verification" : message.includes("BOOKING_POLICY_REQUIRED") ? "policy" : message.includes("CUSTOMER_ARCHIVED") ? "customer_archived" : conflict ? "unavailable" : listingUnavailable ? "listing" : message.includes("LICENSE_CLASS_REQUIRED") ? "license_class" : bookingError?.code === "42501" ? "documents" : "retry";
+      const error = message.includes("BOOKINGS_PAUSED") ? "paused" : message.includes("CUSTOMER_VERIFICATION_REQUIRED") ? "verification" : message.includes("BOOKING_POLICY_REQUIRED") ? "policy" : message.includes("CUSTOMER_ARCHIVED") ? "customer_archived" : conflict ? "taken" : listingUnavailable ? "listing" : message.includes("LICENSE_CLASS_REQUIRED") ? "license_class" : bookingError?.code === "42501" ? "documents" : "retry";
       redirect(`${detailUrl}&bookingError=${error}#booking-summary`);
     }
     redirect(`/account/bookings/${createdBooking}/pay`);
@@ -281,7 +271,7 @@ async function CarDetailContent({ params, searchParams }: Props) {
           {rate ? <div className={`mt-5 rounded-xl bg-[#F5FAFF] p-4 ${rate.notes || (mode === "with_driver" && rate.included_hours) ? "max-md:mt-1 max-md:bg-transparent max-md:px-1 max-md:py-0" : "max-md:hidden"}`}><p className="text-2xl font-semibold text-[#0A3D91] max-md:hidden">₱{Number(rate.daily_rate).toLocaleString()} <span className="text-sm font-medium text-[#51657F]">/ day</span></p>{rate.notes&&<p className="mt-2 text-sm leading-6 text-[#51657F]">{rate.notes}</p>}{mode==="with_driver"&&rate.included_hours&&<p className="mt-2 text-sm text-[#51657F]">{rate.included_hours} hours included{rate.overtime_per_hour?`; overtime ₱${Number(rate.overtime_per_hour).toLocaleString()} per hour`:""}.</p>}</div> : <p className="mt-4 text-sm text-[#51657F]">This mode is not available for this car.</p>}
         </section>
 
-        <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><div className="mb-3 flex items-center gap-2"><CalendarDays size={18} className="text-[#0B63CE]"/><h2 className="font-semibold">Availability</h2></div><AvailabilityCalendar today={today} blockedDates={unavailable}/></section>
+        <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><div className="mb-3 flex items-center gap-2"><CalendarDays size={18} className="text-[#0B63CE]"/><h2 className="font-semibold">Availability</h2></div><ListingAvailabilityCalendar {...datePicker}/></section>
 
         <section className="rounded-2xl border border-[#D6E6F7] bg-white p-5"><h2 className="font-semibold text-[#0F2342]">Rental terms</h2>{mode === "self_drive" ? <div className="mt-3 space-y-2 text-sm leading-6 text-[#51657F]"><p>{rate?.license_required ? "A valid driver’s license is required." : "A driver’s license is not required."}</p>{rate?.minimum_age && <p>Minimum driver age: {rate.minimum_age}.</p>}{rate?.fuel_policy && <p>Fuel: {rate.fuel_policy}.</p>}{rate?.mileage_limit && <p>Mileage: {rate.mileage_limit}.</p>}{deposit > 0 && <p>Refundable security deposit: ₱{deposit.toLocaleString()}.</p>}</div> : <div className="mt-3 space-y-2 text-sm leading-6 text-[#51657F]"><p>{rate?.license_required ? "A driver’s license is required." : "No driver’s license is needed."}</p>{rate?.included_hours && <p>{rate.included_hours} hours included{rate.overtime_per_hour ? `; overtime ₱${Number(rate.overtime_per_hour).toLocaleString()} per hour` : ""}.</p>}<p>Fuel {rate?.fuel_included ? "included" : "not included"}; driver meals {rate?.driver_meals_included ? "included" : "not included"}; accommodation {rate?.accommodation_included ? "included" : "not included"}.</p>{rate?.coverage_area && <p>Coverage area: {rate.coverage_area}.</p>}{rate?.notes && <p>{rate.notes}</p>}<p>Share your pickup location and itinerary when arranging the booking.</p></div>}</section>
         {car.description && <section className="rounded-2xl border border-blue-100 p-5">
@@ -298,7 +288,9 @@ async function CarDetailContent({ params, searchParams }: Props) {
 
       <aside id="booking-summary" className="h-fit scroll-mt-24 rounded-2xl border border-[#D6E6F7] bg-white p-5 shadow-[0_14px_38px_-28px_rgba(10,61,145,.5)] max-md:order-4 max-md:min-w-0 max-md:rounded-[22px] max-md:shadow-sm lg:sticky lg:top-24">
         <h2 className="font-semibold text-[#0F2342]"><span className="flex items-center gap-2 font-heading text-lg md:hidden"><CalendarDays size={19} className="text-[#0A47B1]" aria-hidden="true" />Rental dates</span><span className="hidden md:inline">Booking summary</span></h2>
-        <DateUpdateForm path={`/cars/${id}`} from={start} to={end} mode={mode === "with_driver" ? "driver" : "self"} pickup={pickup} today={today} invalid={invalidSearchDates} />
+        <DateUpdateForm {...datePicker} invalid={invalidSearchDates} />
+        {(availabilityError || bookingError === "availability") && <p role="alert" className="mt-3 text-sm text-red-800">We could not load availability. Please refresh.</p>}
+        {(dateConflict || bookingError === "unavailable") && bookingError !== "taken" && <p role="alert" className="mt-3 text-sm text-red-800">These dates are not available for this vehicle.{nextRange && <> Next available range: <Link scroll={false} href={`${datePicker.path}?${new URLSearchParams({ from: nextRange.start, to: nextRange.end, mode: datePicker.mode, ...(pickup ? { pickup } : {}) })}`} className="font-semibold underline">{nextRange.start} to {nextRange.end}</Link>.</>}</p>}
         <div className="mt-5 rounded-2xl bg-[#F3F9FF] p-4 md:hidden">
           <h2 className="font-heading font-semibold">Booking summary</h2>
           {days > 0 && rate ? <dl className="mt-3 space-y-2 text-sm text-[#5B6F89]">
@@ -312,10 +304,10 @@ async function CarDetailContent({ params, searchParams }: Props) {
         {car.vehicle_type === "motorcycle" && <div className="mt-5 rounded-xl bg-[#f5f8ff] p-4 text-xs leading-5 text-[#51657F]"><p className="font-semibold text-[#0F2342]">Before you ride</p><p className="mt-1">Use a verified motorcycle license class, wear a helmet, and follow the fuel, damage, and deposit rules. Maximum two riders.</p></div>}{customerVerification && !customerVerification.approved && <div role="status" className="mt-5 rounded-xl border border-[#f0dfb9] bg-[#fffaf0] p-3.5 text-xs leading-5 text-[#76551b]"><p className="font-semibold">Account verification required before booking</p><p className="mt-1">{customerVerification.hasDocuments ? "Your ID and driver’s license are uploaded. Please wait for your account to be verified before booking." : "Upload your government ID and driver’s license, then wait for your account to be verified before booking."} <Link href="/account/profile?section=documents" className="font-semibold underline">View account verification</Link></p></div>}
         {car.vehicle_type === "motorcycle" && customerVerification !== null && !motorcycleLicenseAllowed && <div role="status" className="mt-5 rounded-xl border border-[#f0dfb9] bg-[#fffaf0] p-3.5 text-xs leading-5 text-[#76551b]"><p className="font-semibold">Your license is not yet verified for motorcycles.</p><p className="mt-1">Update your documents and we will review it. <Link href="/account/profile?section=documents" className="font-semibold underline">Update documents</Link></p></div>}
         {(bookingsPaused || bookingUnavailable || bookingError === "paused") && <p role="status" className="mt-4 rounded-xl bg-[#fffaf0] p-3 text-sm text-[#76551b]">{bookingsPaused || bookingError === "paused" ? "Bookings are temporarily paused" : "Booking requests are temporarily unavailable. Try again shortly."}</p>}
-        {!bookingsPaused && !bookingUnavailable && mode === "with_driver" && <form action={book} className="mt-5 space-y-3 border-t border-[#D6E6F7] pt-4"><input type="hidden" name="start_date" value={start ?? ""}/><input type="hidden" name="end_date" value={end ?? ""}/><label className="block text-xs font-semibold text-[#0F2342]">Pickup location<input required name="pickup_location" defaultValue={pickup ?? ""} placeholder="Hotel, airport, or address" className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] px-3 text-sm font-normal"/></label><ListingCancellation start={start} {...policy} reservation={reservation} withDriver/><label className="block text-xs font-semibold text-[#0F2342]">Itinerary notes<textarea required name="itinerary_notes" rows={3} placeholder="Places you plan to visit and preferred schedule" className="mt-1 w-full rounded-xl border border-[#D6E6F7] px-3 py-2 text-sm font-normal"/></label><BookingPolicyDialog label="Request with driver" disabled={!rate || !start || !end || (customerVerification !== null && !customerVerification.approved)} className="h-12 w-full rounded-full bg-[#0B63CE] max-md:h-[52px] max-md:bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] disabled:opacity-50" summary={cancellationRule(policy.hours, policy.percent)} hours={policy.hours} policyText={policy.policyText} /><p className="text-center text-xs text-[#51657F]">The driver will confirm the itinerary and any uncovered expenses.</p></form>}
+        {!bookingsPaused && !bookingUnavailable && mode === "with_driver" && <form action={book} className="mt-5 space-y-3 border-t border-[#D6E6F7] pt-4"><input type="hidden" name="start_date" value={start ?? ""}/><input type="hidden" name="end_date" value={end ?? ""}/><label className="block text-xs font-semibold text-[#0F2342]">Pickup location<input required name="pickup_location" defaultValue={pickup ?? ""} placeholder="Hotel, airport, or address" className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] px-3 text-sm font-normal"/></label><ListingCancellation start={start} {...policy} reservation={reservation} withDriver/><label className="block text-xs font-semibold text-[#0F2342]">Itinerary notes<textarea required name="itinerary_notes" rows={3} placeholder="Places you plan to visit and preferred schedule" className="mt-1 w-full rounded-xl border border-[#D6E6F7] px-3 py-2 text-sm font-normal"/></label><BookingPolicyDialog label="Request with driver" disabled={availabilityError || dateConflict || !rate || !start || !end || (customerVerification !== null && !customerVerification.approved)} className="h-12 w-full rounded-full bg-[#0B63CE] max-md:h-[52px] max-md:bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] disabled:opacity-50" summary={cancellationRule(policy.hours, policy.percent)} hours={policy.hours} policyText={policy.policyText} /><p className="text-center text-xs text-[#51657F]">The driver will confirm the itinerary and any uncovered expenses.</p></form>}
         {mode === "self_drive" && <div className="mt-4"><ListingCancellation start={start} {...policy} reservation={reservation}/></div>}
-        {!bookingsPaused && !bookingUnavailable && mode === "self_drive" && <form action={book} className="mt-5"><input type="hidden" name="start_date" value={start ?? ""}/><input type="hidden" name="end_date" value={end ?? ""}/><label className="block text-xs font-semibold text-[#0F2342]">Pickup location (optional)<input name="pickup_location" defaultValue={pickup ?? ""} placeholder="Preferred pickup point" className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] px-3 text-sm font-normal"/></label><BookingPolicyDialog label="Request self-drive" disabled={!rate || !start || !end || (customerVerification !== null && !customerVerification.approved) || (car.vehicle_type === "motorcycle" && customerVerification !== null && !motorcycleLicenseAllowed)} className="mt-3 h-12 w-full rounded-full bg-[#0B63CE] max-md:h-[52px] max-md:bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] disabled:opacity-50" summary={cancellationRule(policy.hours, policy.percent)} hours={policy.hours} policyText={policy.policyText} /><p className="mt-3 text-center text-xs text-[#51657F]">A valid driver’s license must be uploaded to your account.</p></form>}
-        {bookingError && bookingError !== "paused" && <div role="alert" className="mt-3 rounded-xl bg-[#fff5f3] p-3 text-xs leading-5 text-[#9a3c30]">{bookingError === "customer_archived" ? "Your account cannot make new bookings right now. Contact us for help." : bookingError === "policy" ? "Please accept the cancellation policy to continue." : bookingError === "details" ? "Add a pickup location, pickup time, and itinerary notes to continue." : bookingError === "dates" ? "Choose valid rental dates starting today or later." : bookingError === "documents" ? <>Bookings require your government ID and driver’s license. <Link href="/account/profile?section=documents" className="font-semibold underline">Upload your documents</Link>.</> : bookingError === "license_class" ? <>Your license is not yet verified for motorcycles. <Link href="/account/profile" className="font-semibold underline">Update your documents</Link>.</> : bookingError === "verification" ? <>Your documents are on file, but your account must be verified before booking. <Link href="/account/profile?section=documents" className="font-semibold underline">Check verification status</Link>.</> : bookingError === "unavailable" ? "Those dates are no longer available. Choose another date range." : bookingError === "listing" ? "This listing isn’t accepting bookings right now. Please choose another car or contact the owner." : "We couldn’t verify availability right now. Please try again."}</div>}
+        {!bookingsPaused && !bookingUnavailable && mode === "self_drive" && <form action={book} className="mt-5"><input type="hidden" name="start_date" value={start ?? ""}/><input type="hidden" name="end_date" value={end ?? ""}/><label className="block text-xs font-semibold text-[#0F2342]">Pickup location (optional)<input name="pickup_location" defaultValue={pickup ?? ""} placeholder="Preferred pickup point" className="mt-1 h-11 w-full rounded-xl border border-[#D6E6F7] px-3 text-sm font-normal"/></label><BookingPolicyDialog label="Request self-drive" disabled={availabilityError || dateConflict || !rate || !start || !end || (customerVerification !== null && !customerVerification.approved) || (car.vehicle_type === "motorcycle" && customerVerification !== null && !motorcycleLicenseAllowed)} className="mt-3 h-12 w-full rounded-full bg-[#0B63CE] max-md:h-[52px] max-md:bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] disabled:opacity-50" summary={cancellationRule(policy.hours, policy.percent)} hours={policy.hours} policyText={policy.policyText} /><p className="mt-3 text-center text-xs text-[#51657F]">A valid driver’s license must be uploaded to your account.</p></form>}
+        {bookingError && !["paused", "availability", "unavailable"].includes(bookingError) && <div role="alert" className="mt-3 rounded-xl bg-[#fff5f3] p-3 text-xs leading-5 text-[#9a3c30]">{bookingError === "customer_archived" ? "Your account cannot make new bookings right now. Contact us for help." : bookingError === "policy" ? "Please accept the cancellation policy to continue." : bookingError === "details" ? "Add a pickup location, pickup time, and itinerary notes to continue." : bookingError === "dates" ? "Choose valid rental dates starting today or later." : bookingError === "documents" ? <>Bookings require your government ID and driver’s license. <Link href="/account/profile?section=documents" className="font-semibold underline">Upload your documents</Link>.</> : bookingError === "license_class" ? <>Your license is not yet verified for motorcycles. <Link href="/account/profile" className="font-semibold underline">Update your documents</Link>.</> : bookingError === "verification" ? <>Your documents are on file, but your account must be verified before booking. <Link href="/account/profile?section=documents" className="font-semibold underline">Check verification status</Link>.</> : bookingError === "taken" ? "Someone just booked these dates. Please choose other dates." : bookingError === "listing" ? "This listing isn’t accepting bookings right now. Please choose another car or contact the owner." : "We couldn’t verify availability right now. Please try again."}</div>}
         <p className="mt-3 text-center text-xs text-[#5B6F89] md:hidden">You will not be charged yet.</p>
         <p className="mt-3 hidden text-center text-xs text-[#51657F] md:block">Final pricing is calculated server-side from the owner’s saved rate. Browser-submitted price values are never used.</p>
       </aside>

@@ -106,6 +106,61 @@ end $$;
 rollback to soft_launch;
 release soft_launch;
 
+savepoint round2;
+update public.bookings set status = 'confirmed' where id = pg_temp.booking_id(1);
+update public.bookings set payment_due_at = now() + interval '1 hour' where id = pg_temp.booking_id(2);
+update public.bookings set payment_due_at = now() - interval '1 minute' where id = pg_temp.booking_id(3);
+insert into public.car_blocked_dates (car_id, start_date, end_date, reason)
+values (pg_temp.car_id(1), current_date+10, current_date+11, 'Owner-only reason');
+
+set local role anon;
+do $$ begin
+  assert exists(select 1 from public.public_car_booking_dates where car_id=pg_temp.car_id(1)
+    and start_date=current_date+3 and end_date=current_date+4 and kind='booked');
+  assert exists(select 1 from public.public_car_booking_dates where car_id=pg_temp.car_id(1)
+    and start_date=current_date+6 and kind='held');
+  assert not exists(select 1 from public.public_car_booking_dates where car_id=pg_temp.car_id(2)
+    and start_date=current_date+9);
+  assert exists(select 1 from public.public_car_blocked_dates where car_id=pg_temp.car_id(1)
+    and start_date=current_date+10 and end_date=current_date+11);
+  assert not exists(select 1 from information_schema.columns where table_schema='public'
+    and table_name='public_car_blocked_dates' and column_name='reason');
+end $$;
+reset role;
+
+alter table public.car_photos disable trigger enforce_car_photo_limit;
+insert into public.car_photos(car_id,path)
+select pg_temp.car_id(2),'legacy-'||n from generate_series(1,5) n;
+alter table public.car_photos enable trigger enforce_car_photo_limit;
+
+set local role authenticated;
+select pg_temp.claim(2);
+insert into public.car_photos(car_id,path)
+select pg_temp.car_id(1),'new-'||n from generate_series(1,3) n;
+select pg_temp.expect_error($$insert into public.car_photos(car_id,path)
+  values(pg_temp.car_id(1),'fourth')$$,'CAR_PHOTO_LIMIT');
+reset role;
+select pg_temp.claim(4);
+delete from public.car_photos where car_id=pg_temp.car_id(1) and path='new-3';
+set local role authenticated;
+select pg_temp.claim(3);
+select pg_temp.expect_error($$insert into public.car_photos(car_id,path)
+  values(pg_temp.car_id(1),'another-owner')$$,'row-level security');
+do $$ begin
+  assert (select count(*)=5 from public.car_photos where car_id=pg_temp.car_id(2));
+end $$;
+select pg_temp.expect_error($$insert into public.car_photos(car_id,path)
+  values(pg_temp.car_id(2),'sixth')$$,'CAR_PHOTO_LIMIT');
+delete from public.car_photos where car_id=pg_temp.car_id(2) and path in ('legacy-3','legacy-4','legacy-5');
+insert into public.car_photos(car_id,path) values(pg_temp.car_id(2),'replacement');
+do $$ begin
+  assert (select count(*)=3 from public.car_photos where car_id=pg_temp.car_id(2));
+end $$;
+reset role;
+rollback to round2;
+release round2;
+
+
 insert into storage.objects(bucket_id,name)
 select 'payment-proofs',pg_temp.object_path(n,a) from generate_series(1,9) n cross join generate_series(1,4) a;
 insert into storage.objects(bucket_id,name)

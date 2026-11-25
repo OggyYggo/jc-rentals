@@ -1,11 +1,15 @@
 "use client";
 
 import { runWithAlerts } from "@/lib/alerts/run";
+import { toastSuccess } from "@/lib/alerts/toast";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { CarFront, Check, ChevronDown, ImagePlus, LoaderCircle, Plus, Search, ToggleLeft, ToggleRight, X, ArrowUpRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { carPhotoUrl } from "@/lib/car-photo";
+import { carPhotoLimitMessage, MAX_CAR_PHOTOS } from "@/lib/cars/photo-limit";
+import { SubmitButton } from "@/components/loading/SubmitButton";
 import { makeShortCode } from "@/lib/promo/short-code";
 import { FleetList, fleetStatus } from "./fleet-list";
 import { Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle } from "@/components/ui/attachment";
@@ -53,12 +57,28 @@ function formFromCar(car: OwnerCar): CarForm {
   return { vehicle_type:car.vehicle_type ?? "car", engine_cc:car.engine_cc?.toString() ?? "", helmets_included:String(car.helmets_included ?? 0), brand: car.brand, model: car.model, year: car.year?.toString() ?? "", plate_number: car.plate_number ?? "", car_type: car.car_type ?? "Sedan", transmission: car.transmission ?? "Automatic", fuel_type: car.fuel_type ?? "Gasoline", seats: car.seats?.toString() ?? "5", description: car.description ?? "", is_active: car.is_active, self_drive: car.allows_self_drive, with_driver: car.allows_with_driver, self_rate: self?.daily_rate?.toString() ?? "", deposit: self?.deposit_amount?.toString() ?? "", driver_rate: driver?.daily_rate?.toString() ?? "", included_hours: driver?.included_hours?.toString() ?? "10", overtime: driver?.overtime_per_hour?.toString() ?? "", fuel_policy: self?.fuel_policy ?? "Full-to-full", mileage_limit: self?.mileage_limit ?? "", minimum_age: self?.minimum_age?.toString() ?? "21", fuel_included: driver?.fuel_included ?? false, driver_meals_included: driver?.driver_meals_included ?? false, accommodation_included: driver?.accommodation_included ?? false, coverage_area: driver?.coverage_area ?? "" };
 }
 
+function PhotoPreview({ file }: { file: File }) {
+  const image = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    const preview = URL.createObjectURL(file);
+    if (image.current) image.current.src = preview;
+    return () => URL.revokeObjectURL(preview);
+  }, [file]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img ref={image} alt="" className="size-full rounded object-cover" />;
+}
+
 export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenByPlan = 0 }: { cars: OwnerCar[]; ownerId: string; initialOpen?: boolean; usage: {used:number;limit:number}|null; hiddenByPlan?:number }) {
   const router = useRouter();
   const [editing, setEditing] = useState<OwnerCar | null>(null);
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [form, setForm] = useState<CarForm>(blankForm);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [savedPhotos, setSavedPhotos] = useState<OwnerCar["car_photos"]>([]);
+  const [draftCarId, setDraftCarId] = useState<string>();
+  const [photoNotice, setPhotoNotice] = useState("");
+  const carPhotoId = editing?.id ?? draftCarId;
+  const remaining = Math.max(0, MAX_CAR_PHOTOS - savedPhotos.length - photos.length);
   const [search, setSearch] = useState("");
   const [vehicleFilter, setVehicleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -66,6 +86,7 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
   const editorTrigger = useRef<HTMLElement | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [photoBusyId, setPhotoBusyId] = useState<string>();
   const query = search.trim().toLocaleLowerCase();
   const filtered = cars.filter(car =>
     `${car.brand} ${car.model} ${car.plate_number ?? ""}`.toLocaleLowerCase().includes(query)
@@ -90,6 +111,9 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
     setEditing(car);
     setForm(car ? formFromCar(car) : blankForm);
     setPhotos([]);
+    setSavedPhotos([...(car?.car_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order));
+    setDraftCarId(undefined);
+    setPhotoNotice("");
     setError("");
     setIsOpen(true);
   }
@@ -98,26 +122,28 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
   function update<K extends keyof CarForm>(key: K, value: CarForm[K]) { setForm((current) => ({ ...current, [key]: value })); }
 
   async function saveCar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError("");
+    event.preventDefault();
+    if (busy) return;
+    setError("");
+    if (photos.length && savedPhotos.length + photos.length > MAX_CAR_PHOTOS) return setError(carPhotoLimitMessage);
     if (form.vehicle_type === "motorcycle") { if (Number(form.seats) < 1 || Number(form.seats) > 2) { setError("Motorcycles can have 1 or 2 passengers."); return; } if (!["Gasoline", "Electric"].includes(form.fuel_type)) { setError("Motorcycles must use gasoline or electric fuel."); return; } if (form.engine_cc && (Number(form.engine_cc) < 50 || Number(form.engine_cc) > 2000)) { setError("Engine size must be between 50 and 2,000 cc."); return; } }
     if (!form.self_drive && !form.with_driver) { setError("Select at least one rental mode."); return; }
     if ((form.self_drive && Number(form.self_rate) < 1) || (form.with_driver && Number(form.driver_rate) < 1)) { setError("Enter a daily rate for each enabled rental mode."); return; }
     if (photos.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024)) { setError("Photos must be JPG, PNG, or WebP files under 10 MB each."); return; }
 
     const visibilityChanged = editing ? editing.is_active !== form.is_active : form.is_active;
-    await runWithAlerts({
+    const result = await runWithAlerts({
       confirm: visibilityChanged ? {
         title: form.is_active ? "Publish this vehicle?" : "Hide this vehicle?",
         text: form.is_active ? "Customers can find it in search once it is eligible." : "It will disappear from customer search.",
         confirmText: form.is_active ? "Publish vehicle" : "Hide vehicle",
       } : undefined,
       setPending: setBusy,
-      success: "Vehicle saved",
       refresh: router.refresh,
       run: async () => {
         const supabase = createClient();
         const carValues = { owner_id: ownerId, vehicle_type:form.vehicle_type, engine_cc:form.vehicle_type === "motorcycle" && form.engine_cc ? Number(form.engine_cc) : null, helmets_included:form.vehicle_type === "motorcycle" ? Number(form.helmets_included) : 0, brand: form.brand.trim(), model: form.model.trim(), year: form.year ? Number(form.year) : null, plate_number: form.plate_number.trim() || null, car_type: form.car_type, transmission: form.transmission, fuel_type: form.fuel_type, seats: Number(form.seats), description: form.description.trim() || null, is_active: form.is_active, allows_self_drive: form.self_drive, allows_with_driver: form.vehicle_type === "motorcycle" ? false : form.with_driver };
-        let carId = editing?.id;
+        let carId = carPhotoId;
         if (carId) {
           const { error: updateError } = await supabase.from("cars").update(carValues).eq("id", carId);
           if (updateError) throw updateError;
@@ -125,7 +151,7 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
           let created = false;
           for (let attempt = 0; attempt < 4 && !created; attempt++) {
             const { data, error: insertError } = await supabase.from("cars").insert({ ...carValues, short_code: makeShortCode() }).select("id").single();
-            if (!insertError) { carId = data.id; created = true; }
+            if (!insertError) { carId = data.id; setDraftCarId(data.id); created = true; }
             else if (insertError.code !== "23505") throw insertError;
           }
           if (!created) throw new Error("Could not reserve a public promo link. Please try again.");
@@ -140,18 +166,27 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
           if (rateError) throw rateError;
         }
 
-        for (const file of photos) {
+        for (const [index, file] of photos.entries()) {
           const uploadForm = new FormData();
           uploadForm.append("carId", carId);
           uploadForm.append("file", file, file.name);
-          const response = await fetch("/api/owner/car-photos", { method: "POST", body: uploadForm });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error ?? "The photo could not be uploaded.");
+          const response = await fetch("/api/owner/car-photos", { method: "POST", body: uploadForm }).catch(() => null);
+          const result = await response?.json().catch(() => null);
+          if (!response?.ok || !result?.id) {
+            const reason = result?.code === "CAR_PHOTO_LIMIT" ? carPhotoLimitMessage : "Try uploading this photo again.";
+            setError(`Vehicle details saved. Saved ${index} of ${photos.length} new photos. Could not upload ${file.name}. ${reason}`);
+            return false;
+          }
+          const saved = { id: result.id, path: result.path, thumb_path: result.thumbPath, sort_order: result.sortOrder, publicUrl: carPhotoUrl(result.thumbPath) ?? "" };
+          setSavedPhotos(current => [...current, saved].sort((a, b) => a.sort_order - b.sort_order));
+          setPhotos(current => current.filter(item => item !== file));
         }
 
-        setIsOpen(false); setPhotos([]);
+        setIsOpen(false); setPhotoNotice(""); setPhotos([]);
+        return true;
       },
     });
+    if (result.ok && result.data) await toastSuccess("Vehicle saved");
   }
 
   function toggleActive(car: OwnerCar) {
@@ -172,23 +207,43 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
   }
 
   function removePhoto(photo: OwnerCar["car_photos"][number]) {
-    const car = editing;
-    if (!car) return;
+    if (!carPhotoId) return;
     return runWithAlerts({
       confirm: { title: "Remove this photo?", confirmText: "Remove photo", danger: true },
-      setPending: setBusy,
+      setPending: pending => {
+        setBusy(pending);
+        setPhotoBusyId(pending ? photo.id : undefined);
+      },
       run: async () => {
         const db = createClient();
         const { error: rowError } = await db.from("car_photos").delete().eq("id", photo.id);
         if (rowError) throw rowError;
-        setEditing((current) => current?.id === car.id
-          ? { ...current, car_photos: current.car_photos.filter((item) => item.id !== photo.id) }
-          : current);
+        setSavedPhotos(current => current.filter(item => item.id !== photo.id));
+        setPhotoNotice("");
         const paths = [photo.path, photo.thumb_path].filter((path): path is string => !!path);
         const { error: fileError } = await db.storage.from("car-photos").remove(paths);
         if (fileError) { router.refresh(); throw fileError; }
       },
       success: "Photo removed",
+      refresh: router.refresh,
+    });
+  }
+
+  function setCover(photo: OwnerCar["car_photos"][number]) {
+    if (!carPhotoId || savedPhotos[0]?.id === photo.id) return;
+    return runWithAlerts({
+      setPending: pending => {
+        setBusy(pending);
+        setPhotoBusyId(pending ? photo.id : undefined);
+      },
+      run: async () => {
+        const sortOrder = savedPhotos[0].sort_order - 1;
+        const { error } = await createClient().from("car_photos").update({ sort_order: sortOrder })
+          .eq("id", photo.id).eq("car_id", carPhotoId).select("id").single();
+        if (error) throw error;
+        setSavedPhotos(current => [{ ...photo, sort_order: sortOrder }, ...current.filter(item => item.id !== photo.id)]);
+      },
+      success: "Cover photo updated",
       refresh: router.refresh,
     });
   }
@@ -231,7 +286,7 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
       </div>}
     </div>
     {error && !isOpen && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}
-    {isOpen && <section ref={editor} tabIndex={-1} aria-labelledby="vehicle-editor-heading" className="scroll-mt-24 rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><h2 id="vehicle-editor-heading" className="text-base font-semibold text-[#33445b]">{editing ? `Edit ${editing.brand} ${editing.model}` : "Add a vehicle"}</h2><p className="mt-1 text-[10px] text-[#8793a3]">Set up the vehicle details, rental options, and photos.</p></div><button aria-label="Close form" onClick={() => setIsOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8591a2] hover:bg-[#f4f6fa]"><X size={17}/></button></div>
+    {isOpen && <section ref={editor} tabIndex={-1} aria-labelledby="vehicle-editor-heading" className="scroll-mt-24 rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><h2 id="vehicle-editor-heading" className="text-base font-semibold text-[#33445b]">{editing ? `Edit ${editing.brand} ${editing.model}` : "Add a vehicle"}</h2><p className="mt-1 text-[10px] text-[#8793a3]">Set up the vehicle details, rental options, and photos.</p></div><button type="button" aria-label="Close form" disabled={busy} onClick={() => setIsOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8591a2] hover:bg-[#f4f6fa]"><X size={17}/></button></div>
       <form onSubmit={saveCar} className="space-y-5"><div className="mb-4 flex w-fit rounded-full bg-[#eef4ff] p-1">{(["car","motorcycle"] as const).map(type=><button key={type} type="button" disabled={Boolean(editing && editing.vehicle_type !== type && (editing.bookings?.[0]?.count ?? 0) > 0)} onClick={()=>{update("vehicle_type",type);if(type==="motorcycle"){update("with_driver",false);update("self_drive",true);update("seats",form.seats==="5"?"2":form.seats);update("car_type","Scooter");update("fuel_type","Gasoline");}else{update("car_type","Sedan");update("helmets_included","0");}}} className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${form.vehicle_type===type?"bg-[#2457d6] text-white":"text-[#41536c]"}`}>{type}</button>)}</div>{editing && (editing.bookings?.[0]?.count ?? 0) > 0 && <p className="mb-3 text-[10px] text-[#8793a3]">Vehicle type cannot be changed after bookings exist.</p>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Make / brand"><input required value={form.brand} onChange={(event) => update("brand", event.target.value)} placeholder={form.vehicle_type === "motorcycle" ? "Honda" : "Toyota"} className={inputClass}/></Field><Field label="Model"><input required value={form.model} onChange={(event) => update("model", event.target.value)} placeholder={form.vehicle_type === "motorcycle" ? "Click 125" : "Vios"} className={inputClass}/></Field><Field label="Year"><input type="number" min="1990" max="2100" value={form.year} onChange={(event) => update("year", event.target.value)} placeholder="2024" className={inputClass}/></Field><Field label="Plate number"><input value={form.plate_number} onChange={(event) => update("plate_number", event.target.value)} placeholder="ABC 1234" className={inputClass}/></Field>
         <Field label="Vehicle type"><select value={form.car_type} onChange={(event) => update("car_type", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Scooter", "Standard", "Adventure", "Big bike"] : ["Sedan", "SUV", "MPV", "Van", "Pickup", "Coupe", "Other"]).map((type) => <option key={type}>{type}</option>)}</select></Field><Field label="Transmission"><select value={form.transmission} onChange={(event) => update("transmission", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Automatic", "Manual", "Semi-automatic"] : ["Automatic", "Manual"]).map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Fuel type"><select value={form.fuel_type} onChange={(event) => update("fuel_type", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Gasoline", "Electric"] : ["Gasoline", "Diesel", "Hybrid", "Electric"]).map((value)=><option key={value}>{value}</option>)}</select></Field><Field label={form.vehicle_type === "motorcycle" ? "Passengers" : "Seats"}><input type="number" min="1" max={form.vehicle_type === "motorcycle" ? 2 : 30} value={form.seats} onChange={(event) => update("seats", event.target.value)} className={inputClass}/></Field>
@@ -242,16 +297,51 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
         <div className="rounded-xl border border-[#e5eaf1] p-3.5"><Toggle checked={form.self_drive} onChange={(value) => update("self_drive", value)} label="Self drive"/><div className={`mt-3 grid grid-cols-2 gap-3 ${form.self_drive ? "" : "opacity-50"}`}><Field label="Daily rate (₱)"><input type="number" min="0" disabled={!form.self_drive} value={form.self_rate} onChange={(event) => update("self_rate", event.target.value)} className={inputClass}/></Field><Field label="Refundable security deposit (₱)"><input type="number" min="0" disabled={!form.self_drive} value={form.deposit} onChange={(event) => update("deposit", event.target.value)} className={inputClass}/></Field><Field label="Fuel policy"><input disabled={!form.self_drive} value={form.fuel_policy} onChange={(event) => update("fuel_policy", event.target.value)} placeholder="Full-to-full" className={inputClass}/></Field><Field label="Mileage limit"><input disabled={!form.self_drive} value={form.mileage_limit} onChange={(event) => update("mileage_limit", event.target.value)} placeholder="e.g. 200 km/day" className={inputClass}/></Field><Field label="Minimum driver age"><input type="number" min="18" disabled={!form.self_drive} value={form.minimum_age} onChange={(event) => update("minimum_age", event.target.value)} className={inputClass}/></Field><p className="flex items-center gap-2 text-[10px] text-[#69788e]"><input type="checkbox" checked disabled className="accent-[#2457d6]"/>Valid license required</p></div></div>
         <div className={`rounded-xl border border-[#e5eaf1] p-3.5 ${form.vehicle_type === "motorcycle" ? "hidden" : ""}`}><Toggle checked={form.with_driver} onChange={(value) => update("with_driver", value)} label="With driver"/><div className={`mt-3 grid grid-cols-2 gap-2 ${form.with_driver ? "" : "opacity-50"}`}><Field label="Daily rate (₱)"><input type="number" min="0" disabled={!form.with_driver} value={form.driver_rate} onChange={(event) => update("driver_rate", event.target.value)} className={inputClass}/></Field><Field label="Hours included"><input type="number" min="1" disabled={!form.with_driver} value={form.included_hours} onChange={(event) => update("included_hours", event.target.value)} className={inputClass}/></Field><Field label="Overtime / hr (₱)"><input type="number" min="0" disabled={!form.with_driver} value={form.overtime} onChange={(event) => update("overtime", event.target.value)} className={inputClass}/></Field><Field label="Coverage area"><input disabled={!form.with_driver} value={form.coverage_area} onChange={(event) => update("coverage_area", event.target.value)} placeholder="e.g. Bohol Island" className={inputClass}/></Field>{[["fuel_included", "Fuel included"], ["driver_meals_included", "Driver meals included"], ["accommodation_included", "Accommodation included"]].map(([key, label]) => <label key={key} className="flex items-center gap-2 text-[10px] text-[#69788e]"><input type="checkbox" disabled={!form.with_driver} checked={form[key as "fuel_included" | "driver_meals_included" | "accommodation_included"]} onChange={(event) => update(key as "fuel_included" | "driver_meals_included" | "accommodation_included", event.target.checked)} className="accent-[#2457d6]"/>{label}</label>)}</div><p className="mt-2 text-[9px] text-[#8995a6]">No driver license is needed for this rental mode.</p></div>
       </div></div>
-      <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><Field label="Vehicle photos"><label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-[#cbd7e8] bg-[#f8faff] px-4 text-xs text-[#526178] transition hover:border-[#91a9dc] hover:bg-[#f2f6ff]"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#466cc4] shadow-sm"><ImagePlus size={16}/></span><span><span className="block font-semibold text-[#405879]">Choose vehicle photos</span><span className="mt-0.5 block text-[10px] text-[#8793a3]">JPG, PNG, or WebP · up to 10 MB each</span></span><input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhotos(Array.from(event.target.files ?? []))} className="sr-only"/></label>
+      <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"><Field label="Vehicle photos">
+        <p className="mb-2 text-xs font-semibold">Photos: {savedPhotos.length + photos.length} of {MAX_CAR_PHOTOS} used</p>
+        {savedPhotos.length > MAX_CAR_PHOTOS && <p className="mb-2 text-xs text-amber-800">This vehicle already has more than 3 photos. Remove some to add new ones.</p>}
+        <label className={`flex min-h-12 items-center gap-3 rounded-xl border border-dashed border-[#cbd7e8] bg-[#f8faff] px-4 text-xs text-[#526178] ${remaining && !busy ? "cursor-pointer hover:border-[#91a9dc]" : "opacity-60"}`}>
+          <ImagePlus size={16} aria-hidden="true" />
+          <span><span className="block font-semibold text-[#405879]">Choose vehicle photos</span><span className="mt-0.5 block text-[10px] text-[#596b83]">Up to 3 photos, JPG, PNG or WebP, 10 MB each. The first photo is the cover.</span></span>
+          <input type="file" multiple disabled={busy || !remaining} accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event => {
+            const selected = Array.from(event.target.files ?? []);
+            if (selected.length) {
+              setPhotos(current => [...current, ...selected.slice(0, remaining)]);
+              setPhotoNotice(selected.length > remaining ? `Only 3 photos are allowed. We kept the first ${remaining}.` : "");
+            }
+            event.target.value = "";
+          }} />
+        </label>
+        {photoNotice && <p role="status" className="mt-2 text-xs text-amber-800">{photoNotice}</p>}
         {photos.length > 0 && <AttachmentGroup className="mt-2 flex-wrap overflow-visible">
           {photos.map((file, index) => <Attachment key={`${file.name}-${file.lastModified}-${index}`} size="sm" className="w-full max-w-none border-[#e3e9f2] bg-white sm:w-[calc(50%-0.375rem)]">
-            <AttachmentMedia className="bg-[#edf3ff] text-[#466cc4]"><ImagePlus size={16}/></AttachmentMedia>
-            <AttachmentContent><AttachmentTitle>{file.name}</AttachmentTitle><AttachmentDescription>{(file.size / (1024 * 1024)).toFixed(1)} MB · Ready to upload</AttachmentDescription></AttachmentContent>
-            <AttachmentActions><AttachmentAction type="button" aria-label={`Remove ${file.name}`} title="Remove photo" onClick={() => setPhotos((current) => current.filter((_, currentIndex) => currentIndex !== index))}><X/></AttachmentAction></AttachmentActions>
+            <AttachmentMedia className="bg-[#edf3ff] text-[#466cc4]"><PhotoPreview file={file} /></AttachmentMedia>
+            <AttachmentContent><AttachmentTitle>{file.name}</AttachmentTitle><AttachmentDescription>{!savedPhotos.length && index === 0 ? "Cover photo" : "Ready to upload"}</AttachmentDescription></AttachmentContent>
+            <AttachmentActions>
+              {!savedPhotos.length && index > 0 && <AttachmentAction type="button" disabled={busy} aria-label={`Make ${file.name} the cover`} title="Make cover" onClick={() => setPhotos(current => [file, ...current.filter((_, i) => i !== index)])}><Check /></AttachmentAction>}
+              <AttachmentAction type="button" disabled={busy} aria-label={`Remove ${file.name}`} title="Remove photo" onClick={() => {
+                setPhotos(current => current.filter((_, i) => i !== index));
+                setPhotoNotice("");
+              }}><X /></AttachmentAction>
+            </AttachmentActions>
           </Attachment>)}
         </AttachmentGroup>}
-        {editing?.car_photos?.length ? <div className="mt-3"><p className="mb-2 text-[10px] font-medium text-[#78869a]">Uploaded photos</p><div className="flex flex-wrap gap-2">{editing.car_photos.map((photo) => <div key={photo.id} className="relative h-14 w-16 overflow-hidden rounded-md border border-[#e5eaf1]"><img src={photo.publicUrl} alt="Vehicle" className="h-full w-full object-cover"/><button type="button" disabled={busy} onClick={() => removePhoto(photo)} aria-label="Remove vehicle photo" className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded bg-[#19283c]/70 text-white"><X size={11}/></button></div>)}</div></div> : null}</Field><label className="flex items-center gap-2 pb-2 text-xs text-[#526178]"><input type="checkbox" checked={form.is_active} onChange={(event) => update("is_active", event.target.checked)} className="accent-[#2457d6]"/>Show vehicle as active</label></div>
-      {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}<div className="flex justify-end gap-2 border-t border-[#edf0f4] pt-4"><button type="button" onClick={() => setIsOpen(false)} className="h-9 rounded-lg border border-[#e1e7ef] px-3 text-xs font-medium text-[#68778c]">Cancel</button><button disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white disabled:opacity-60">{busy && <LoaderCircle size={14} className="animate-spin"/>}{editing ? "Save changes" : "Add vehicle"}</button></div></form>
+        {savedPhotos.length > 0 && <div className="mt-3">
+          <p className="mb-2 text-[10px] font-medium text-[#596b83]">Uploaded photos</p>
+          <div className="flex flex-wrap gap-2">
+            {savedPhotos.map((photo, index) => <div key={photo.id} className="w-16">
+              <div className="relative h-14 overflow-hidden rounded-md border border-[#e5eaf1]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo.publicUrl} alt={`Vehicle photo ${index + 1}`} className="h-full w-full object-cover" />
+                <button type="button" disabled={busy} onClick={() => removePhoto(photo)} aria-label={`Remove vehicle photo ${index + 1}`} className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded bg-[#19283c]/70 text-white">{photoBusyId === photo.id ? <LoaderCircle size={11} className="animate-spin" /> : <X size={11} />}</button>
+              </div>
+              {index === 0 ? <p className="text-[10px] font-semibold text-[#405879]">Cover</p>
+                : <SubmitButton unstyled type="button" busy={photoBusyId === photo.id} disabled={busy} onClick={() => setCover(photo)} className="text-[10px] font-semibold text-[#2457d6] underline">Make cover</SubmitButton>}
+            </div>)}
+          </div>
+        </div>}
+        </Field><label className="flex items-center gap-2 pb-2 text-xs text-[#526178]"><input type="checkbox" checked={form.is_active} onChange={(event) => update("is_active", event.target.checked)} className="accent-[#2457d6]"/>Show vehicle as active</label></div>
+      {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}<div className="flex justify-end gap-2 border-t border-[#edf0f4] pt-4"><button type="button" disabled={busy} onClick={() => setIsOpen(false)} className="h-9 rounded-lg border border-[#e1e7ef] px-3 text-xs font-medium text-[#68778c]">Cancel</button><button disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white disabled:opacity-60">{busy && <LoaderCircle size={14} className="animate-spin"/>}{carPhotoId ? "Save changes" : "Add vehicle"}</button></div></form>
       </section>}
 
     <div className={isOpen ? "hidden lg:block" : undefined}>

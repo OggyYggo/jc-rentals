@@ -16,6 +16,18 @@ function localDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
+const statusStyles = {
+  confirmed: { label: "Confirmed", event: "bg-blue-100 text-blue-900", swatch: "bg-blue-400" },
+  reserved: { label: "Reserved (payment or review)", event: "bg-amber-100 text-amber-900", swatch: "bg-amber-400" },
+  picked_up: { label: "Picked up", event: "bg-emerald-100 text-emerald-900", swatch: "bg-emerald-500" },
+  blocked: { label: "Blocked", event: "bg-slate-200 text-slate-900", swatch: "bg-slate-500" },
+};
+function statusColor(status: string) {
+  if (status === "awaiting_payment" || status === "payment_review") return statusStyles.reserved.event;
+  if (status === "confirmed" || status === "picked_up" || status === "blocked") return statusStyles[status].event;
+  return "bg-slate-100 text-slate-600";
+}
+
 export function CalendarManager({ cars, bookings, blocks }: { cars: CalendarCar[]; bookings: CalendarBooking[]; blocks: CalendarBlock[] }) {
   const router = useRouter();
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -35,12 +47,12 @@ export function CalendarManager({ cars, bookings, blocks }: { cars: CalendarCar[
   });
   const monthTitle = new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(month);
   const today = localDate(new Date());
-  const upcoming = useMemo(() => bookings.filter((booking) => !["cancelled", "rejected", "completed"].includes(booking.status) && booking.end_date >= today).sort((a, b) => a.start_date.localeCompare(b.start_date)).slice(0, 8), [bookings, today]);
+  const upcoming = useMemo(() => bookings.filter((booking) => !["cancelled", "rejected", "expired", "completed"].includes(booking.status) && booking.end_date >= today).sort((a, b) => a.start_date.localeCompare(b.start_date)).slice(0, 8), [bookings, today]);
 
   function eventsForDay(day: number) {
     const date = localDate(new Date(month.getFullYear(), month.getMonth(), day));
     return [
-      ...bookings.filter((booking) => !["cancelled", "rejected"].includes(booking.status) && booking.start_date <= date && booking.end_date >= date).map((booking) => ({ id: booking.id, label: booking.car ? `${booking.car.brand} ${booking.car.model}` : booking.reference, kind: "booking" as const, status: booking.status })),
+      ...bookings.filter((booking) => !["cancelled", "rejected", "expired"].includes(booking.status) && booking.start_date <= date && booking.end_date >= date).map((booking) => ({ id: booking.id, label: booking.car ? `${booking.car.brand} ${booking.car.model}` : booking.reference, kind: "booking" as const, status: booking.status })),
       ...blocks.filter((block) => block.start_date <= date && block.end_date >= date).map((block) => ({ id: block.id, label: block.reason || `${block.car?.brand ?? "Car"} blocked`, kind: "block" as const, status: "blocked" })),
     ].slice(0, 2);
   }
@@ -81,8 +93,8 @@ export function CalendarManager({ cars, bookings, blocks }: { cars: CalendarCar[
     <section className="overflow-hidden rounded-xl border border-[#e7ecf3] bg-white shadow-[0_2px_6px_rgba(20,42,78,.025)]">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f4] px-4 py-4 sm:px-5"><div><h2 className="text-sm font-semibold text-[#33445b]">Availability calendar</h2><p className="mt-1 text-[10px] text-[#8b97a8]">Bookings and unavailable dates across your fleet</p></div><div className="flex items-center gap-1"><button aria-label="Previous month" onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() - 1, 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e6ebf2] text-[#68778c] hover:bg-[#f7f9fc]"><ChevronLeft size={15}/></button><span className="min-w-[115px] text-center text-xs font-semibold text-[#45556c]">{monthTitle}</span><button aria-label="Next month" onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + 1, 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#e6ebf2] text-[#68778c] hover:bg-[#f7f9fc]"><ChevronRight size={15}/></button><button onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} className="ml-1 h-8 rounded-lg border border-[#e6ebf2] px-2.5 text-[10px] font-medium text-[#68778c] hover:bg-[#f7f9fc]">Today</button></div></div>
       <div className="grid grid-cols-7 border-b border-[#edf0f4] bg-[#fafbfd]">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <div key={day} className="py-2.5 text-center text-[9px] font-semibold uppercase tracking-wide text-[#96a1b0]">{day}</div>)}</div>
-      <div className="grid grid-cols-7">{gridDays.map((day, index) => { const date = day ? localDate(new Date(month.getFullYear(), month.getMonth(), day)) : ""; const events = day ? eventsForDay(day) : []; return <div key={`${date}-${index}`} className={`min-h-[78px] border-b border-r border-[#f0f2f6] p-1.5 sm:min-h-[105px] sm:p-2 ${day ? "bg-white" : "bg-[#fafbfd]"}`}><div className={`ml-auto flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${date === today ? "bg-[#2457d6] font-semibold text-white" : day ? "text-[#617087]" : "text-transparent"}`}>{day ?? "·"}</div><div className="mt-1 space-y-1">{events.map((event) => <div key={`${event.kind}-${event.id}`} title={event.label} className={`truncate rounded px-1 py-1 text-[8px] font-medium sm:px-1.5 sm:text-[9px] ${event.kind === "block" ? "bg-[#fff1f0] text-[#a25757]" : event.status === "pending" ? "bg-[#fff6e8] text-[#96681e]" : "bg-[#edf2ff] text-[#4568bd]"}`}>{event.label}</div>)}</div></div>; })}</div>
-      <div className="flex flex-wrap gap-4 px-4 py-3 text-[9px] text-[#7e8a9c]"><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-sm bg-[#7895e2]"/>Booking</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-sm bg-[#eaa49d]"/>Unavailable</span><span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#2457d6]"/>Today</span></div>
+      <div className="grid grid-cols-7">{gridDays.map((day, index) => { const date = day ? localDate(new Date(month.getFullYear(), month.getMonth(), day)) : ""; const events = day ? eventsForDay(day) : []; return <div key={`${date}-${index}`} className={`min-h-[78px] border-b border-r border-[#f0f2f6] p-1.5 sm:min-h-[105px] sm:p-2 ${day ? "bg-white" : "bg-[#fafbfd]"}`}><div className={`ml-auto flex h-6 w-6 items-center justify-center rounded-full text-[10px] ${date === today ? "bg-[#2457d6] font-semibold text-white" : day ? "text-[#617087]" : "text-transparent"}`}>{day ?? "·"}</div><div className="mt-1 space-y-1">{events.map((event) => <div key={`${event.kind}-${event.id}`} title={event.label} className={`truncate rounded px-1 py-1 text-[8px] font-medium sm:px-1.5 sm:text-[9px] ${statusColor(event.status)}`}>{event.label}</div>)}</div></div>; })}</div>
+      <div className="flex flex-wrap gap-4 px-4 py-3 text-[9px] text-[#7e8a9c]">{Object.values(statusStyles).map(({ label, swatch }) => <span key={label} className="flex items-center gap-1.5"><i aria-hidden="true" className={`h-2 w-2 rounded-sm ${swatch}`} />{label}</span>)}<span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-[#2457d6]"/>Today</span></div>
     </section>
 
     <div className="space-y-4">

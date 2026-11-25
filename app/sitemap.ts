@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { cacheLife } from "next/cache";
 import { createPublicServerClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/shared";
 import { SITE_URL } from "@/lib/site-url";
 
 async function publicCarEntries(): Promise<MetadataRoute.Sitemap> {
@@ -39,6 +40,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: staticLastModified,
     priority: path === "/" ? 1 : path === "/cars" ? 0.9 : 0.5,
   }));
+
+  if (!isSupabaseConfigured()) return staticEntries;
 
   try {
     return [...staticEntries, ...await publicCarEntries()];

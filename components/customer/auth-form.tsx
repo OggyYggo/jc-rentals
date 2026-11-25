@@ -5,6 +5,8 @@ import type { FormEvent } from "react";
 import Link from "next/link";
 import { LoaderCircle } from "lucide-react";
 import { TurnstileBox, type TurnstileBoxHandle } from "@/components/turnstile/TurnstileBox";
+import { PasswordField } from "@/components/auth/password-field";
+import { passwordRules, validatePassword } from "@/lib/auth/password-policy";
 import { Logo } from "@/components/logo";
 import { accountReturnPath, defaultCustomerDestination, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/client";
@@ -12,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 export function AuthForm({ mode, configured, next = defaultCustomerDestination, initialMessage = "" }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [fullName, setFullName] = useState("");
   const [message, setMessage] = useState(initialMessage);
   const [error, setError] = useState("");
@@ -22,11 +25,15 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
   const captchaEnabled = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const [captchaToken, setCaptchaToken] = useState("");
   const turnstile = useRef<TurnstileBoxHandle>(null);
+  const failures = isSignup ? validatePassword(password, { email, fullName }) : [];
+  const passwordsMatch = password === confirm;
   const captchaPending = captchaEnabled && !captchaToken;
 
   async function handleEmailAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!configured || busy || captchaPending) return;
+    if (isSignup && failures.length) return setError(passwordRules[failures[0]]);
+    if (isSignup && !passwordsMatch) return setError("The passwords do not match.");
     setError("");
     setMessage("");
     setShowResendConfirmation(false);
@@ -75,8 +82,10 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
       if (authCode === "email_not_confirmed") {
         setError("Confirm your email address before signing in. You can resend the confirmation email below.");
         setShowResendConfirmation(true);
+      } else if (authCode === "weak_password") {
+        setError("Choose a different password that meets all the requirements.");
       } else {
-        setError(authError instanceof Error ? authError.message : "We could not sign you in. Please try again.");
+        setError(isSignup ? "We could not create your account. Check your details and try again." : "We could not sign you in. Check your email and password and try again.");
       }
     } finally {
       turnstile.current?.reset();
@@ -171,11 +180,14 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
       <form onSubmit={handleEmailAuth} className="space-y-4">
         {isSignup && <label className="block text-xs font-medium text-[#43536a]">Full name<input required autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="Your name" /></label>}
         <label className="block text-xs font-medium text-[#43536a]">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="you@example.com" /></label>
-        <label className="block text-xs font-medium text-[#43536a]">Password<input required minLength={isSignup ? 8 : undefined} type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="At least 8 characters" /></label>
+        {isSignup ? <>
+          <PasswordField label="Password" value={password} onChange={setPassword} failures={failures} disabled={busy} />
+          <PasswordField label="Confirm password" value={confirm} onChange={setConfirm} mismatch={Boolean(confirm) && !passwordsMatch} disabled={busy} />
+        </> : <label className="block text-xs font-medium text-[#43536a]">Password<input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" /></label>}
         {!isSignup && <button type="button" onClick={() => { setShowForgotPassword((value) => !value); setError(""); setMessage(""); }} className="text-xs font-semibold text-[#2457d6] hover:underline">{showForgotPassword ? "Cancel password reset" : "Forgot password?"}</button>}
         {configured && captchaEnabled && <TurnstileBox ref={turnstile} id="email-auth-turnstile" onTokenChange={setCaptchaToken} disabled={busy} />}
         {showForgotPassword && <button type="button" onClick={sendPasswordReset} disabled={!configured || busy || captchaPending} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Email me a reset link</button>}
-        <button type="submit" disabled={!configured || busy || captchaPending} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
+        <button type="submit" disabled={!configured || busy || captchaPending || (isSignup && (failures.length > 0 || !passwordsMatch))} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
       </form>
       {showResendConfirmation && <button type="button" onClick={resendConfirmation} disabled={!configured || busy || captchaPending || !email.trim()} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] hover:bg-[#edf2ff] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Resend confirmation email</button>}
       {isSignup && <p className="mt-4 text-center text-xs text-[#51657F]">Review our <Link href="/terms" className="underline">Terms of Service</Link> and <Link href="/privacy" className="underline">Privacy Policy</Link> before creating an account.</p>}

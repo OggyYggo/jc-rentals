@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
+import { carPhotoLimitMessage, MAX_CAR_PHOTOS } from "@/lib/cars/photo-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function photoLimitResponse() {
+  return NextResponse.json({ error: carPhotoLimitMessage, code: "CAR_PHOTO_LIMIT" }, { status: 409 });
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -27,8 +32,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Use a JPG, PNG, or WebP image up to 10 MB." }, { status: 400 });
   }
 
-  const { data: car, error: carError } = await supabase.from("cars").select("id").eq("id", carId).maybeSingle();
-  if (carError || !car) return NextResponse.json({ error: "Car not found or you do not own it." }, { status: 404 });
+  const { data: owner } = await supabase.from("owners").select("id").eq("profile_id", user.id).maybeSingle();
+  const { data: car } = owner
+    ? await supabase.from("cars").select("id").eq("id", carId).eq("owner_id", owner.id).maybeSingle()
+    : { data: null };
+  if (!car) return NextResponse.json({ error: "Car not found or you do not own it." }, { status: 404 });
+
+  const { count, error: countError } = await supabase.from("car_photos").select("id", { count: "exact", head: true }).eq("car_id", carId);
+  if (countError || count === null) return NextResponse.json({ error: "Could not check the photo limit. Try again." }, { status: 503 });
+  if (count >= MAX_CAR_PHOTOS) return photoLimitResponse();
 
   try {
     const input = Buffer.from(await file.arrayBuffer());
@@ -54,13 +66,15 @@ export async function POST(request: Request) {
 
     const { data: lastPhoto } = await supabase.from("car_photos").select("sort_order").eq("car_id", carId).order("sort_order", { ascending: false }).limit(1).maybeSingle();
     const sortOrder = (lastPhoto?.sort_order ?? -1) + 1;
-    const { error: rowError } = await supabase.from("car_photos").insert({ car_id: carId, path, thumb_path: thumbPath, sort_order: sortOrder });
+    const { data: photo, error: rowError } = await supabase.from("car_photos").insert({ car_id: carId, path, thumb_path: thumbPath, sort_order: sortOrder }).select("id").single();
     if (rowError) {
       await bucket.remove([path, thumbPath]);
+      if (rowError.message === "CAR_PHOTO_LIMIT") return photoLimitResponse();
+      if (rowError.code === "42501") return NextResponse.json({ error: "You do not have permission to upload photos for this car." }, { status: 403 });
       throw rowError;
     }
 
-    return NextResponse.json({ path, thumbPath, sortOrder });
+    return NextResponse.json({ id: photo.id, path, thumbPath, sortOrder });
   } catch (error) {
     if (error instanceof Error && error.message.includes("row-level security")) {
       return NextResponse.json({ error: "You do not have permission to upload photos for this car." }, { status: 403 });
