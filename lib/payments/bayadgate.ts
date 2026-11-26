@@ -101,7 +101,7 @@ async function send(config: Config, endpoint: string, fields: Parameters) {
 export async function createPayment(config: Config, input: {
   orderId: string; amount: number; method: PaymentMethod; redirectUrl: string;
 }) {
-  const result = await send(config, "checkout", {
+  const result = await send(config, "checkout.php", {
     order_id: input.orderId,
     amount: input.amount.toFixed(2),
     payment_method: input.method,

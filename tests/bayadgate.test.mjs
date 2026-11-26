@@ -96,7 +96,7 @@ test("checkout validates amounts and takes owner identity from the session", asy
   assert.deepEqual(calls, []);
 
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    assert.equal(url, "https://gateway.example/api/checkout");
+    assert.equal(url, "https://gateway.example/api/checkout.php");
     const fields = Object.fromEntries(options.body);
     assert.equal(fields.amount, "500.00");
     assert.equal(fields.redirect_url, `https://app.example/owner/credits?topup=${fields.order_id}`);
