@@ -75,6 +75,19 @@ export async function openOnlineTopup(amount: number, method: keyof typeof metho
   }
 }
 
+export function useCheckoutPending() {
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    function restore(event: PageTransitionEvent) {
+      // Back can restore the form from the browser cache with its old state.
+      if (event.persisted) setBusy(false);
+    }
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
+  return [busy, setBusy] as const;
+}
+
 export const onlineTopupError = "Could not open online payment. Please try again.";
 
 export function OnlineTopupStatus({ orderId, status, mobile }: { orderId: string; status: string; mobile?: ReactNode }) {
@@ -92,7 +105,7 @@ export function OnlineTopup({ minimum, maximum }: { minimum: number; maximum: nu
   const [method, setMethod] = useState<keyof typeof methods>("other");
   const offline = useConnectionStatus() === "offline";
   const [uncertain, setUncertain] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useCheckoutPending();
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -103,12 +116,10 @@ export function OnlineTopup({ minimum, maximum }: { minimum: number; maximum: nu
     setError("");
     try {
       const message = await openOnlineTopup(amount, method, () => setUncertain(true));
-      if (message) {
-        setError(message);
-        setBusy(false);
-      }
+      if (message) setError(message);
     } catch {
       setError(onlineTopupError);
+    } finally {
       setBusy(false);
     }
   }

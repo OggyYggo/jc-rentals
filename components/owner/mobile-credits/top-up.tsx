@@ -7,7 +7,7 @@ import { Camera, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { paymentPeso } from "@/lib/payment-format";
-import { onlineTopupError, openOnlineTopup } from "../online-topup";
+import { onlineTopupError, openOnlineTopup, useCheckoutPending } from "../online-topup";
 import { submitCreditProof } from "../submit-credit-proof";
 import { CreditsHeading } from "./navigation";
 import { chip, creditsHref, field, focus, panel, primary, qrHref, screen, topUpHref } from "./styles";
@@ -26,7 +26,7 @@ export function MobileTopUp({ available, online }: {
   const [channel, setChannel] = useState<keyof typeof channels>("other");
   const [preset, setPreset] = useState<number | "other">(online && (500 < online.minimum || 500 > online.maximum) ? "other" : 500);
   const [custom, setCustom] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useCheckoutPending();
   const [error, setError] = useState("");
   const amount = preset === "other" ? Number(custom) : preset;
 
@@ -57,12 +57,12 @@ export function MobileTopUp({ available, online }: {
     setBusy(true);
     try {
       const message = await openOnlineTopup(amount, channel, () => setUncertain(true));
-      if (!message) return;
-      setError(message);
+      if (message) setError(message);
     } catch {
       setError(onlineTopupError);
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return <div className={screen}>
