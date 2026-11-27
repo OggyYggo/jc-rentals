@@ -1,5 +1,9 @@
 "use client";
 
+import { useConnectionStatus } from "@/lib/connection/provider";
+import { connectionError, fetchWithTimeout, isOffline } from "@/lib/connection/request";
+import { showConnectionDialog } from "@/lib/alerts/connection";
+import { UploadPaused } from "@/components/loading/UploadPaused";
 import { useId, useRef, useState, useTransition } from "react";
 import type { FormEvent } from "react";
 import { CheckCircle2, FileCheck2, FileUp, LoaderCircle, ShieldCheck } from "lucide-react";
@@ -39,6 +43,10 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
   const router = useRouter();
+  const offline = useConnectionStatus() === "offline";
+  const formRef = useRef<HTMLFormElement>(null);
+  const [paused, setPaused] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
   const saving = useRef(false);
   const [refreshing, startTransition] = useTransition();
   const [licenseKey, setLicenseKey] = useState(0);
@@ -56,12 +64,16 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving.current || refreshing) return;
+    if (saving.current || refreshing || uncertain || isOffline()) return;
+    setPaused(false);
     saving.current = true;
     setBusy(true);
     setError("");
     setMessage("");
     let uploaded = false;
+    let uploading = false;
+    let remaining = Number(!!licenseFile) + Number(!!idFile) + Number(!!selfieFile);
+    const time = new Date();
     try {
       if (hasNewDocuments && !consent) throw new Error("Accept the Privacy Policy before uploading documents.");
       const documents = [
@@ -83,11 +95,16 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
         form.append("kind", kind);
         form.append("privacy_consent", documentPrivacyPolicyVersion);
         form.append("file", file, file.name);
-        const response = await fetch("/api/account/documents", { method: "POST", body: form }).catch(() => null);
-        if (!response) throw new Error("Could not connect to upload the document. Try again.");
-        const result = await response.json().catch(() => ({}));
+        uploading = true;
+        const response = await fetchWithTimeout("/api/account/documents", { method: "POST", body: form });
+        const result = await response.json().catch(error => {
+          if (connectionError(error)) throw error;
+          return {};
+        });
+        uploading = false;
         if (!response.ok) throw new Error(result.error ?? "The document could not be uploaded.");
         uploaded = true;
+        remaining--;
         clear();
       }
 
@@ -103,14 +120,34 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
       startTransition(() => router.refresh());
     } catch (saveError) {
       if (uploaded) startTransition(() => router.refresh());
-      setError(saveError instanceof Error ? saveError.message : "Could not save your profile. Please try again.");
+      const issue = connectionError(saveError);
+      if (uploading && issue) {
+        if (!issue.sent) setPaused(true);
+        else {
+          setUncertain(true);
+          await showConnectionDialog({ time, statusHref: "/account/profile?section=documents" }, false);
+          setError("Check your documents before sending the file again.");
+        }
+      } else {
+        setError(issue ? "Check your connection before saving again." :
+          saveError instanceof Error ? saveError.message : "Could not save your profile. Please try again.");
+      }
     } finally {
-      if (uploaded) setConsent(false);
+      if (uploaded && remaining === 0) setConsent(false);
       saving.current = false;
       setBusy(false);
     }
   }
 
+  const pendingFiles = [licenseFile, idFile, selfieFile].filter((file): file is File => file !== null);
+  const uploadsPaused = pendingFiles.length > 0 && (offline || paused) && !uncertain && <UploadPaused
+    fileName={pendingFiles.map(file => file.name).join(", ")} description="Your selected documents are kept while you retry."
+    busy={busy} onRetry={() => formRef.current?.requestSubmit()} onCancel={() => {
+      setPaused(false);
+      setLicenseFile(null); setLicenseKey(key => key + 1);
+      setIdFile(null); setIdKey(key => key + 1);
+      setSelfieFile(null); setSelfieKey(key => key + 1);
+    }} />;
   const licenseClasses = <fieldset className="mt-4 rounded-xl bg-[#f5f8ff] p-4"><legend className="px-1 text-xs font-semibold text-[#34445b]">My license covers</legend><div className="mt-2 flex flex-wrap gap-4">{[["car","Car"],["motorcycle","Motorcycle"]].map(([value,label])=><label key={value} className="flex items-center gap-2 text-xs text-[#526178]"><input type="checkbox" checked={classes.includes(value)} onChange={(event)=>setClasses((current)=>event.target.checked?[...new Set([...current,value])]:current.filter((item)=>item!==value))} className="h-4 w-4 accent-[#2457d6]"/>{label}</label>)}</div><p className="mt-2 text-[11px] leading-5 text-[#7b8797]">We confirm this when we review your license. Upload a clear photo of the front and back. Motorcycles need a license valid for motorcycles. Check the current rules on the <a className="font-semibold text-[#2457d6] underline" href="https://lto.gov.ph/wp-content/uploads/2023/09/14-CC2024-DL-CODES.pdf" target="_blank" rel="noreferrer">Land Transportation Office website</a>.</p></fieldset>;
 
   if (mobileDocuments) {
@@ -135,7 +172,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
           {label}
         </li>)}
       </ol>
-      <form onSubmit={saveProfile} aria-busy={savingDocuments} className="space-y-3">
+      <form ref={formRef} onSubmit={saveProfile} aria-busy={savingDocuments} className="space-y-3">
         {verification === "rejected" && verificationNote && <p className="whitespace-pre-wrap break-words rounded-xl border border-red-100 bg-[#FDE8E8] p-3 text-sm text-[#A12A2A]">{verificationNote}</p>}
         <MobileDocumentCard key={`license-${licenseKey}`} label="Driver’s license" status={license}
           note="Include both sides in one clear image or PDF." preview={licensePreview}
@@ -151,7 +188,8 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
           {error && <p className="rounded-lg bg-[#FDE8E8] p-3 text-sm text-[#A12A2A]">{error}</p>}
           {message && !refreshing && <p className="flex items-center gap-2 rounded-lg bg-[#E3F7EA] p-3 text-sm text-[#12703A]"><CheckCircle2 size={17} aria-hidden="true" />{message}</p>}
         </div>
-        <SubmitButton busy={savingDocuments} pendingText="Saving…" className="min-h-[52px] w-full rounded-full bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] md:rounded-xl">Save</SubmitButton>
+        {uploadsPaused}
+        <SubmitButton disabled={uncertain || paused} busy={savingDocuments} pendingText="Saving…" className="min-h-[52px] w-full rounded-full bg-[#0A47B1] text-sm font-semibold text-white hover:bg-[#0A3D91] md:rounded-xl">Save</SubmitButton>
       </form>
     </div>;
   }
@@ -161,7 +199,7 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
       <div className="rounded-2xl border border-[#e3e8ef] bg-white p-5 shadow-sm sm:p-6">
         {section ? <h1 className="mb-5 text-xl font-bold tracking-tight text-[#0F2342]">Personal details</h1>
           : <div className="mb-5"><h2 className="text-base font-semibold text-[#26364e]">Personal information</h2><p className="mt-1 text-xs leading-5 text-[#7b8797]">Keep your contact details current for booking updates.</p></div>}
-        <form onSubmit={saveProfile} className="space-y-5">
+        <form ref={formRef} onSubmit={saveProfile} className="space-y-5">
           {editingDetails && <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-xs font-medium text-[#526178]">Full name<input required value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#293a52] outline-none focus:border-[#7897e5] focus:ring-3 focus:ring-[#2457d6]/10" /></label>
             <label className="block text-xs font-medium text-[#526178]">Phone number<input value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} autoComplete="tel" type="tel" className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#293a52] outline-none focus:border-[#7897e5] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="+63 9XX XXX XXXX" /></label>
@@ -182,7 +220,8 @@ export function ProfileEditor({ section, userId, fullName, phone, hasLicense, ha
 
           {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2.5 text-xs text-[#a13a3a]">{error}</p>}
           {message && !refreshing && <p role="status" className="flex items-center gap-2 rounded-lg border border-[#cddcfb] bg-[#f4f7ff] px-3 py-2.5 text-xs text-[#34528f]"><CheckCircle2 size={15}/>{message}</p>}
-          <div className="flex justify-end"><button type="submit" disabled={busy || refreshing} aria-busy={busy || refreshing} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white transition hover:bg-[#1d4ed8] disabled:opacity-60">{(busy || refreshing) && <LoaderCircle size={15} className="animate-spin"/>}{section === "details" ? "Save personal details" : "Save profile"}</button></div>
+          {uploadsPaused}
+          <div className="flex justify-end"><button type="submit" disabled={busy || refreshing || offline || uncertain || paused} aria-busy={busy || refreshing} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white transition hover:bg-[#1d4ed8] disabled:opacity-60">{(busy || refreshing) && <LoaderCircle size={15} className="motion-safe:animate-spin"/>}{offline ? "Needs internet to continue" : section === "details" ? "Save personal details" : "Save profile"}</button></div>
         </form>
       </div>
     </div>

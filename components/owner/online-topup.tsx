@@ -2,58 +2,93 @@
 
 import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { showConnectionDialog } from "@/lib/alerts/connection";
+import { slowConnectionToast } from "@/lib/alerts/toast";
+import { connectionError, fetchWithTimeout, isOffline } from "@/lib/connection/request";
+import { useConnectionStatus } from "@/lib/connection/provider";
 import { paymentPeso } from "@/lib/payment-format";
 
 const methods = { gcash: "GCash", maya: "Maya", gotyme: "GoTyme", other: "Other (QR Ph or bank)" };
 const amounts = [500, 1000, 2000];
+let checkoutInFlight = false;
 
-export function OnlineTopupStatus({ orderId, status }: { orderId: string; status: string }) {
+export function useOnlineTopupRefresh(orderId: string, status: string) {
   const router = useRouter();
   const waiting = status === "created";
   useEffect(() => {
     if (!waiting) return;
     const deadline = Date.now() + 120_000;
     const interval = window.setInterval(() => {
-      if (Date.now() <= deadline) router.refresh();
-      else window.clearInterval(interval);
+      if (Date.now() > deadline) window.clearInterval(interval);
+      else if (!isOffline()) router.refresh();
     }, 5000);
     return () => window.clearInterval(interval);
   }, [orderId, router, waiting]);
+}
 
-  return <section className="mb-4 rounded-xl border bg-white p-4" role="status">
+export async function openOnlineTopup(amount: number, method: keyof typeof methods, onUncertain: () => void) {
+  if (checkoutInFlight) return "A payment is already opening. Please wait.";
+  checkoutInFlight = true;
+  const time = new Date();
+  const slow = setTimeout(() => void slowConnectionToast(), 8000);
+  try {
+    const response = await fetchWithTimeout("/api/payments/topup/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount, channel: method === "other" ? undefined : method }),
+    }, { payment: true });
+    const result = await response.json();
+    if (!response.ok || typeof result.url !== "string") return result.error || onlineTopupError;
+    window.location.assign(result.url);
+    return "";
+  } catch (error) {
+    clearTimeout(slow);
+    const issue = connectionError(error);
+    if (issue && !issue.sent) return "Needs internet to continue.";
+    onUncertain();
+    await showConnectionDialog({ time, amount, statusHref: "/owner/credits?check=payment" }, false);
+    return "Check your credits before starting another payment.";
+  } finally {
+    clearTimeout(slow);
+    checkoutInFlight = false;
+  }
+}
+
+export const onlineTopupError = "Could not open online payment. Please try again.";
+
+export function OnlineTopupStatus({ orderId, status, mobile }: { orderId: string; status: string; mobile?: ReactNode }) {
+  useOnlineTopupRefresh(orderId, status);
+  const waiting = status === "created";
+
+  return <>{mobile}<section className="mb-4 hidden rounded-xl border bg-white p-4 lg:block" role="status">
     <h2 className="font-semibold">{waiting ? "Waiting for confirmation" : status === "paid" ? "Credits added" : "Not completed"}</h2>
     <p className="mt-1 text-sm text-slate-600">{orderId}</p>
-  </section>;
+  </section></>;
 }
 
 export function OnlineTopup({ minimum, maximum }: { minimum: number; maximum: number }) {
   const [preset, setPreset] = useState<number | "custom">(minimum <= 500 && 500 <= maximum ? 500 : "custom");
   const [method, setMethod] = useState<keyof typeof methods>("other");
+  const offline = useConnectionStatus() === "offline";
+  const [uncertain, setUncertain] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || uncertain || offline) return;
     const amount = preset === "custom" ? Number(new FormData(event.currentTarget).get("amount")) : preset;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/payments/topup/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, channel: method === "other" ? undefined : method }),
-      });
-      const result = await response.json();
-      if (!response.ok || typeof result.url !== "string") {
-        setError(result.error || "Could not open online payment. Please try again.");
+      const message = await openOnlineTopup(amount, method, () => setUncertain(true));
+      if (message) {
+        setError(message);
         setBusy(false);
-        return;
       }
-      window.location.assign(result.url);
     } catch {
-      setError("Could not open online payment. Please try again.");
+      setError(onlineTopupError);
       setBusy(false);
     }
   }
@@ -89,10 +124,11 @@ export function OnlineTopup({ minimum, maximum }: { minimum: number; maximum: nu
               onClick={() => setMethod(value)}>{methods[value]}</button>)}
         </div>
       </fieldset>
+      {uncertain && <a href="/owner/credits?check=payment" className="inline-flex min-h-11 items-center underline">Check credits</a>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-      <button disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white disabled:opacity-60">
+      <button disabled={busy || uncertain || offline} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-700 px-4 text-sm font-semibold text-white disabled:opacity-60">
         {busy && <LoaderCircle size={16} className="motion-safe:animate-spin" aria-hidden />}
-        {busy ? "Opening payment…" : "Continue to payment"}
+        {busy ? "Opening payment…" : offline ? "Needs internet to continue" : "Continue to payment"}
       </button>
     </form>
     <p className="mt-3 text-sm text-slate-600">Credits are added after the payment is confirmed. Usually a few minutes.</p>

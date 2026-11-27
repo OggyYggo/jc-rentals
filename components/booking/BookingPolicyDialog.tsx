@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CalendarCheck, ShieldAlert, Wallet } from "lucide-react";
-import { useFormStatus } from "react-dom";
+import { useBookingPending } from "./BookingRequestForm";
 import { Dialog, DialogPanel } from "@/components/ui/dialog";
+import { isOffline } from "@/lib/connection/request";
 import { SubmitButton } from "@/components/loading/SubmitButton";
 import { CANCELLATION_POLICY_VERSION, cancellationPolicy } from "@/lib/policies/cancellation";
 
@@ -14,7 +15,7 @@ export function BookingPolicyDialog({ label, disabled, className, summary, polic
   const version = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const submitted = useRef(false);
-  const { pending } = useFormStatus();
+  const pending = useBookingPending();
   const [open, setOpen] = useState(false);
   const [checked, setChecked] = useState(false);
   const [sending, setSending] = useState(false);
@@ -34,7 +35,7 @@ export function BookingPolicyDialog({ label, disabled, className, summary, polic
 
   function requestBooking() {
     const form = accepted.current?.form;
-    if (submitted.current || !form?.reportValidity() || !accepted.current || !version.current) return;
+    if (isOffline() || submitted.current || !form?.reportValidity() || !accepted.current || !version.current) return;
     submitted.current = true;
     accepted.current.value = "1";
     version.current.value = CANCELLATION_POLICY_VERSION;

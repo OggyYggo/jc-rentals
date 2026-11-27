@@ -3,6 +3,7 @@ import { SITE_URL } from "@/lib/site-url";
 import { publicMetadata } from "@/lib/site/public-metadata";
 import { Inter, Work_Sans } from "next/font/google";
 import "./globals.css";
+import { ConnectionProvider, OfflineBanner } from "@/lib/connection/provider";
 import { Header } from "@/components/header";
 import { PushOptInPrompt } from "@/components/notifications/push-opt-in-prompt";
 import { NotificationSoundProvider } from "@/components/notifications/sound";
@@ -46,10 +47,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${workSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TopProgressBar />
-        <Header />
-        <NotificationSoundProvider>{children}</NotificationSoundProvider>
-        <PushOptInPrompt />
+        <ConnectionProvider>
+          <TopProgressBar />
+          <Header connectionBanner={<OfflineBanner />} />
+          <NotificationSoundProvider>{children}</NotificationSoundProvider>
+          <PushOptInPrompt />
+        </ConnectionProvider>
       </body>
     </html>
   );

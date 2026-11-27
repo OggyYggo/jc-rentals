@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { ArrowRight, CircleUserRound, Menu, X } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
 
-export function Header() {
+export function Header({ connectionBanner }: { connectionBanner?: ReactNode }) {
   const pathname = usePathname();
   const motionHeader = pathname === "/" || /^\/(cars|apply|contact|for-owners)(?:\/|$)/.test(pathname);
   const [scrolled, setScrolled] = useState(false);
@@ -46,6 +46,7 @@ export function Header() {
     return () => window.removeEventListener("scroll", updateShadow);
   }, [motionHeader]);
 
+  if (pathname === "/owner-setup" || pathname === "/admin-setup") return connectionBanner ?? null;
   if (pathname.startsWith("/owner") || pathname.startsWith("/admin")) return null;
   const isPublic = !pathname.startsWith("/for-owners");
 
@@ -101,6 +102,7 @@ export function Header() {
           </nav>
         </details>
       </div>
+      {connectionBanner}
     </header>
   );
 }

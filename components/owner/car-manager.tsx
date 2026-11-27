@@ -9,6 +9,9 @@ import { CarFront, Check, ChevronDown, ImagePlus, LoaderCircle, Plus, Search, To
 import { createClient } from "@/lib/supabase/client";
 import { carPhotoUrl } from "@/lib/car-photo";
 import { carPhotoLimitMessage, MAX_CAR_PHOTOS } from "@/lib/cars/photo-limit";
+import { UploadPaused } from "@/components/loading/UploadPaused";
+import { useConnectionStatus } from "@/lib/connection/provider";
+import { connectionError, fetchWithTimeout, isOffline } from "@/lib/connection/request";
 import { SubmitButton } from "@/components/loading/SubmitButton";
 import { makeShortCode } from "@/lib/promo/short-code";
 import { FleetList, fleetStatus } from "./fleet-list";
@@ -70,6 +73,10 @@ function PhotoPreview({ file }: { file: File }) {
 
 export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenByPlan = 0 }: { cars: OwnerCar[]; ownerId: string; initialOpen?: boolean; usage: {used:number;limit:number}|null; hiddenByPlan?:number }) {
   const router = useRouter();
+  const offline = useConnectionStatus() === "offline";
+  const formRef = useRef<HTMLFormElement>(null);
+  const [pausedPhoto, setPausedPhoto] = useState(false);
+  const [uncertainPhoto, setUncertainPhoto] = useState(false);
   const [editing, setEditing] = useState<OwnerCar | null>(null);
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [form, setForm] = useState<CarForm>(blankForm);
@@ -109,6 +116,7 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
   function openEditor(car: OwnerCar | null) {
     editorTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setEditing(car);
+    setPausedPhoto(false); setUncertainPhoto(false);
     setForm(car ? formFromCar(car) : blankForm);
     setPhotos([]);
     setSavedPhotos([...(car?.car_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order));
@@ -123,7 +131,8 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
 
   async function saveCar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || isOffline() || uncertainPhoto) return;
+    setPausedPhoto(false);
     setError("");
     if (photos.length && savedPhotos.length + photos.length > MAX_CAR_PHOTOS) return setError(carPhotoLimitMessage);
     if (form.vehicle_type === "motorcycle") { if (Number(form.seats) < 1 || Number(form.seats) > 2) { setError("Motorcycles can have 1 or 2 passengers."); return; } if (!["Gasoline", "Electric"].includes(form.fuel_type)) { setError("Motorcycles must use gasoline or electric fuel."); return; } if (form.engine_cc && (Number(form.engine_cc) < 50 || Number(form.engine_cc) > 2000)) { setError("Engine size must be between 50 and 2,000 cc."); return; } }
@@ -133,6 +142,7 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
 
     const visibilityChanged = editing ? editing.is_active !== form.is_active : form.is_active;
     const result = await runWithAlerts({
+      connection: { statusHref: "/owner/cars" },
       confirm: visibilityChanged ? {
         title: form.is_active ? "Publish this vehicle?" : "Hide this vehicle?",
         text: form.is_active ? "Customers can find it in search once it is eligible." : "It will disappear from customer search.",
@@ -170,8 +180,18 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
           const uploadForm = new FormData();
           uploadForm.append("carId", carId);
           uploadForm.append("file", file, file.name);
-          const response = await fetch("/api/owner/car-photos", { method: "POST", body: uploadForm }).catch(() => null);
-          const result = await response?.json().catch(() => null);
+          let response: Response;
+          let result;
+          try {
+            response = await fetchWithTimeout("/api/owner/car-photos", { method: "POST", body: uploadForm });
+            result = await response.json();
+          } catch (error) {
+            const issue = connectionError(error);
+            if (issue && !issue.sent) { setPausedPhoto(true); return false; }
+            setUncertainPhoto(true);
+            setError("Check your saved photos before uploading this file again.");
+            throw error;
+          }
           if (!response?.ok || !result?.id) {
             const reason = result?.code === "CAR_PHOTO_LIMIT" ? carPhotoLimitMessage : "Try uploading this photo again.";
             setError(`Vehicle details saved. Saved ${index} of ${photos.length} new photos. Could not upload ${file.name}. ${reason}`);
@@ -287,7 +307,7 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
     </div>
     {error && !isOpen && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}
     {isOpen && <section ref={editor} tabIndex={-1} aria-labelledby="vehicle-editor-heading" className="scroll-mt-24 rounded-xl border border-[#e2e8f0] bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><h2 id="vehicle-editor-heading" className="text-base font-semibold text-[#33445b]">{editing ? `Edit ${editing.brand} ${editing.model}` : "Add a vehicle"}</h2><p className="mt-1 text-[10px] text-[#8793a3]">Set up the vehicle details, rental options, and photos.</p></div><button type="button" aria-label="Close form" disabled={busy} onClick={() => setIsOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8591a2] hover:bg-[#f4f6fa]"><X size={17}/></button></div>
-      <form onSubmit={saveCar} className="space-y-5"><div className="mb-4 flex w-fit rounded-full bg-[#eef4ff] p-1">{(["car","motorcycle"] as const).map(type=><button key={type} type="button" disabled={Boolean(editing && editing.vehicle_type !== type && (editing.bookings?.[0]?.count ?? 0) > 0)} onClick={()=>{update("vehicle_type",type);if(type==="motorcycle"){update("with_driver",false);update("self_drive",true);update("seats",form.seats==="5"?"2":form.seats);update("car_type","Scooter");update("fuel_type","Gasoline");}else{update("car_type","Sedan");update("helmets_included","0");}}} className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${form.vehicle_type===type?"bg-[#2457d6] text-white":"text-[#41536c]"}`}>{type}</button>)}</div>{editing && (editing.bookings?.[0]?.count ?? 0) > 0 && <p className="mb-3 text-[10px] text-[#8793a3]">Vehicle type cannot be changed after bookings exist.</p>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <form ref={formRef} onSubmit={saveCar} className="space-y-5"><div className="mb-4 flex w-fit rounded-full bg-[#eef4ff] p-1">{(["car","motorcycle"] as const).map(type=><button key={type} type="button" disabled={Boolean(editing && editing.vehicle_type !== type && (editing.bookings?.[0]?.count ?? 0) > 0)} onClick={()=>{update("vehicle_type",type);if(type==="motorcycle"){update("with_driver",false);update("self_drive",true);update("seats",form.seats==="5"?"2":form.seats);update("car_type","Scooter");update("fuel_type","Gasoline");}else{update("car_type","Sedan");update("helmets_included","0");}}} className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${form.vehicle_type===type?"bg-[#2457d6] text-white":"text-[#41536c]"}`}>{type}</button>)}</div>{editing && (editing.bookings?.[0]?.count ?? 0) > 0 && <p className="mb-3 text-[10px] text-[#8793a3]">Vehicle type cannot be changed after bookings exist.</p>}<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Make / brand"><input required value={form.brand} onChange={(event) => update("brand", event.target.value)} placeholder={form.vehicle_type === "motorcycle" ? "Honda" : "Toyota"} className={inputClass}/></Field><Field label="Model"><input required value={form.model} onChange={(event) => update("model", event.target.value)} placeholder={form.vehicle_type === "motorcycle" ? "Click 125" : "Vios"} className={inputClass}/></Field><Field label="Year"><input type="number" min="1990" max="2100" value={form.year} onChange={(event) => update("year", event.target.value)} placeholder="2024" className={inputClass}/></Field><Field label="Plate number"><input value={form.plate_number} onChange={(event) => update("plate_number", event.target.value)} placeholder="ABC 1234" className={inputClass}/></Field>
         <Field label="Vehicle type"><select value={form.car_type} onChange={(event) => update("car_type", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Scooter", "Standard", "Adventure", "Big bike"] : ["Sedan", "SUV", "MPV", "Van", "Pickup", "Coupe", "Other"]).map((type) => <option key={type}>{type}</option>)}</select></Field><Field label="Transmission"><select value={form.transmission} onChange={(event) => update("transmission", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Automatic", "Manual", "Semi-automatic"] : ["Automatic", "Manual"]).map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Fuel type"><select value={form.fuel_type} onChange={(event) => update("fuel_type", event.target.value)} className={inputClass}>{(form.vehicle_type === "motorcycle" ? ["Gasoline", "Electric"] : ["Gasoline", "Diesel", "Hybrid", "Electric"]).map((value)=><option key={value}>{value}</option>)}</select></Field><Field label={form.vehicle_type === "motorcycle" ? "Passengers" : "Seats"}><input type="number" min="1" max={form.vehicle_type === "motorcycle" ? 2 : 30} value={form.seats} onChange={(event) => update("seats", event.target.value)} className={inputClass}/></Field>
         {form.vehicle_type === "motorcycle" && <><Field label="Engine size (cc)"><input type="number" min="50" max="2000" value={form.engine_cc} onChange={(event)=>update("engine_cc",event.target.value)} className={inputClass}/></Field><Field label="Helmets included"><select value={form.helmets_included} onChange={(event)=>update("helmets_included",event.target.value)} className={inputClass}><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></Field></>}
@@ -341,7 +361,10 @@ export function CarManager({ cars, ownerId, initialOpen = false, usage, hiddenBy
           </div>
         </div>}
         </Field><label className="flex items-center gap-2 pb-2 text-xs text-[#526178]"><input type="checkbox" checked={form.is_active} onChange={(event) => update("is_active", event.target.checked)} className="accent-[#2457d6]"/>Show vehicle as active</label></div>
-      {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}<div className="flex justify-end gap-2 border-t border-[#edf0f4] pt-4"><button type="button" disabled={busy} onClick={() => setIsOpen(false)} className="h-9 rounded-lg border border-[#e1e7ef] px-3 text-xs font-medium text-[#68778c]">Cancel</button><button disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white disabled:opacity-60">{busy && <LoaderCircle size={14} className="animate-spin"/>}{carPhotoId ? "Save changes" : "Add vehicle"}</button></div></form>
+      {photos.length > 0 && (offline || pausedPhoto) && !uncertainPhoto && <UploadPaused
+        fileName={photos[0].name} description="Your vehicle details and selected photos are kept while you retry."
+        busy={busy} onRetry={() => formRef.current?.requestSubmit()} onCancel={() => { setPausedPhoto(false); setPhotos([]); }} />}
+      {error && <p role="alert" className="rounded-lg border border-[#f1cccc] bg-[#fff6f6] px-3 py-2 text-xs text-[#a13a3a]">{error}</p>}<div className="flex justify-end gap-2 border-t border-[#edf0f4] pt-4"><button type="button" disabled={busy} onClick={() => setIsOpen(false)} className="h-9 rounded-lg border border-[#e1e7ef] px-3 text-xs font-medium text-[#68778c]">Cancel</button><button disabled={busy || offline || uncertainPhoto || pausedPhoto} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#2457d6] px-4 text-xs font-semibold text-white disabled:opacity-60">{busy && <LoaderCircle size={14} className="motion-safe:animate-spin"/>}{offline ? "Needs internet to continue" : carPhotoId ? "Save changes" : "Add vehicle"}</button></div></form>
       </section>}
 
     <div className={isOpen ? "hidden lg:block" : undefined}>

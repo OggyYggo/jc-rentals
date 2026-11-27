@@ -1,3 +1,4 @@
+import { ConnectionError } from "@/lib/connection/request";
 import { pickupErrors } from "@/lib/pickup/model";
 
 const safeMessages = new Set([
@@ -69,6 +70,11 @@ const safeMessages = new Set([
 ]);
 
 export function friendlyError(error: unknown): { title: string; text: string; action?: { label: string; href: string } } {
+  if (error instanceof ConnectionError) {
+    if (error.kind === "offline") return { title: "You're offline", text: "Needs internet to continue." };
+    if (error.kind === "timeout") return { title: "This is taking too long", text: "Check your connection and try again." };
+    return { title: "Connection problem", text: "We could not reach the server. Check your connection and try again." };
+  }
   const message = typeof error === "string" ? error
     : error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "";
   const code = error && typeof error === "object" && "code" in error ? error.code : undefined;

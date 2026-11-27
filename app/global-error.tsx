@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { captureException } from "@sentry/nextjs";
+import { ConnectionProvider, OfflineBanner } from "@/lib/connection/provider";
 import { ErrorState } from "@/components/loading/ErrorState";
 
 export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
@@ -11,9 +12,12 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
 
   return <html lang="en">
     <body>
-      <main className="mx-auto max-w-2xl px-5 py-16">
-        <ErrorState message="We couldn't load Kuyog Bohol." onRetry={retry} />
-      </main>
+      <ConnectionProvider>
+        <OfflineBanner />
+        <main className="mx-auto max-w-2xl px-5 py-16">
+          <ErrorState variant="connection" message="We couldn't load Kuyog Bohol." onRetry={retry} />
+        </main>
+      </ConnectionProvider>
     </body>
   </html>;
 }

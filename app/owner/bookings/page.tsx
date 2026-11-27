@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/loading/ErrorState";
 import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
@@ -19,7 +20,7 @@ export default async function OwnerBookingsPage() {
       ? [failure.code, failure.message, failure.details, failure.hint].filter(Boolean).join(" | ")
       : "ok";
     console.error(`Could not load owner bookings: bookings [${describe(error)}]; contacts [${describe(contactsError)}]`);
-    throw new Error("Could not load bookings for this rental business.");
+    if (error) throw new Error("Could not load bookings for this rental business.");
   }
   const contactByBooking = new Map((contacts ?? []).map((contact) => [contact.booking_id, contact]));
   if (historyError) console.error("Could not load pickup history", { code: historyError.code });
@@ -27,5 +28,5 @@ export default async function OwnerBookingsPage() {
   const bookings = (data ?? []).map((booking) => ({ ...booking, customer: contactByBooking.get(booking.id) ?? null, pickup_event: byPickup.get(booking.id) })) as unknown as OwnerBooking[];
   const requests = bookings.filter((booking) => booking.status === "payment_review").length;
 
-  return <><PageHeading eyebrow="Reservations" title="Bookings" description="Manage confirmed rentals and record the pickup balance when collected." action={<div className="flex flex-wrap items-center gap-2"><ScanPickupLink className="inline-flex min-h-11 items-center rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white">Scan pickup pass</ScanPickupLink><span className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e1e7ef] bg-white px-3 text-[10px] font-medium text-[#6f7d91]"><CalendarDays size={13}/>{requests} deposits to review</span></div>}/><Link id="refunds" href="/owner/payments?tab=refunds" className="mb-4 inline-block rounded-lg border bg-white p-3 text-sm font-semibold">View refund queue</Link><BookingWorkflow bookings={bookings} todayManila={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())}/></>;
+  return <><PageHeading eyebrow="Reservations" title="Bookings" description="Manage confirmed rentals and record the pickup balance when collected." action={<div className="flex flex-wrap items-center gap-2"><ScanPickupLink className="inline-flex min-h-11 items-center rounded-lg bg-blue-700 px-3 text-xs font-semibold text-white">Scan pickup pass</ScanPickupLink><span className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#e1e7ef] bg-white px-3 text-[10px] font-medium text-[#6f7d91]"><CalendarDays size={13}/>{requests} deposits to review</span></div>}/><Link id="refunds" href="/owner/payments?tab=refunds" className="mb-4 inline-block rounded-lg border bg-white p-3 text-sm font-semibold">View refund queue</Link>{contactsError && <ErrorState variant="connection" message="Couldn't load customer contact details" />}<BookingWorkflow bookings={bookings} todayManila={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())}/></>;
 }

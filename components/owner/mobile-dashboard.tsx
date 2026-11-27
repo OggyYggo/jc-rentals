@@ -104,7 +104,7 @@ function CreditsRow({ credits }: { credits: CreditState }) {
       <p className={`break-words tabular-nums ${muted}`}>{paymentPeso(credits.available)} available</p>
       {low && <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[13px] font-semibold ${empty ? "bg-[#FDE8E8] text-[#A12A2A]" : "bg-[#FFF2D6] text-[#8A5A00]"}`}>{empty ? "No credits" : "Low"}</span>}
     </div>
-    <Link href="/owner/credits#top-up" className={`inline-flex min-h-11 shrink-0 items-center rounded-xl bg-[#EAF4FF] px-3 text-[13px] font-bold text-[#0A47B1] ${focus}`}>Top up</Link>
+    <Link href="/owner/credits/top-up" className={`inline-flex min-h-11 shrink-0 items-center rounded-xl bg-[#EAF4FF] px-3 text-[13px] font-bold text-[#0A47B1] ${focus}`}>Top up</Link>
   </section>;
 }
 

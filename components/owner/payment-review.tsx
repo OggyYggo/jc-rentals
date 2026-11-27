@@ -2,6 +2,8 @@
 import { paymentProviders, type PaymentProvider } from "@/lib/payments/providers";
 
 
+import { useConnectionStatus } from "@/lib/connection/provider";
+import { connectionError, fetchWithTimeout, withConnectionDeadline } from "@/lib/connection/request";
 import { runWithAlerts } from "@/lib/alerts/run";
 import { normalizePaymentReference, paymentDate, paymentPeso } from "@/lib/payment-format";
 import { createClient } from "@/lib/supabase/client";
@@ -22,6 +24,8 @@ type Payment = {
 
 export function OwnerPaymentReview({ payments, admin = false }: { payments: Payment[]; admin?: boolean }) {
   const router = useRouter();
+  const offline = useConnectionStatus() === "offline";
+  const [uncertainPayments, setUncertainPayments] = useState<string[]>([]);
   const [listRef] = useAutoAnimate<HTMLDivElement>({ duration: 180 });
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [inputs, setInputs] = useState<Record<string, { amount: string; reference: string }>>({});
@@ -70,7 +74,28 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
   }, [payments, router]);
 
   function review(payment: Payment, approve: boolean) {
-    return runWithAlerts({
+    if (offline || uncertainPayments.includes(payment.id)) return;
+    async function send<T>(request: (signal: AbortSignal) => PromiseLike<{ data: T; error: unknown }>) {
+      try {
+        const { data, error } = await withConnectionDeadline(request);
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        if (connectionError(error)?.sent) setUncertainPayments(current => [...current, payment.id]);
+        throw error;
+      }
+    }
+    return runWithAlerts<void>({
+      connection: {
+        reference: payment.booking?.reference ?? payment.reference_no,
+        amount: payment.amount,
+        checkStatus: async () => {
+          const { data, error } = await withConnectionDeadline(signal => createClient().from("payments")
+            .select("status").eq("id", payment.id).abortSignal(signal).maybeSingle(), 15_000);
+          return !error && data?.status === (approve ? "verified" : "rejected")
+            ? { state: "found", data: undefined } : { state: "unknown" };
+        },
+      },
       confirm: approve ? {
         title: admin ? "Confirm on behalf of the owner?" : "Confirm this payment?",
         text: `Record the ${paymentPeso(payment.amount)} reservation payment for ${payment.booking?.reference ?? "this booking"}.`,
@@ -88,18 +113,16 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
       run: async (reason) => {
         const db = createClient();
         if (!approve) {
-          const { error } = await db.rpc("reject_booking_payment", { p_payment_id: payment.id, p_reason: reason });
-          if (error) throw error;
+          await send(signal => db.rpc("reject_booking_payment", { p_payment_id: payment.id, p_reason: reason }).abortSignal(signal));
           return;
         }
-        if (!payment.proof_sha256) await fetch(`/api/payments/${payment.id}/fingerprint`, { method: "POST" }).catch(() => {});
-        const { data, error } = await db.rpc("confirm_booking_payment", {
+        if (!payment.proof_sha256) await fetchWithTimeout(`/api/payments/${payment.id}/fingerprint`, { method: "POST" }).catch(() => {});
+        const data = await send(signal => db.rpc("confirm_booking_payment", {
           p_payment_id: payment.id,
           p_received_amount: admin ? null : Number(inputs[payment.id]?.amount),
           p_received_reference: admin ? null : inputs[payment.id]?.reference,
           p_admin_note: admin ? reason : null,
-        });
-        if (error) throw error;
+        }).abortSignal(signal));
         if (data === "CREDITS_SHORT") {
           router.refresh();
           throw new Error("Top up your owner credits to confirm this payment. The booking is still in review.");
@@ -141,8 +164,8 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
         {deadlineText && <p className="text-sm text-slate-600">{deadlineText}{timeLeft && ` · ${timeLeft}`}</p>}
         <div className="mt-2 flex flex-wrap gap-2">{flags.map((flag) => <span key={flag} className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-950">{flag.replaceAll("_", " ")}</span>)}</div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button disabled={!!busy} onClick={() => review(payment, true)} className="rounded-lg bg-green-700 px-3 py-3 text-sm text-white disabled:opacity-50">{busy === payment.id ? "Working…" : "Confirm on behalf of owner"}</button>
-          <button disabled={!!busy} onClick={() => review(payment, false)} className="rounded-lg border px-3 py-3 text-sm text-red-700">Reject proof</button>
+          <button disabled={!!busy || offline || uncertainPayments.includes(payment.id)} onClick={() => review(payment, true)} className="rounded-lg bg-green-700 px-3 py-3 text-sm text-white disabled:opacity-50">{busy === payment.id ? "Working…" : offline ? "Needs internet to continue" : "Confirm on behalf of owner"}</button>
+          <button disabled={!!busy || offline || uncertainPayments.includes(payment.id)} onClick={() => review(payment, false)} className="rounded-lg border px-3 py-3 text-sm text-red-700">Reject proof</button>
         </div>
       </div>;
 
@@ -159,7 +182,7 @@ export function OwnerPaymentReview({ payments, admin = false }: { payments: Paym
     const selected = selectedPayment?.id === payment.id;
     const formProps = {
       amount: payment.amount, reference: payment.reference_no, option: payment.payment_label, url: urls[payment.id],
-      input, matches, flags, flagLabel, disabled: Boolean(busy), working: busy === payment.id,
+      input, matches, flags, flagLabel, disabled: Boolean(busy) || uncertainPayments.includes(payment.id), working: busy === payment.id,
       expired: minutes !== null && minutes <= 0,
       onChange: (key: "amount" | "reference", value: string) => setInputs(current => ({
         ...current, [payment.id]: { ...(current[payment.id] ?? input), [key]: value },

@@ -2,6 +2,7 @@
 
 import { OwnerMobileNavigation } from "./owner-mobile-navigation";
 import type { ReactNode } from "react";
+import { OfflineBanner } from "@/lib/connection/provider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -46,10 +47,10 @@ export function OwnerShell({ children, email, businessName, pendingBookings, boo
       </aside>
 
       <main className="min-w-0 flex-1 lg:ml-[250px]">
-        <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between border-b border-[#e8edf4] bg-white/95 px-4 backdrop-blur sm:px-7 max-lg:h-[calc(68px+env(safe-area-inset-top))] max-lg:pt-[env(safe-area-inset-top)]">
+        <div className="sticky top-0 z-30"><header className="flex h-[68px] items-center justify-between border-b border-[#e8edf4] bg-white/95 px-4 backdrop-blur sm:px-7 max-lg:h-[calc(68px+env(safe-area-inset-top))] max-lg:pt-[env(safe-area-inset-top)]">
           <div className="flex items-center gap-3"><Link href="/owner" aria-label="Kuyog Bohol owner home" className="inline-flex min-h-11 min-w-11 items-center gap-2 rounded-lg font-heading text-sm font-bold text-[#0F2342] focus-visible:outline-2 focus-visible:outline-[#0A47B1] lg:hidden"><Logo size={32} /><span>Kuyog Bohol</span></Link><div className="hidden items-center gap-2 rounded-lg bg-[#f5f7fb] px-3 py-2 text-[11px] text-[#8190a4] lg:flex"><Search size={14}/> Search workspace <kbd className="ml-6 rounded border border-[#e1e6ee] bg-white px-1.5 py-0.5 text-[9px]">⌘ K</kbd></div></div>
           <div className="flex items-center gap-3 sm:gap-5 max-lg:[&>div>button]:size-11 max-lg:[&>div>button]:focus-visible:outline-2 max-lg:[&>div>button]:focus-visible:outline-[#0A47B1]"><NotificationBell userId={userId}/><div className="hidden h-7 w-px bg-[#e8edf4] lg:block"/><div className="flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e9efff] text-[11px] font-semibold text-[#4567be]">{businessName.slice(0, 1).toUpperCase()}</span><div className="hidden lg:block"><p className="max-w-40 truncate text-[11px] font-semibold text-[#34445b]">{businessName}</p><p className="max-w-40 truncate text-[10px] text-[#8b97a8]">{email}</p></div><ChevronDown size={14} className="hidden text-[#8793a3] lg:block"/></div><form action="/auth/signout" method="post" className="hidden lg:block"><button className="text-[11px] font-medium text-[#738197] hover:text-[#2457d6]">Sign out</button></form></div>
-        </header>
+        </header><OfflineBanner /></div>
         <div className="mx-auto w-full max-w-[1440px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-6 sm:px-7 sm:pt-8 lg:pb-8">{children}</div>
         <OwnerMobileNavigation key={pathname} pathname={pathname} businessName={businessName} email={email}
           pendingBookings={pendingBookings} bookingRequests={bookingRequests} unansweredReviews={unansweredReviews} />

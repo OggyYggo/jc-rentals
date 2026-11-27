@@ -377,3 +377,29 @@
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-6px); }
 }
+
+.swal2-popup.dashboard-alert.connection-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  border: 1px solid #E3EEF9;
+}
+.connection-dialog .dashboard-alert-confirm { background: #0A47B1; }
+.connection-dialog .dashboard-alert-button { min-height: 44px; }
+.connection-dialog .dashboard-alert-button:disabled { opacity: .5; cursor: default; }
+.connection-reference { margin-top: 12px; padding: 10px; background: #F3F9FF; color: #0F2342; border-radius: 10px; overflow-wrap: anywhere; }
+.connection-dialog-notice:not(:empty) { margin-top: 12px; color: #8A5A00; }
+.swal2-popup.dashboard-alert.connection-slow-toast { background: #FFF2D6; color: #8A5A00; }
+.swal2-popup.dashboard-alert.connection-online-toast { background: #E3F7EA; color: #12703A; }
+.connection-slow-toast .dashboard-alert-button { min-height: 44px; }
+@media (max-width: 639px) {
+  .swal2-container:has(.connection-dialog) { padding: 0; }
+  .swal2-popup.dashboard-alert.connection-dialog {
+    grid-row: 3;
+    align-self: end;
+    width: 100%;
+    margin: 0;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: max(22px, env(safe-area-inset-bottom));
+  }
+}

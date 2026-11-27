@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/loading/ErrorState";
 import Link from "next/link";
 import { readCancellationSettings } from "@/lib/cancellation-settings";
 import { canReviewTrip } from "@/lib/reviews/eligibility";
@@ -22,7 +23,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
   const { data, error } = await supabase.from("bookings").select("id, reference, mode, start_date, end_date, daily_rate, total_price, deposit_amount, amount_due_now, rental_starts_at, cancel_free_until, cancel_fee_percent, amount_paid_online, cancel_fee_amount, refund_amount, deposit_refund_status, status, payment, created_at, car:cars!bookings_car_id_fkey(brand,model,year,car_type)").eq("customer_id", user.id).order("created_at", { ascending: false });
   if (error) {
     console.error("Customer bookings query failed:", String(error), { message: error.message, code: error.code, details: error.details, hint: error.hint });
-    return <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><h2 className="font-semibold">Bookings are temporarily unavailable</h2><p className="mt-2 leading-6">The payment database may not be set up yet. An administrator should apply the payment status migration and then rerun the payment QR module migration in Supabase.</p><p className="mt-2 text-xs text-amber-800">If both migrations have already completed, check the Vercel function logs for the bookings query error.</p></div>;
+    return <ErrorState variant="connection" message="Couldn't load bookings" />;
   }
 
   const { data: reviews, error: reviewError } = await supabase.from("reviews")
