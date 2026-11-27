@@ -3,11 +3,25 @@ import { PageHeading } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
 import { paymentPeso } from "@/lib/payment-format";
 import { OwnerCredits } from "@/components/owner/credits";
+import { OnlineTopup, OnlineTopupStatus } from "@/components/owner/online-topup";
+import { expireGatewayTopups, maximumTopup, minimumTopup, orderPattern, quickpayConfig } from "@/lib/payments/quickpay";
+import { after } from "next/server";
 
 export const instant = false;
 
-export default async function OwnerCreditsPage() {
+async function loadOnlineTopup(supabase: Awaited<ReturnType<typeof getOwnerContext>>["supabase"], ownerId: string, value: unknown) {
+  if (typeof value !== "string" || !orderPattern.test(value)) return null;
+  const { data } = await supabase.from("gateway_topups").select("order_id,status,ledger_id")
+    .eq("owner_id", ownerId).eq("provider", "quickpay").eq("order_id", value).maybeSingle();
+  if (!data) return null;
+  return { orderId: data.order_id, status: data.ledger_id ? "paid" : data.status };
+}
+
+export default async function OwnerCreditsPage({ searchParams }: PageProps<"/owner/credits">) {
   const { supabase, owner } = await getOwnerContext();
+  const config = quickpayConfig();
+  if (config) after(() => expireGatewayTopups(config, owner.id));
+  const onlineTopup = config ? await loadOnlineTopup(supabase, owner.id, (await searchParams).topup) : null;
   const [ledger, creditState, settings, invoices] = await Promise.all([
     supabase.from("owner_credit_ledger").select("id,type,amount,status,reference_no,proof_path,note,created_at")
       .eq("owner_id", owner.id).order("created_at", { ascending: false }),
@@ -23,9 +37,11 @@ export default async function OwnerCreditsPage() {
   return <>
     <PageHeading eyebrow="Payments" title="Credits and invoices" description="Track platform fees and top up your balance." />
     {owner.fee_mode === "credits" && creditState.data && <CreditBanner state={creditState.data} topUpHref="#top-up" />}
+    {onlineTopup && <OnlineTopupStatus {...onlineTopup} />}
     <OwnerCredits ownerId={owner.id} rows={(ledger.data ?? []) as never}
       balance={Number(creditState.data?.available ?? 0)} minimum={Number(values.get("min_credit_to_list") ?? 500)}
-      accountName={String(values.get("platform_account_name") ?? "")} qrUrl={qrUrl} />
+      accountName={String(values.get("platform_account_name") ?? "")} qrUrl={qrUrl}
+      onlineTopup={config && <OnlineTopup minimum={minimumTopup} maximum={maximumTopup} />} />
     {(owner.fee_mode === "invoice" || Boolean(invoices.data?.length)) && <section id="invoices" className="mt-5 rounded-xl border bg-white p-4 text-sm">
       <h2 className="font-semibold">Commission invoices</h2>
       {invoices.data?.length ? <ul className="mt-2 divide-y">

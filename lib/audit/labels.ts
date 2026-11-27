@@ -11,6 +11,7 @@ const entityLabels: Partial<Record<Entity, string>> = {
 };
 export const entityLabel = (entity: Entity) => entityLabels[entity] ?? humanize(entity);
 export function actionLabel(action: string) {
+  if (action === "topup.gateway_paid") return "Online top-up paid";
   if (action === "document.viewed") return "Document viewed";
   if (action === "audit.exported") return "Audit log exported";
   const [entity, change] = action.split(".");
