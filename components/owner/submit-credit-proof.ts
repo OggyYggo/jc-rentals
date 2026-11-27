@@ -47,9 +47,8 @@ export async function submitCreditProof(
         return false;
       }
       try {
-        const request = await withConnectionDeadline(signal => db.from("owner_credit_ledger").insert({
-        owner_id: ownerId, type: "topup", amount, status: "pending", reference_no: reference,
-        proof_path: path, note: "Owner credit top-up request",
+        const request = await withConnectionDeadline(signal => db.rpc("submit_owner_topup", {
+          p_amount: amount, p_reference: reference, p_proof_path: path,
         }).abortSignal(signal));
         if (request.error) {
           if (!connectionError(request.error)) await db.storage.from("topup-proofs").remove([path]);

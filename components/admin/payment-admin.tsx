@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { runWithAlerts } from "@/lib/alerts/run";
+import { normalizePaymentReference } from "@/lib/payment-format";
 import { createClient } from "@/lib/supabase/client";
 import { AdminFilterChips, adminManilaDate, adminMoney, mobileAction, mobilePrimaryAction, peso } from "@/components/admin/ui";
 
@@ -13,12 +14,13 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
   const [tab, setTab] = useState("pending");
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState("");
+  const [transfers, setTransfers] = useState<Record<string, { amount: string; reference: string }>>({});
   const router = useRouter();
   useEffect(() => {
     let active = true;
     const db = createClient();
     for (const row of tab === "pending" ? rows : [...rows, ...history.filter(row => row.status === tab)]) {
-      if (!row.proof_path) continue;
+      if (!row.proof_path?.startsWith(`${row.owner_id}/`)) continue;
       void db.storage.from("topup-proofs").createSignedUrl(row.proof_path, 300).then(({ data }) => {
         if (active && data?.signedUrl) setUrls((current) => ({ ...current, [row.id]: data.signedUrl }));
       });
@@ -38,6 +40,8 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
       run: async (reason) => {
         const { error } = await createClient().rpc("admin_review_owner_topup", {
           p_ledger_id: row.id, p_approve: approve, p_reason: approve ? null : reason,
+          p_received_amount: approve ? Number(transfers[row.id]?.amount) : null,
+          p_received_reference: approve ? transfers[row.id]?.reference : null,
         });
         if (error) throw error;
       },
@@ -55,18 +59,39 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
     <div className="lg:hidden"><AdminFilterChips label="Top-up status" value={tab} options={options} onChange={setTab}/></div>
     {!rows.length && <p className={`rounded-xl border bg-white p-8 text-center text-sm text-slate-500 ${tab !== "pending" ? "max-lg:hidden" : ""}`}>No top-ups waiting for review.</p>}
     {tab !== "pending" && !visible.length && <p className="rounded-xl border bg-white p-4 text-sm lg:hidden">{historyAvailable ? "No top-ups match this filter." : "Could not load top-up history."}</p>}
-    {[...rows, ...(tab === "pending" ? [] : visible)].map(row => <article key={row.id} className={`flex flex-wrap gap-5 rounded-xl border bg-white p-5 ${row.status === "pending" ? tab === "pending" ? "" : "max-lg:hidden" : "lg:hidden"}`}>
+    {[...rows, ...(tab === "pending" ? [] : visible)].map(row => {
+      const transfer = transfers[row.id] ?? { amount: "", reference: "" };
+      const expectedReference = normalizePaymentReference(row.reference_no ?? "");
+      const matched = Boolean(urls[row.id] && transfer.amount && expectedReference &&
+        Number(transfer.amount) === Number(row.amount) &&
+        normalizePaymentReference(transfer.reference) === expectedReference);
+      const updateTransfer = (key: "amount" | "reference", value: string) => setTransfers(current =>
+        ({ ...current, [row.id]: { ...(current[row.id] ?? transfer), [key]: value } }));
+      return <article key={row.id} className={`flex flex-wrap gap-5 rounded-xl border bg-white p-5 ${row.status === "pending" ? tab === "pending" ? "" : "max-lg:hidden" : "lg:hidden"}`}>
       {urls[row.id] && <><Image src={urls[row.id]} alt="Top-up proof" width={192} height={192} unoptimized className="hidden h-auto w-auto max-h-48 max-w-48 rounded object-contain lg:block"/><a href={urls[row.id]} target="_blank" rel="noreferrer" className="min-h-11 lg:hidden"><Image src={urls[row.id]} alt="Top-up proof" width={96} height={80} unoptimized className="h-auto w-auto max-h-20 max-w-24 rounded object-contain"/></a></>}
       <div className="min-w-0">
         <h2 className="font-semibold">{row.owner?.business_name ?? row.owner_id}</h2>
         <p className="mt-1 text-sm"><span className="lg:hidden">{adminMoney(Number(row.amount))}</span><span className="hidden lg:inline">{peso(Number(row.amount))}</span> · Ref {row.reference_no || "—"}</p>
         <p className="text-xs text-slate-500"><span className="lg:hidden">{adminManilaDate(row.created_at)}</span><span className="hidden lg:inline">{new Date(row.created_at).toLocaleString("en-PH")}</span></p>
-        {row.status === "pending" && <div className="mt-4 flex flex-wrap gap-2">
-          <button disabled={!!busy} onClick={() => review(row, true)} className={mobilePrimaryAction + " lg:hidden!"}>{busy === row.id ? "Working…" : "Verify and add credits"}</button>
-          <button disabled={!!busy} onClick={() => review(row, true)} className="hidden rounded bg-green-700 px-3 py-2 text-sm text-white disabled:opacity-50 lg:inline-block">{busy === row.id ? "Working…" : "Post credits"}</button>
+        {row.status === "pending" && <>
+          <fieldset disabled={!!busy} className="mt-4 flex flex-wrap gap-2">
+            <legend className="text-sm font-semibold">Match the transfer in your payment account</legend>
+            <label className="text-sm">Amount received
+              <input type="number" min="0.01" step="0.01" inputMode="decimal" value={transfer.amount}
+                onChange={event => updateTransfer("amount", event.target.value)} className="block min-h-11 w-full rounded border p-2" />
+            </label>
+            <label className="text-sm">Transfer reference
+              <input maxLength={100} value={transfer.reference}
+                onChange={event => updateTransfer("reference", event.target.value)} className="block min-h-11 w-full rounded border p-2" />
+            </label>
+          </fieldset>
+          <div className="mt-4 flex flex-wrap gap-2">
+          <button disabled={!!busy || !matched} onClick={() => review(row, true)} className={mobilePrimaryAction + " lg:hidden!"}>{busy === row.id ? "Working…" : "Verify and add credits"}</button>
+          <button disabled={!!busy || !matched} onClick={() => review(row, true)} className="hidden rounded bg-green-700 px-3 py-2 text-sm text-white disabled:opacity-50 lg:inline-block">{busy === row.id ? "Working…" : "Post credits"}</button>
           <button disabled={!!busy} onClick={() => review(row, false)} className={mobileAction + " text-red-700 lg:hidden!"}>Reject</button><button disabled={!!busy} onClick={() => review(row, false)} className="hidden rounded border px-3 py-2 text-sm text-red-700 disabled:opacity-50 lg:inline-block">Reject</button>
-        </div>}
+        </div></>}
       </div>
-    </article>)}
+    </article>;
+    })}
   </div>;
 }

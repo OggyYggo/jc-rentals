@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   if (authorization?.data === false) {
     return NextResponse.json({ error: "You can upload up to 10 documents per hour. Try again later." }, { status: 429 });
   }
-  if (authorization?.error || authorization?.data !== true) {
+  if (!admin || authorization?.error || authorization?.data !== true) {
     return NextResponse.json({ error: "Could not authorize your upload. Try again." }, { status: 503 });
   }
 
@@ -81,22 +81,25 @@ export async function POST(request: Request) {
     }
 
     const path = `${user.id}/${kind}/${crypto.randomUUID()}.${extension}`;
-    const bucket = supabase.storage.from("customer-docs");
+    const bucket = admin.storage.from("customer-docs");
     const { error: uploadError } = await bucket.upload(path, body, { contentType, cacheControl: "0" });
     if (uploadError) throw uploadError;
 
     const column = kind === "license" ? "license_path" : "id_path";
-    const update = supabase.from("profiles").update({ [column]: path }).eq("id", user.id);
+    const update = admin.from("profiles").update({ [column]: path }).eq("id", user.id).eq("role", "customer");
     const { data: saved, error: profileUpdateError } = await (previousPath == null
       ? update.is(column, null)
       : update.eq(column, previousPath)).select("id").maybeSingle();
-    if (profileUpdateError || !saved) {
+    if (profileUpdateError) throw profileUpdateError;
+    if (!saved) {
       await bucket.remove([path]);
-      if (profileUpdateError) throw profileUpdateError;
       return NextResponse.json({ error: "This document was updated elsewhere. Refresh and try again." }, { status: 409 });
     }
 
-    if (previousPath && previousPath !== path) await bucket.remove([previousPath]);
+    if (typeof previousPath === "string" && previousPath.startsWith(`${user.id}/${kind}/`) && previousPath !== path &&
+        previousPath.split("/").every(segment => segment && segment !== "." && segment !== "..")) {
+      await bucket.remove([previousPath]);
+    }
     return NextResponse.json({ path });
   } catch {
     return NextResponse.json({ error: "The document could not be processed or uploaded. Use a valid PDF, JPG, PNG, or WebP file." }, { status: 400 });

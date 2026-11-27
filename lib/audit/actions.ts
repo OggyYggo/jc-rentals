@@ -27,7 +27,7 @@ export async function logDocumentView(entity: "customer" | "application", id: st
   if (entity === "customer" && kind !== "registration") {
     const { data } = await supabase.from("profiles").select("license_path,id_path").eq("id", id).eq("role", "customer").single();
     path = kind === "license" ? data?.license_path : data?.id_path;
-    if (path) {
+    if (path?.startsWith(`${id}/`) && path.split("/").every(segment => segment && segment !== "." && segment !== "..")) {
       const { data: signed } = await admin.storage.from("customer-docs").createSignedUrl(path, 60, { download: true });
       signedUrl = signed?.signedUrl;
     }

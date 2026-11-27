@@ -9,6 +9,8 @@ const hostedUrl = "https://checkout.example/c/cs_fixture";
 const checkout = { id: "cs_fixture", amount: 50_000, reference: orderId, status: "paid", livemode: false };
 const row = { amount: 500, provider_checkout_id: checkout.id, status: "created", livemode: false };
 const actions = [];
+let reservationOutcome;
+const attemptKey = "01234567-89ab-4cde-8f00-0123456789ab";
 const seen = new Set();
 let order = row;
 
@@ -27,6 +29,9 @@ globalThis.quickpayTestAdmin = {
   },
   rpc(method, args) {
     actions.push([method, args]);
+    if (method === "reserve_quickpay_checkout") {
+      return Promise.resolve({ data: reservationOutcome ?? { outcome: "reserved", orderId: args.p_order_id } });
+    }
     if (method === "apply_quickpay_event") {
       seen.add(args.p_event_id);
       return { async abortSignal() { return {}; } };
@@ -70,7 +75,7 @@ const { POST: webhook } = await import("../app/api/payments/quickpay/webhook/rou
 
 function createRequest(amount, channel) {
   return new Request("https://app.example/api/payments/topup/create", {
-    method: "POST", headers: { origin: "https://app.example", "content-type": "application/json" },
+    method: "POST", headers: { origin: "https://app.example", "content-type": "application/json", "Idempotency-Key": attemptKey },
     body: JSON.stringify({ amount, channel, ownerId: "owner-b" }),
   });
 }
@@ -119,7 +124,39 @@ test("creates a whole-peso checkout for the session owner and saves its provider
   assert.deepEqual(await response.json(), { url: hostedUrl });
   assert.equal(actions[0][1].p_owner_id, "owner-a");
   assert.equal(actions[0][1].p_livemode, false);
+  assert.equal(actions[0][1].p_attempt_key, attemptKey);
   assert.deepEqual(actions[1], ["update", { provider_checkout_id: checkout.id, payment_url: hostedUrl }]);
+});
+
+test("reuses stored checkouts and rejects duplicate work or mismatched details", async t => {
+  const upstream = t.mock.method(globalThis, "fetch", async () => assert.fail("unexpected checkout creation"));
+  try {
+    reservationOutcome = { outcome: "ready", orderId, url: hostedUrl };
+    assert.deepEqual(await (await create(createRequest(500))).json(), { url: hostedUrl });
+    reservationOutcome = { outcome: "in_progress", orderId };
+    const pending = await create(createRequest(500));
+    assert.equal(pending.status, 409);
+    assert.equal(pending.headers.get("Retry-After"), "3");
+    reservationOutcome = { outcome: "mismatch" };
+    assert.equal((await (await create(createRequest(500))).json()).code, "attempt_mismatch");
+    assert.equal(upstream.mock.callCount(), 0);
+  } finally {
+    reservationOutcome = undefined;
+  }
+});
+
+test("recovery creates a checkout using the existing upstream idempotency key", async t => {
+  reservationOutcome = { outcome: "reserved", orderId };
+  try {
+    t.mock.method(globalThis, "fetch", async (_url, init) => {
+      assert.equal(init.headers["Idempotency-Key"], orderId);
+      assert.equal(JSON.parse(init.body).reference, orderId);
+      return Response.json({ ...checkout, url: hostedUrl });
+    });
+    assert.equal((await create(createRequest(500))).status, 200);
+  } finally {
+    reservationOutcome = undefined;
+  }
 });
 
 test("rejects invalid signatures and ignores a signed event in the wrong mode", async () => {

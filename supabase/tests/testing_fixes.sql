@@ -145,7 +145,19 @@ end $$;
 select pg_temp.claim(4);
 select public.admin_set_customer_verification(pg_temp.person(1),'approved');
 select pg_temp.claim(1);
+do $$ begin
+  assert not has_column_privilege('public.profiles','id_path','update');
+  assert not has_column_privilege('public.profiles','license_path','update');
+  assert not has_table_privilege('public.push_subscriptions','insert');
+  assert not has_table_privilege('public.push_subscriptions','update');
+  assert not has_table_privilege('public.push_subscriptions','delete');
+  assert not exists(select from pg_policies where schemaname='storage' and tablename='objects'
+    and policyname in ('Customers can upload own documents','Customers can replace own documents','Customers can delete own documents'));
+end $$;
+set local role service_role;
+insert into storage.objects(bucket_id,name) values ('customer-docs',pg_temp.person(1)||'/id/replacement.pdf');
 update public.profiles set id_path=pg_temp.person(1)||'/id/replacement.pdf' where id=auth.uid();
+set local role authenticated;
 do $$ begin
   assert (select verification='pending' and verification_rejection_reason is null from public.profiles where id=auth.uid());
   assert not has_function_privilege('anon','public.admin_set_customer_verification(uuid,public.verification_status,text)','EXECUTE');

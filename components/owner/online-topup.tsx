@@ -12,6 +12,21 @@ import { paymentPeso } from "@/lib/payment-format";
 const methods = { gcash: "GCash", maya: "Maya", gotyme: "GoTyme", other: "Other (QR Ph or bank)" };
 const amounts = [500, 1000, 2000];
 let checkoutInFlight = false;
+const checkoutAttempts = new Map<string, string>();
+
+function checkoutAttempt(slot: string) {
+  let key = checkoutAttempts.get(slot);
+  try { key ??= sessionStorage.getItem(slot) ?? undefined; } catch { /* Storage can be disabled. */ }
+  key ??= crypto.randomUUID();
+  checkoutAttempts.set(slot, key);
+  try { sessionStorage.setItem(slot, key); } catch { /* The in-memory key still works. */ }
+  return key;
+}
+
+function clearCheckoutAttempt(slot: string) {
+  checkoutAttempts.delete(slot);
+  try { sessionStorage.removeItem(slot); } catch { /* Storage can be disabled. */ }
+}
 
 export function useOnlineTopupRefresh(orderId: string, status: string) {
   const router = useRouter();
@@ -31,16 +46,21 @@ export async function openOnlineTopup(amount: number, method: keyof typeof metho
   if (checkoutInFlight) return "A payment is already opening. Please wait.";
   checkoutInFlight = true;
   const time = new Date();
+  const slot = `kuyog:quickpay-attempt:${amount}:${method}`;
   const slow = setTimeout(() => void slowConnectionToast(), 8000);
   try {
     const response = await fetchWithTimeout("/api/payments/topup/create", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": checkoutAttempt(slot) },
       body: JSON.stringify({ amount, channel: method === "other" ? undefined : method }),
     }, { payment: true });
     const result = await response.json();
-    if (!response.ok || typeof result.url !== "string") return result.error || onlineTopupError;
+    if (!response.ok || typeof result.url !== "string") {
+      if (result.code === "attempt_closed" || result.code === "attempt_rejected") clearCheckoutAttempt(slot);
+      return result.error || onlineTopupError;
+    }
     window.location.assign(result.url);
+    clearCheckoutAttempt(slot);
     return "";
   } catch (error) {
     clearTimeout(slow);

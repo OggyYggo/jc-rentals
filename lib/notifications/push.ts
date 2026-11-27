@@ -1,5 +1,7 @@
 import "server-only";
 import { sendNotification, setVapidDetails } from "web-push";
+import { pushAgent } from "./push-egress";
+import { trustedPushEndpoint } from "./push-endpoint";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 type PushNotification = { user_id: string; title: string; body: string | null; url: string | null; type: string };
@@ -20,9 +22,15 @@ export async function sendPush(db: SupabaseClient, notification: PushNotificatio
 
   const payload = JSON.stringify({ title: notification.title, body: notification.body ?? "", url: notification.url ?? "/notifications", tag: notification.type });
   let delivered = 0;
+  let attempted = 0;
   for (const subscription of subscriptions) {
+    const endpoint = trustedPushEndpoint(subscription.endpoint);
+    if (!endpoint) continue;
+    attempted++;
     try {
-      await sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 60 * 60 * 24 });
+      await sendNotification({ endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, {
+        TTL: 60 * 60 * 24, agent: pushAgent, timeout: 5000,
+      });
       delivered += 1;
       await db.from("push_subscriptions").update({ last_used_at: new Date().toISOString() }).eq("id", subscription.id);
     } catch (error) {
@@ -31,5 +39,5 @@ export async function sendPush(db: SupabaseClient, notification: PushNotificatio
       else throw error;
     }
   }
-  return delivered > 0;
+  return attempted === 0 || delivered > 0;
 }

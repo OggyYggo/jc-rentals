@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,7 +31,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch {
     // Invalid attribution cookies do not prevent a visit from being counted.
   }
-  if (admin && !isRepeatClick) await admin.from("promo_clicks").insert({ car_id: car.id, owner_id: car.owner_id, src });
+  const secret = process.env.SUPABASE_SECRET_KEY;
+  if (admin && secret && !isRepeatClick) {
+    const forwarded = request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ?? "";
+    const caller = createHmac("sha256", secret).update(`promo:${isIP(forwarded) ? forwarded : "unknown"}`).digest("hex");
+    try {
+      await admin.rpc("record_promo_click_limited", { p_car_id: car.id, p_source: src, p_caller: caller })
+        .abortSignal(AbortSignal.timeout(1500));
+    } catch {
+      // Analytics must never interrupt the redirect.
+    }
+  }
 
   const response = NextResponse.redirect(`${origin}/cars/${car.id}`);
   response.cookies.set("kb_ref", JSON.stringify({ o: car.owner_id, c: car.id, s: src, t: now }), {

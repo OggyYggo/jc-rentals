@@ -1,12 +1,14 @@
 import { randomBytes } from "node:crypto";
 import {
-  channels, createCheckout, maximumTopup, minimumTopup, QuickPayError, quickpayConfig, unavailableMessage,
+  channels, createCheckout, maximumTopup, minimumTopup, orderPattern, QuickPayError, quickpayConfig, unavailableMessage,
 } from "@/lib/payments/quickpay";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-function failure(error: string, status: number) {
-  return Response.json({ error }, { status });
+const attemptPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function failure(error: string, status: number, code?: string) {
+  return Response.json({ error, code }, { status });
 }
 
 export async function POST(request: Request) {
@@ -36,20 +38,36 @@ export async function POST(request: Request) {
     const channelMessage = "That payment method is not available. Try another.";
     if (requestedChannel !== undefined && !channel) return failure(channelMessage, 400);
 
+    const attemptKey = request.headers.get("Idempotency-Key");
+    if (!attemptKey || !attemptPattern.test(attemptKey)) return failure("Reload to start a secure payment.", 400);
     const admin = createAdminClient();
     if (!admin) return failure(unavailableMessage, 503);
-    const orderId = `KBT-${randomBytes(6).toString("hex")}`;
+    const reservation = await admin.rpc("reserve_quickpay_checkout", {
+      p_order_id: `KBT-${randomBytes(6).toString("hex")}`, p_owner_id: owner.data.id, p_amount: amount,
+      p_method: channel ?? null, p_livemode: config.livemode, p_attempt_key: attemptKey,
+    });
+    if (reservation.error || !reservation.data) return failure(unavailableMessage, 503);
+    const { outcome, orderId, url } = reservation.data;
+    if (outcome === "rate_limited") return failure("Too many payment attempts. Try again in a few minutes.", 429);
+    if (outcome === "mismatch") return failure("This payment attempt has different details.", 409, "attempt_mismatch");
+    if (outcome === "closed") return failure("This payment attempt is closed. Check your credit activity.", 409, "attempt_closed");
+    if (outcome === "in_progress") {
+      return Response.json({ error: "Your payment is still opening. Try again in a moment." }, {
+        status: 409, headers: { "Retry-After": "3" },
+      });
+    }
+    if (outcome === "ready" && typeof url === "string") {
+      const savedUrl = URL.parse(url);
+      if (savedUrl?.protocol === "https:" && !savedUrl.username && !savedUrl.password) return Response.json({ url });
+    }
+    if (outcome !== "reserved" || typeof orderId !== "string" || !orderPattern.test(orderId)) {
+      return failure(unavailableMessage, 503);
+    }
+
     const site = process.env.VERCEL_ENV === "preview" ? origin : process.env.NEXT_PUBLIC_SITE_URL || origin;
     const cancelUrl = new URL("/owner/credits", site);
     const successUrl = new URL(cancelUrl);
     successUrl.searchParams.set("topup", orderId);
-    const order = await admin.rpc("create_gateway_topup", {
-      p_order_id: orderId, p_owner_id: owner.data.id, p_amount: amount,
-      p_method: channel ?? null, p_livemode: config.livemode,
-    });
-    if (order.error) return failure(unavailableMessage, 503);
-    if (!order.data) return failure("Too many payment attempts. Try again in a few minutes.", 429);
-
     let checkout;
     try {
       checkout = await createCheckout(config, {
@@ -59,9 +77,13 @@ export async function POST(request: Request) {
     } catch (error) {
       const code = error instanceof QuickPayError ? error.code : "unexpected_error";
       console.warn("QuickPay checkout creation failed", code);
-      await admin.from("gateway_topups").update({ status: "failed" }).eq("order_id", orderId).eq("status", "created");
-      if (["amount_too_small", "amount_too_large", "invalid_input"].includes(code)) return failure(amountMessage, 502);
-      if (code === "channel_not_offered") return failure(channelMessage, 502);
+      if (["amount_too_small", "amount_too_large", "invalid_input", "channel_not_offered"].includes(code)) {
+        await admin.from("gateway_topups").update({ status: "failed" }).eq("order_id", orderId)
+          .eq("status", "created").is("provider_checkout_id", null);
+        return failure(code === "channel_not_offered" ? channelMessage : amountMessage, 502, "attempt_rejected");
+      }
+      // The provider may have received the request. Keep the order ID so
+      // recovery uses its original upstream idempotency key after the lease.
       return failure(unavailableMessage, 503);
     }
 
