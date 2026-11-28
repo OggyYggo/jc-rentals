@@ -5,6 +5,7 @@ import { cancellationRule, refundOwnerCopy, refundSupportCopy } from "@/lib/canc
 import { readCancellationSettings } from "@/lib/cancellation-settings";
 import { cancellationPolicy } from "@/lib/policies/cancellation";
 import { publicMetadata } from "@/lib/site/public-metadata";
+import { staffResponsibility } from "@/lib/staff/content";
 
 export const instant = false;
 export const metadata = publicMetadata("/terms", "Terms of Service",
@@ -51,6 +52,7 @@ export default async function TermsPage() {
         </section>
         <section>
           <h2 className="font-semibold text-slate-900">Owner agreement and platform fees</h2>
+          <p>{staffResponsibility}</p>
           <p>The standard owner commission is 5% of the rental amount unless the owner?s plan or agreement specifies another rate. A retained cancellation fee may be subject to commission under the owner?s agreement. Owners must keep bookings started through Kuyog Bohol on the platform and use the payment instructions shown on each booking.</p>
         </section>
         <p>For support or a booking dispute, email kuyogbohol@gmail.com.</p>

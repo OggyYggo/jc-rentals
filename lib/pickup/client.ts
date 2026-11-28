@@ -1,4 +1,5 @@
 import { pickupPathPattern, type PickupCredential, type PickupLookup } from "./model";
+import { fetchWithTimeout } from "@/lib/connection/request";
 
 export function pickupScanToken(value: string, origins: string[]) {
   try {
@@ -8,9 +9,9 @@ export function pickupScanToken(value: string, origins: string[]) {
   } catch { return null; }
 }
 
-export async function requestPickupLookup(credential: PickupCredential) {
-  const response = await fetch("/api/pickup/lookup", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credential),
+export async function requestPickupLookup(credential: PickupCredential, staffOwner?: string) {
+  const response = await fetchWithTimeout("/api/pickup/lookup", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...credential, staffOwner }),
   });
   if (!response.ok) throw new Error("Pickup lookup failed");
   return await response.json() as PickupLookup;

@@ -47,6 +47,7 @@ export function Header({ connectionBanner }: { connectionBanner?: ReactNode }) {
   }, [motionHeader]);
 
   if (pathname === "/owner-setup" || pathname === "/admin-setup") return connectionBanner ?? null;
+  if (pathname === "/staff" || pathname.startsWith("/staff/")) return connectionBanner ?? null;
   if (pathname.startsWith("/owner") || pathname.startsWith("/admin")) return null;
   const isPublic = !pathname.startsWith("/for-owners");
 

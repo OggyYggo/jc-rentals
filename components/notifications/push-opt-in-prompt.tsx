@@ -46,7 +46,7 @@ export function PushOptInPrompt() {
     } finally { setBusy(false); }
   }
 
-  if (!state || pathname === "/notifications/settings" || pathname === "/login") return null;
+  if (!state || pathname === "/notifications/settings" || pathname === "/login" || pathname === "/staff" || pathname.startsWith("/staff/")) return null;
   return <aside aria-label="Phone notification setup" className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-md rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5">
     <div className="flex items-start gap-3">
       <span className="grid size-10 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-700"><BellRing size={19} aria-hidden /></span>

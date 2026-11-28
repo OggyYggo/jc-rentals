@@ -13,7 +13,7 @@ import {
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications/bell";
 
-import { Star } from "lucide-react";
+import { Star, UsersRound } from "lucide-react";
 import { onboardingCopy } from "@/lib/onboarding/content";
 
 const navItems = [
@@ -29,6 +29,7 @@ const navItems = [
   { href: "/owner/calendar", label: "Calendar", icon: CalendarRange },
   { href: "/owner/earnings", label: "Earnings", icon: CircleDollarSign },
   { href: "/owner/help", label: onboardingCopy.en.sidebarHelp, icon: CircleHelp },
+  { href: "/owner/staff", label: "Handover staff", icon: UsersRound },
 ];
 
 export function OwnerShell({ children, email, businessName, pendingBookings, bookingRequests, unansweredReviews, userId }: { children: ReactNode; email: string; businessName: string; pendingBookings: number; bookingRequests: number; unansweredReviews: number; userId: string }) {

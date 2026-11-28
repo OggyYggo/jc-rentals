@@ -5,6 +5,7 @@ import { AccountShell } from "@/components/customer/account-shell";
 import { SupabaseSetupNotice } from "@/components/customer/setup-notice";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
+import { hasStaffMembership } from "@/lib/staff/context";
 
 async function CustomerAccountContent({ children }: { children: ReactNode }) {
   if (!isSupabaseConfigured()) return <main className="min-h-[calc(100vh-68px)] bg-[#f5f7fb] px-5 py-16"><SupabaseSetupNotice /></main>;
@@ -15,7 +16,7 @@ async function CustomerAccountContent({ children }: { children: ReactNode }) {
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role === "admin") redirect("/admin");
   if (profile?.role === "owner") redirect("/owner");
-  return <AccountShell userId={user.id} email={user.email ?? "Customer account"}>{children}</AccountShell>;
+  return <AccountShell userId={user.id} email={user.email ?? "Customer account"} handoverStaff={await hasStaffMembership(supabase,user.id)}>{children}</AccountShell>;
 }
 
 function AccountLoading() {

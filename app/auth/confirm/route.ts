@@ -2,6 +2,7 @@ import { pickupReturnPath } from "@/lib/auth/google-redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/shared";
+import { staffAcceptPath } from "@/lib/staff/content";
 
 const allowedTypes = new Set(["email", "invite", "recovery", "magiclink", "email_change"]);
 const allowedNext = new Set(["/", "/account/profile", "/account/bookings", "/owner", "/owner/welcome", "/auth/reset-password"]);
@@ -25,6 +26,8 @@ export async function GET(request: NextRequest) {
     : { data: null };
 
   if (type === "recovery") return NextResponse.redirect(new URL("/auth/reset-password", request.url));
+  const staff = staffAcceptPath(next);
+  if (staff) return NextResponse.redirect(new URL(staff,request.url));
   if (type === "invite" && profile?.role === "owner") return NextResponse.redirect(new URL("/owner/welcome", request.url));
   const pickup = pickupReturnPath(next);
   if (pickup) return NextResponse.redirect(new URL(pickup,request.url));

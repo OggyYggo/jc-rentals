@@ -39,6 +39,7 @@ export function AuditDrawer({ row, close }: { row: AuditRow; close: () => void }
     <div className="mt-6 space-y-5 text-sm">
       <section><h2 className="font-semibold">Who</h2>
         <p>{actorName(row)}{row.actor_role === "system" ? (row.actor_label && ` · ${row.actor_label}`) : ` · ${humanize(row.actor_role)}`}</p>
+        {row.actor_role === "staff" && row.metadata.owner_business && <p className="break-words">{row.metadata.owner_business}</p>}
         {row.actor_id && <p className="break-all text-slate-600">{row.actor_id}</p>}
       </section>
       <section><h2 className="font-semibold">Record</h2><p>{entityLabel(row.entity_type)}{row.entity_label && ` · ${row.entity_label}`}</p>

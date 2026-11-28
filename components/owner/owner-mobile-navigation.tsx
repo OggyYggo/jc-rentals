@@ -7,6 +7,7 @@ import { BadgeDollarSign, CalendarDays, CalendarRange, CarFront, CircleDollarSig
 import { Dialog } from "@/components/ui/dialog";
 import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import { ownerInitials } from "./ui";
+import { UsersRound } from "lucide-react";
 import { onboardingCopy } from "@/lib/onboarding/content";
 
 const groups = [
@@ -15,6 +16,7 @@ const groups = [
     { href: "/owner/cars", label: "My vehicles", icon: CarFront },
     { href: "/owner/reviews", label: "Reviews", icon: Star },
     { href: "/owner/promote", label: "Promote", icon: Megaphone },
+    { href: "/owner/staff", label: "Handover staff", icon: UsersRound },
   ] },
   { label: "Money", links: [
     { href: "/owner/credits", label: "Credits", icon: WalletCards },

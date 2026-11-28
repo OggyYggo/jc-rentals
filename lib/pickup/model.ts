@@ -12,6 +12,7 @@ export type PickupPass = {
 };
 
 export type PickupCredential = { token: string; code?: never } | { token?: never; code: string };
+export type StaffPickupActor = { owner_id: string; display_name: string; business: string };
 
 type PickupFacts = {
   booking_id: string; reference: string; customer_name: string; vehicle_label: string; plate: string | null;
@@ -21,12 +22,13 @@ type PickupFacts = {
 };
 
 export type PickupLookup =
-  | { result: "NOT_VALID" }
+  | { result: "NOT_VALID" | "STAFF_ACCESS_OFF" }
   | { result: "LOCKED"; retry_after_seconds: number }
   | { result: "ALREADY_USED"; used_at: string | null }
   | ({ result: "OK" | "NOT_TODAY" | "DOCS_NOT_VERIFIED" } & PickupFacts);
 
 export const pickupErrors: Record<string, string> = {
+  STAFF_ACCESS_OFF: "Your access was turned off. Contact the rental business.",
   PASS_NOT_VALID: "This pickup pass is no longer valid. Ask the customer to open their current pass.",
   ALREADY_USED: "This pickup pass was already used.",
   NOT_TODAY: "Enter a reason for a handover outside the pickup window.",

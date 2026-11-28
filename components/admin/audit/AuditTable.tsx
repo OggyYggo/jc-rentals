@@ -50,7 +50,8 @@ export function AuditTable({ rows, now }: { rows: AuditRow[]; now: number }) {
               <span className="pointer-events-none absolute top-full left-0 z-10 hidden w-max max-w-52 rounded bg-slate-900 p-2 text-white group-hover:block group-focus-visible:block">{exactTime(row.created_at)} PHT</span>
             </button></td>
             <td className={cell}><span className="font-medium">{actorName(row)}</span> {row.actor_role !== "system" && <span className="rounded bg-slate-100 px-1.5 text-xs">{humanize(row.actor_role)}</span>}
-              {row.actor_role === "system" && <p className="text-xs text-slate-600">{row.actor_label}</p>}</td>
+              {row.actor_role === "system" && <p className="text-xs text-slate-600">{row.actor_label}</p>}
+              {row.actor_role === "staff" && row.metadata.owner_business && <p className="break-words text-sm text-slate-600">{row.metadata.owner_business}</p>}</td>
             <td className={cell}><ActionChip action={row.action} rejected={row.changes.status?.to === "rejected"}/><p className="mt-1 line-clamp-2">{row.summary}</p></td>
             <td className={cell}><span className="mr-2 font-semibold lg:hidden">Record</span>{href ? <Link href={href} className="text-blue-800 underline">{name}</Link> : name}</td>
             <td className={cell}><span className="font-semibold lg:hidden">Details</span><ChangeList row={row} compact/></td>

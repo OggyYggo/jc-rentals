@@ -10,7 +10,7 @@ import { paymentDate, paymentPeso } from "@/lib/payment-format";
 export const instant = false;
 type Event = {
   id: number; kind: string; created_at: string; actor: { full_name: string } | null;
-  detail: { method?: string; balance_amount?: number; id_checked?: boolean; reason?: string; notes?: string };
+  detail: { method?: string; balance_amount?: number; id_checked?: boolean; reason?: string; notes?: string; actor_role?: string; staff_name?: string; owner_business?: string };
 };
 
 export default async function AdminPickupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +37,9 @@ export default async function AdminPickupPage({ params }: { params: Promise<{ id
       {events.data?.length ? <ol className="mt-2 divide-y">
         {events.data.map(event => <li key={event.id} className="space-y-1 py-3 text-sm">
           <p className="font-semibold capitalize">{event.kind.replaceAll("_"," ")}</p>
-          <p>{paymentDate(event.created_at)} Manila time · {event.actor?.full_name || "System or previous user"}</p>
+          <p className="break-words">{paymentDate(event.created_at)} Manila time · {event.detail.actor_role === "staff"
+            ? `${event.detail.staff_name ?? "Staff"} (staff) · ${event.detail.owner_business ?? "Rental business"}`
+            : event.actor?.full_name || "System or previous user"}</p>
           {event.detail.method && <p>Balance received · {paymentPeso(event.detail.balance_amount ?? 0)} · {event.detail.method.replaceAll("_"," ")}</p>}
           {event.detail.id_checked && <p>ID checked</p>}
           {event.detail.reason && <p className="whitespace-pre-wrap break-words">Reason · {event.detail.reason}</p>}

@@ -1,6 +1,6 @@
 import { SignOutForm } from "@/components/notifications/sign-out-form";
 import Link from "next/link";
-import { Bell, CalendarDays, ChevronRight, CircleHelp, ContactRound, IdCard, LogOut, Pencil, ShieldCheck, Star, UserRound } from "lucide-react";
+import { Bell, CalendarDays, ChevronRight, CircleHelp, ContactRound, IdCard, LogOut, Pencil, ShieldCheck, Star, UserRound, ScanLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,10 +10,11 @@ const rowClass = "flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left te
 const tile = "grid size-[38px] shrink-0 place-items-center rounded-xl bg-[#EAF4FF] text-[#0A3D91]";
 const card = "gap-0 rounded-2xl border border-[#E3EEF9] bg-white py-0 ring-0";
 
-export function ProfileHome({ name, email, joinedAt, hasLicense, hasId, verification, selfieStatus, selfieUnavailable, bookingCounts, tripsToRate }: {
+export function ProfileHome({ name, email, joinedAt, hasLicense, hasId, verification, selfieStatus, selfieUnavailable, bookingCounts, tripsToRate, handoverStaff }: {
   name: string; email?: string; joinedAt?: string; hasLicense: boolean; hasId: boolean;
   verification: string; selfieStatus?: string; selfieUnavailable: boolean;
   bookingCounts: { toPay: number; upcoming: number } | null; tripsToRate: number | null;
+  handoverStaff?: boolean;
 }) {
   const initials = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join("").toLocaleUpperCase();
   const memberSince = joinedAt && Number.isFinite(Date.parse(joinedAt))
@@ -34,6 +35,7 @@ export function ProfileHome({ name, email, joinedAt, hasLicense, hasId, verifica
     { label: "My bookings", subtitle: bookingCounts ? `${bookingCounts.toPay} to pay · ${bookingCounts.upcoming} upcoming` : "View your rentals", href: "/account/bookings", icon: CalendarDays },
     { label: "My reviews", subtitle: tripsToRate === null ? "Read or leave trip feedback" : `${tripsToRate} ${tripsToRate === 1 ? "trip" : "trips"} to rate`, href: "/account/bookings?view=reviews", icon: Star },
     { label: "Notifications", subtitle: "Booking alerts and preferences", href: "/notifications", icon: Bell },
+    ...(handoverStaff ? [{ label: "Handover staff", subtitle: "Scan passes and see today’s handovers", href: "/staff", icon: ScanLine }] : []),
   ];
 
   return <div className="space-y-4 font-body">

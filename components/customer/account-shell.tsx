@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { CalendarDays, CarFront, CircleUserRound, LogOut } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/bell";
 
-export function AccountShell({ children, email, userId }: { children: React.ReactNode; email: string; userId: string }) {
+export function AccountShell({ children, email, userId, handoverStaff }: { children: React.ReactNode; email: string; userId: string; handoverStaff?: boolean }) {
   const pathname = usePathname();
   const isProfile = pathname === "/account/profile";
   const mobileHub = isProfile || pathname === "/account" || pathname === "/account/bookings" || pathname.startsWith("/account/bookings/");
@@ -21,6 +21,7 @@ export function AccountShell({ children, email, userId }: { children: React.Reac
               <Link href="/account/bookings" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${isProfile ? "text-[#68778c] hover:bg-[#f6f8fb]" : "bg-[#edf2ff] text-[#2457d6]"}`}><CalendarDays size={15} /> My bookings</Link>
               <Link href="/account/profile" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${isProfile ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CircleUserRound size={15} /> Profile &amp; documents</Link>
               <Link href="/cars" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#68778c] hover:bg-[#f6f8fb]"><CarFront size={15} /> Browse rentals</Link>
+              {handoverStaff && <Link href="/staff" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-[#0A47B1] focus-visible:outline-2">Handover staff</Link>}
             </nav>
             <SignOutForm className="mt-3 border-t border-[#edf0f4] pt-3"><button type="submit" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#758196] hover:bg-[#f6f8fb]"><LogOut size={15} /> Sign out</button></SignOutForm>
           </aside>

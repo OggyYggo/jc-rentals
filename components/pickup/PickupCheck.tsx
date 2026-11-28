@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarDays, Check, ScanLine } from "lucide-react";
 import { SubmitButton } from "@/components/loading/SubmitButton";
 import { createClient } from "@/lib/supabase/client";
-import { pickupError, type PickupCredential, type PickupLookup } from "@/lib/pickup/model";
+import { pickupError, type PickupCredential, type PickupLookup, type StaffPickupActor } from "@/lib/pickup/model";
 import { paymentDate, paymentPeso } from "@/lib/payment-format";
 import "./pickup-success.css";
 
@@ -20,8 +20,8 @@ const focusSuccess = (heading: HTMLHeadingElement | null) => {
   if (heading?.getClientRects().length) heading.focus({ preventScroll: true });
 };
 
-export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
-  lookup: PickupLookup; credential: PickupCredential; admin?: boolean; onCancel?: () => void;
+export function PickupCheck({ lookup, credential, admin = false, onCancel, staff }: {
+  lookup: PickupLookup; credential: PickupCredential; admin?: boolean; onCancel?: () => void; staff?: StaffPickupActor;
 }) {
   const router = useRouter();
   const [idChecked, setIdChecked] = useState(false);
@@ -33,7 +33,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
   const [completedAt, setCompletedAt] = useState<Date>();
   const complete = Boolean(completedAt);
   const [error, setError] = useState("");
-  const back = admin && "booking_id" in lookup ? `/admin/bookings/${lookup.booking_id}/pickup` : "/owner/bookings";
+  const back = staff ? `/staff/today?business=${staff.owner_id}` : admin && "booking_id" in lookup ? `/admin/bookings/${lookup.booking_id}/pickup` : "/owner/bookings";
   const cancel = onCancel
     ? <button type="button" className={actionClass} disabled={busy} onClick={onCancel}>Cancel</button>
     : <Link className={actionClass} href={back}>Back to bookings</Link>;
@@ -42,15 +42,17 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
     const text = lookup.result === "ALREADY_USED"
       ? `This pass was already used${lookup.used_at ? ` on ${paymentDate(lookup.used_at)} Manila time` : ""}.`
       : lookup.result === "LOCKED" ? `Too many attempts. Try again in ${Math.ceil(lookup.retry_after_seconds / 60)} minute(s).`
-      : "This is a Kuyog Bohol pickup pass. Only the vehicle owner can use it in the app.";
+      : lookup.result === "STAFF_ACCESS_OFF" ? `Your access was turned off. Contact ${staff?.business ?? "the rental business"}.`
+      : staff ? "This pass is not valid. Ask the customer to open their current pass."
+        : "This is a Kuyog Bohol pickup pass. Only the vehicle owner or authorized handover staff can use it in the app.";
     return <div className="space-y-4"><p role="status" className="rounded-xl bg-red-50 p-4 text-sm font-medium text-red-950">{text}</p>{cancel}</div>;
   }
 
   const isReturn = lookup.stage === "return";
   const balance = Number(lookup.balance_at_pickup);
   const due = !isReturn && balance > 0;
-  const needsReason = !isReturn && (admin || lookup.result === "NOT_TODAY");
-  const blocked = !isReturn && !admin && lookup.docs_required && !lookup.documents_verified;
+  const needsReason = !staff && !isReturn && (admin || lookup.result === "NOT_TODAY");
+  const blocked = !isReturn && !admin && ((lookup.docs_required && !lookup.documents_verified) || (staff && lookup.result === "NOT_TODAY"));
   const canSubmit = isReturn ? !admin : !blocked && idChecked && (!due || (received && method !== "")) && (!needsReason || reason.trim().length >= 5);
 
   if (completedAt && !isReturn && !admin) {
@@ -102,7 +104,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
 
       <div className="grid gap-2 pt-1">
         {onCancel ? <button type="button" onClick={onCancel} className={mobileScan}>{scanLabel}</button> : <ScanPickupLink className={mobileScan}>{scanLabel}</ScanPickupLink>}
-        <Link href={back} className={`${mobileAction} border-[#D6E6F7] bg-white text-[#0A3D91] hover:bg-[#F3F9FF]`}>View booking</Link>
+        <Link href={back} className={`${mobileAction} border-[#D6E6F7] bg-white text-[#0A3D91] hover:bg-[#F3F9FF]`}>{staff ? "Today’s handovers" : "View booking"}</Link>
       </div>
       <p className="text-center text-xs text-[#5B6F89]">Saved {savedTime.format(completedAt)} Manila time</p>
     </section>
@@ -132,7 +134,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
             ? <button type="button" onClick={onCancel} className={scanClass}>{scanLabel}</button>
             : <ScanPickupLink className={scanClass}>{scanLabel}</ScanPickupLink>}
           <Link href={back} className={`${actionClass} gap-2 border-slate-200 text-slate-700 hover:bg-slate-50`}>
-            Back to bookings <ArrowRight size={16} aria-hidden="true" />
+            {staff ? "Today’s handovers" : "Back to bookings"} <ArrowRight size={16} aria-hidden="true" />
           </Link>
         </div>
       </div>
@@ -144,7 +146,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
     <h2 className="font-semibold">{isReturn ? "Return confirmed. Booking is now Returned." : "Handed over. Booking is now Picked up."}</h2>
     <div className="flex flex-wrap gap-2">
       {!admin && (onCancel ? <button type="button" onClick={onCancel} className={actionClass}>Scan another</button> : <ScanPickupLink className={actionClass}>Scan another</ScanPickupLink>)}
-      <Link href={back} className={actionClass}>{admin ? "Back to pickup details" : "Back to bookings"}</Link>
+      <Link href={back} className={actionClass}>{staff ? "Today’s handovers" : admin ? "Back to pickup details" : "Back to bookings"}</Link>
     </div>
   </section>;
 
@@ -157,7 +159,12 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
     try {
       const params = { p_booking: lookup.booking_id, p_token: credential.token ?? null };
       const db = createClient();
-      const { error } = isReturn
+      const { error } = staff
+        ? isReturn
+          ? await db.rpc("staff_confirm_return", { ...params, p_owner: staff.owner_id, p_notes: reason || null })
+          : await db.rpc("staff_confirm_pickup", { ...params, p_owner: staff.owner_id, p_code: credential.code ?? null,
+            p_id_checked: idChecked, p_balance_received: received, p_balance_method: method || null })
+        : isReturn
         ? await db.rpc("owner_confirm_return", { ...params, p_notes: reason || null })
         : await db.rpc("owner_confirm_pickup", {
           ...params, p_code: credential.code ?? null, p_id_checked: idChecked,
@@ -167,7 +174,10 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
       setCompletedAt(new Date());
       if (onCancel) router.refresh();
     } catch (error) {
-      setError(pickupError(error));
+      const code = error && typeof error === "object" && "message" in error ? error.message : "";
+      setError(staff && code === "STAFF_ACCESS_OFF" ? `Your access was turned off. Contact ${staff.business}.`
+        : staff && (code === "NOT_TODAY" || code === "DOCS_NOT_VERIFIED") ? `Ask ${staff.business} to complete this.` : pickupError(error));
+      if (staff && code === "STAFF_ACCESS_OFF") router.refresh();
     } finally {
       active.current = false;
       setBusy(false);
@@ -177,7 +187,7 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
   return <section className="space-y-3">
     <p role="status" className={`rounded-xl p-3 text-sm font-semibold ${blocked ? "bg-blue-50 text-blue-950" :
       lookup.result === "NOT_TODAY" ? "bg-amber-50 text-amber-950" : "bg-emerald-50 text-emerald-950"}`}>
-      {blocked ? pickupError({ message: "DOCS_NOT_VERIFIED" }) :
+      {blocked ? staff ? `Ask ${staff.business} to complete this.` : pickupError({ message: "DOCS_NOT_VERIFIED" }) :
         lookup.result === "NOT_TODAY" ? `Outside the pickup window. The booking starts on ${lookup.start_date}.` :
         isReturn ? "Valid return pass" : "Valid pass"}
     </p>
@@ -188,7 +198,8 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
       <div><dt className="text-slate-600">Booking</dt><dd className="break-words">{lookup.reference} · {lookup.mode === "self_drive" ? "Self-drive" : "With driver"}</dd></div>
       {lookup.mode === "self_drive" && lookup.deposit_amount > 0 && <div><dt className="text-slate-600">Refundable safety deposit</dt><dd>{paymentPeso(lookup.deposit_amount)}</dd></div>}
     </dl>
-    {!isReturn && <dl className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-4 text-sm">
+    {!isReturn && staff && <p className="rounded-xl border bg-white p-3 text-sm font-semibold">{lookup.documents_verified ? "Documents verified" : "Documents unverified"}</p>}
+    {!isReturn && !staff && <dl className="grid grid-cols-2 gap-2 rounded-xl border bg-white p-4 text-sm">
       {[["Reservation deposit", "Paid"], ["License", lookup.license_ok ? "Verified" : "Unverified"],
         ["Government ID", lookup.id_ok ? "Verified" : "Unverified"], ["Pickup date", lookup.pickup_today ? "Today" : lookup.start_date]].map(([label,value]) =>
         <div key={label}><dt className="text-slate-600">{label}</dt><dd className="font-semibold">{value}</dd></div>)}
@@ -217,5 +228,6 @@ export function PickupCheck({ lookup, credential, admin = false, onCancel }: {
         </SubmitButton>{cancel}
       </div>
     </form>
+    {staff && <p className="break-words text-[13px] text-[#5B6F89]">Recorded as handled by {staff.display_name} (staff of {staff.business}).</p>}
   </section>;
 }

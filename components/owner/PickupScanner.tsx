@@ -5,11 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, CircleHelp, Hash, LoaderCircle, ScanLine, VideoOff } from "lucide-react";
 import { PickupCheck } from "@/components/pickup/PickupCheck";
 import { pickupScanToken, requestPickupLookup } from "@/lib/pickup/client";
-import { pickupCodePattern, type PickupCredential, type PickupLookup } from "@/lib/pickup/model";
+import { pickupCodePattern, type PickupCredential, type PickupLookup, type StaffPickupActor } from "@/lib/pickup/model";
 
 const Camera = dynamic(() => import("./PickupCamera"), { ssr: false, loading: () => <p role="status">Opening camera…</p> });
 
-export function PickupScanner({ origins }: { origins: string[] }) {
+export function PickupScanner({ origins, staff }: { origins: string[]; staff?: StaffPickupActor }) {
   const [camera, setCamera] = useState<MediaStream | null>(null);
   const [requestingCamera, setRequestingCamera] = useState(false);
   const [cameraError, setCameraError] = useState("");
@@ -88,7 +88,7 @@ export function PickupScanner({ origins }: { origins: string[] }) {
     setBusy(true);
     setError("");
     try {
-      const lookup = await requestPickupLookup(credential);
+      const lookup = await requestPickupLookup(credential, staff?.owner_id);
       setResult({ lookup, credential });
     } catch {
       setError("Could not check the pass. Check your connection and try again.");
@@ -111,7 +111,7 @@ export function PickupScanner({ origins }: { origins: string[] }) {
     return true;
   }
 
-  if (result) return <PickupCheck {...result} onCancel={() => {
+  if (result) return <PickupCheck {...result} staff={staff} onCancel={() => {
     setResult(undefined); setCode(""); prevScan.current = { value: "", time: 0 };
   }} />;
 

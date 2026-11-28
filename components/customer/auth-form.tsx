@@ -11,11 +11,11 @@ import { Logo } from "@/components/logo";
 import { accountReturnPath, defaultCustomerDestination, googleNextCookie, pickupReturnPath } from "@/lib/auth/google-redirect";
 import { createClient } from "@/lib/supabase/client";
 
-export function AuthForm({ mode, configured, next = defaultCustomerDestination, initialMessage = "" }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string }) {
-  const [email, setEmail] = useState("");
+export function AuthForm({ mode, configured, next = defaultCustomerDestination, initialMessage = "", staffInvite }: { mode: "login" | "signup"; configured: boolean; next?: string; initialMessage?: string; staffInvite?: { email: string; name: string } }) {
+  const [email, setEmail] = useState(staffInvite?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(staffInvite?.name ?? "");
   const [message, setMessage] = useState(initialMessage);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,6 +28,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
   const failures = isSignup ? validatePassword(password, { email, fullName }) : [];
   const passwordsMatch = password === confirm;
   const captchaPending = captchaEnabled && !captchaToken;
+  const signupNext = staffInvite ? encodeURIComponent(next) : "/account/welcome";
 
   async function handleEmailAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,7 +50,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
           options: {
             captchaToken: captchaToken || undefined,
             data: { full_name: fullName.trim() },
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=${signupNext}`,
           },
         });
         if (authError) throw authError;
@@ -63,7 +64,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
         if (authError) throw authError;
       }
       let destination = defaultCustomerDestination;
-      if (!isSignup && next.startsWith("/") && !next.startsWith("//")) {
+      if ((!isSignup || staffInvite) && next.startsWith("/") && !next.startsWith("//")) {
         const target = new URL(next, window.location.origin);
         if (target.origin === window.location.origin) destination = target.href;
       }
@@ -71,8 +72,8 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-          if (profile?.role === "owner") destination = pickupReturnPath(next) ?? "/owner";
-          if (profile?.role === "admin") destination = pickupReturnPath(next) ?? "/admin";
+          if (!staffInvite && profile?.role === "owner") destination = pickupReturnPath(next) ?? "/owner";
+          if (!staffInvite && profile?.role === "admin") destination = pickupReturnPath(next) ?? "/admin";
         }
       }
       // Start with a fresh document so the first account view uses the new session.
@@ -103,7 +104,7 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: email.trim(),
-        options: { captchaToken: captchaToken || undefined, emailRedirectTo: `${window.location.origin}/auth/callback?next=/account/welcome` },
+        options: { captchaToken: captchaToken || undefined, emailRedirectTo: `${window.location.origin}/auth/callback?next=${signupNext}` },
       });
       if (resendError) throw resendError;
       setMessage("A new confirmation email has been sent. Check your inbox and spam folder.");
@@ -165,33 +166,33 @@ export function AuthForm({ mode, configured, next = defaultCustomerDestination, 
     <div className="w-full max-w-[420px] rounded-2xl border border-[#e5eaf1] bg-white p-6 shadow-[0_24px_70px_-38px_rgba(28,59,119,.28)] sm:p-8">
       <Link href="/" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[#26364e]"><Logo size={36} /> Kuyog Bohol</Link>
       <h1 className="text-2xl font-semibold tracking-tight text-[#203149]">{isSignup ? "Create your account" : "Welcome back"}</h1>
-      <p className="mt-2 text-sm leading-6 text-[#718096]">{isSignup ? "Keep your bookings and rental details together." : "Sign in to manage your rentals and profile."}</p>
+      <p className="mt-2 text-sm leading-6 text-[#718096]">{staffInvite ? "Use the email address from your invitation." : isSignup ? "Keep your bookings and rental details together." : "Sign in to manage your rentals and profile."}</p>
 
       {!configured && <div role="status" className="mt-5 rounded-xl border border-[#f3dfb4] bg-[#fff9eb] p-3 text-xs leading-5 text-[#805a17]">Authentication needs Supabase credentials. Add the values listed in <code>.env.example</code> and apply the customer portal migration.</div>}
       {error && <div role="alert" className="mt-5 rounded-xl border border-[#f3c7c7] bg-[#fff5f5] p-3 text-xs leading-5 text-[#a33232]">{error}</div>}
       {message && <div role="status" className="mt-5 rounded-xl border border-[#cddcfb] bg-[#f4f7ff] p-3 text-xs leading-5 text-[#34528f]">{message}</div>}
 
-      <button type="button" onClick={handleGoogle} disabled={!configured || busy} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#dfe5ec] bg-white text-sm font-medium text-[#34445b] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50">
+      {!staffInvite && <><button type="button" onClick={handleGoogle} disabled={!configured || busy} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#dfe5ec] bg-white text-sm font-medium text-[#34445b] transition hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:opacity-50">
         <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.09-1.92 3.27-4.74 3.27-8.1Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.99.66-2.25 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.15v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.12-1.44.34-2.11V7.05H2.15A11 11 0 0 0 1 12c0 1.78.43 3.46 1.15 4.95l3.69-2.84Z"/><path fill="#EA4335" d="M12 5.36c1.62 0 3.06.56 4.2 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.85 6.05l3.69 2.84C6.71 7.29 9.14 5.36 12 5.36Z"/></svg>
         Continue with Google
       </button>
-      <div className="my-5 flex items-center gap-3 text-[10px] text-[#9aa5b3]"><span className="h-px flex-1 bg-[#e9edf2]"/>OR CONTINUE WITH EMAIL<span className="h-px flex-1 bg-[#e9edf2]"/></div>
+      <div className="my-5 flex items-center gap-3 text-[10px] text-[#9aa5b3]"><span className="h-px flex-1 bg-[#e9edf2]"/>OR CONTINUE WITH EMAIL<span className="h-px flex-1 bg-[#e9edf2]"/></div></>}
 
-      <form onSubmit={handleEmailAuth} className="space-y-4">
+      <form onSubmit={handleEmailAuth} className={`space-y-4 ${staffInvite ? "mt-4 [&_input]:min-h-11 [&_.text-xs]:text-[13px]" : ""}`}>
         {isSignup && <label className="block text-xs font-medium text-[#43536a]">Full name<input required autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="Your name" /></label>}
-        <label className="block text-xs font-medium text-[#43536a]">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="you@example.com" /></label>
+        <label className="block text-xs font-medium text-[#43536a]">Email address<input required type="email" autoComplete="email" readOnly={Boolean(staffInvite)} value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" placeholder="you@example.com" /></label>
         {isSignup ? <>
-          <PasswordField label="Password" value={password} onChange={setPassword} failures={failures} disabled={busy} />
+          <PasswordField label={staffInvite ? "Create a password" : "Password"} value={password} onChange={setPassword} failures={failures} disabled={busy} />
           <PasswordField label="Confirm password" value={confirm} onChange={setConfirm} mismatch={Boolean(confirm) && !passwordsMatch} disabled={busy} />
         </> : <label className="block text-xs font-medium text-[#43536a]">Password<input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-[#dfe5ec] px-3 text-sm text-[#26364e] outline-none transition focus:border-[#6e91e8] focus:ring-3 focus:ring-[#2457d6]/10" /></label>}
         {!isSignup && <button type="button" onClick={() => { setShowForgotPassword((value) => !value); setError(""); setMessage(""); }} className="text-xs font-semibold text-[#2457d6] hover:underline">{showForgotPassword ? "Cancel password reset" : "Forgot password?"}</button>}
         {configured && captchaEnabled && <TurnstileBox ref={turnstile} id="email-auth-turnstile" onTokenChange={setCaptchaToken} disabled={busy} />}
         {showForgotPassword && <button type="button" onClick={sendPasswordReset} disabled={!configured || busy || captchaPending} className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Email me a reset link</button>}
-        <button type="submit" disabled={!configured || busy || captchaPending || (isSignup && (failures.length > 0 || !passwordsMatch))} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? "Create account" : "Sign in"}</button>
+        <button type="submit" disabled={!configured || busy || captchaPending || (isSignup && (failures.length > 0 || !passwordsMatch))} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2457d6] text-sm font-semibold text-white transition hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16}/>} {isSignup ? staffInvite ? "Accept and continue" : "Create account" : staffInvite ? "Sign in to accept" : "Sign in"}</button>
       </form>
       {showResendConfirmation && <button type="button" onClick={resendConfirmation} disabled={!configured || busy || captchaPending || !email.trim()} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#dbe4fb] bg-[#f7f9ff] text-xs font-semibold text-[#4568bd] hover:bg-[#edf2ff] disabled:cursor-not-allowed disabled:opacity-50">{busy && <LoaderCircle size={14} className="animate-spin"/>}Resend confirmation email</button>}
       {isSignup && <p className="mt-4 text-center text-xs text-[#51657F]">Review our <Link href="/terms" className="underline">Terms of Service</Link> and <Link href="/privacy" className="underline">Privacy Policy</Link> before creating an account.</p>}
-      <p className="mt-6 text-center text-xs text-[#7d8998]">{isSignup ? "Already have an account?" : "New to Kuyog Bohol?"} <Link href={isSignup ? "/login" : "/signup"} className="font-semibold text-[#2457d6] hover:underline">{isSignup ? "Sign in" : "Create an account"}</Link></p>
+      <p className={`mt-6 text-center text-[#7d8998] ${staffInvite ? "text-[13px]" : "text-xs"}`}>{isSignup ? "Already have an account?" : "New to Kuyog Bohol?"} <Link prefetch={staffInvite ? false : undefined} href={staffInvite ? `${next}&mode=${isSignup ? "login" : "signup"}` : isSignup ? "/login" : "/signup"} className={`font-semibold text-[#2457d6] hover:underline ${staffInvite ? "inline-flex min-h-11 items-center" : ""}`}>{isSignup ? staffInvite ? "Sign in to accept" : "Sign in" : "Create an account"}</Link></p>
     </div>
   );
 }

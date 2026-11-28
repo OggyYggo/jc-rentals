@@ -35,7 +35,7 @@ export type OwnerBooking = {
   mode: string;
   created_at: string;
   customer: { full_name: string; phone: string | null } | null;
-  pickup_event?: { kind: string; created_at: string };
+  pickup_event?: { kind: string; created_at: string; staff_name?: string | null };
   car: { id: string; brand: string; model: string; plate_number: string | null } | null;
 };
 
@@ -113,7 +113,7 @@ export function BookingWorkflow({ bookings, todayManila }: { bookings: OwnerBook
     const event = booking.pickup_event;
     if (!event) return null;
     return <p className="mt-1 text-xs text-slate-600">
-      {event.kind === "manual" ? "Picked up manually" : "Picked up by scan"} · {paymentDate(event.created_at)} Manila time
+      {event.kind === "manual" ? "Picked up manually" : "Picked up by scan"}{event.staff_name && ` · ${event.staff_name} (staff)`} · {paymentDate(event.created_at)} Manila time
     </p>;
   }
 

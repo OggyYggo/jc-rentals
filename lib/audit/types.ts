@@ -1,10 +1,10 @@
 export const entities = [
   "owner", "customer", "booking", "car", "application", "payment", "topup", "invoice",
   "setting", "promo", "car_rate", "driver", "pickup_location", "plan", "owner_plan",
-  "plan_payment", "contact", "audit", "review",
+  "plan_payment", "contact", "audit", "review", "staff",
 ] as const;
 
-export const roles = ["admin", "owner", "customer", "system"] as const;
+export const roles = ["admin", "owner", "customer", "system", "staff"] as const;
 export const eventKinds = ["created", "updated", "status_changed", "deleted", "security"] as const;
 export type Entity = typeof entities[number];
 

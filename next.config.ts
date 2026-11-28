@@ -34,14 +34,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  logging: { incomingRequests: { ignore: [/\/staff\/accept/, /%2fstaff%2faccept/i, /(?:\/|%2f)p(?:\/|%2f)[a-f0-9]{64}/i] } },
   async redirects() {
     return [{ source: "/account/documents", destination: "/account/profile?section=documents", permanent: false }];
   },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },
-      { source: "/owner/scan", headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" }] },
-      ...["/p/:token", "/account/bookings/:id/pickup/:path*", "/api/pickup/:path*"].map(source => ({
+      ...["/owner/scan", "/staff/scan"].map(source => ({ source, headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" }] })),
+      ...["/p/:token", "/account/bookings/:id/pickup/:path*", "/api/pickup/:path*", "/staff/:path*"].map(source => ({
         source,
         headers: [
           { key: "Cache-Control", value: "private, no-store" },

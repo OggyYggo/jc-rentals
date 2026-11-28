@@ -13,7 +13,7 @@ export default async function OwnerBookingsPage() {
   const [{ data, error }, { data: contacts, error: contactsError }, { data: history, error: historyError }] = await Promise.all([
     supabase.from("bookings").select("id, reference, start_date, end_date, pickup_time, pickup_location, itinerary_notes, total_price, balance_at_pickup, amount_paid_online, amount_due_now, deposit_refund_status, cancelled_at, refund_amount, commission_amount, owner_earnings, status, payment, mode, created_at, car:cars!bookings_car_id_fkey(id, brand, model, plate_number)").eq("owner_id", owner.id).order("created_at", { ascending: false }),
     supabase.from("owner_booking_contacts").select("booking_id, full_name, phone"),
-    supabase.rpc("owner_pickup_history").overrideTypes<{ booking_id: string; kind: string; created_at: string }[], { merge: false }>(),
+    supabase.rpc("owner_pickup_history").overrideTypes<{ booking_id: string; kind: string; created_at: string; staff_name: string | null }[], { merge: false }>(),
   ]);
   if (error || contactsError) {
     const describe = (failure: typeof error) => failure
