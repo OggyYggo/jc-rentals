@@ -19,6 +19,7 @@ import { CurrentYear } from "@/components/current-year";
 import { RideWithDriver } from "@/components/home/RideWithDriver";
 import { FindCarLink } from "@/components/home/FindCarLink";
 import { FeaturedCarsGrid } from "@/components/home/FeaturedCarsGrid";
+import { CustomerBookingSteps } from "@/components/onboarding/customer-tips";
 
 export const metadata = publicMetadata("/", "Kuyog Bohol: Car and Motorcycle Rental in Bohol, Self-Drive and With Driver",
   "Rent a car or motorcycle in Bohol from local owners. Choose self-drive or a car with a driver. Book online in minutes.", { absolute: true });
@@ -98,6 +99,8 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
       </div>
       <SearchForm />
     </HeroIntro>
+
+    <Suspense fallback={null}><HomeBookingSteps /></Suspense>
 
     {/* Trust strip */}
     <section className="border-b border-[#D6E6F7] bg-[#EAF4FF] px-5 py-10 sm:px-8">
@@ -193,6 +196,19 @@ export default function Home({ searchParams }: { searchParams: Promise<Record<st
       </div>
     </footer>
   </main>;
+}
+
+async function HomeBookingSteps() {
+  if (isSupabaseConfigured()) {
+    const db = await createClient();
+    const { data: { user }, error: authError } = await db.auth.getUser();
+    if (authError && authError.name !== "AuthSessionMissingError") return null;
+    if (user) {
+      const { data, error } = await db.from("bookings").select("id").eq("customer_id", user.id).limit(1);
+      if (error || data?.length) return null;
+    }
+  }
+  return <CustomerBookingSteps />;
 }
 
 async function FeaturedCarsForQuery({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

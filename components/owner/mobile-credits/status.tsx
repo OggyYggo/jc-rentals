@@ -6,6 +6,7 @@ import { useState } from "react";
 import { paymentPeso } from "@/lib/payment-format";
 import { channelLabel, type TopUpResult } from "./data";
 import { CreditsHeading } from "./navigation";
+import { creditSteps } from "@/lib/onboarding/content";
 import { creditsHref, danger, focus, panel, positive, primary, qrHref, screen, secondary, topUpHref, warning } from "./styles";
 
 export function CreditsExplainer({ openByDefault, minimum, rate }: {
@@ -18,11 +19,7 @@ export function CreditsExplainer({ openByDefault, minimum, rate }: {
       How credits work <ChevronDown size={18} aria-hidden className="shrink-0 text-[#0A47B1] group-open:rotate-180" />
     </summary>
     <ol className="space-y-2 px-4 pb-4 pt-1 text-sm text-[#5B6F89]">
-      {[
-        `Each confirmed booking uses ${rate.toLocaleString("en-PH", { maximumFractionDigits: 4 })}% of its price as the platform fee.`,
-        "The fee is held while a booking waits for confirmation.",
-        `Keep at least ${paymentPeso(minimum)} so your vehicles stay listed.`,
-      ].map((line, index) => <li key={line} className="flex items-start gap-2">
+      {creditSteps("en", minimum, rate).map((line, index) => <li key={line} className="flex items-start gap-2">
         <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full bg-[#EAF4FF] text-xs font-semibold text-[#0A47B1]">{index + 1}</span>
         <span className="pt-0.5">{line}</span>
       </li>)}

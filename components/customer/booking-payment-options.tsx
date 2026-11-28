@@ -5,6 +5,7 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { PaymentProofForm } from "@/components/customer/payment-proof-form";
 import { PaymentProviderTile } from "@/components/payment-provider-tile";
 import { paymentProviders, type BookingPaymentOption } from "@/lib/payments/providers";
+import { CustomerQrTip } from "@/components/onboarding/customer-tips";
 
 const card = "mt-4 min-w-0 rounded-2xl border border-[#D6E6F7] bg-white p-4 sm:p-5";
 const action = "inline-flex min-h-11 items-center justify-center rounded-full border border-[#D6E6F7] px-4 text-sm font-semibold text-[#0A3D91]";
@@ -60,7 +61,7 @@ export function BookingPaymentOptions({ options, bookingId, customerId, referenc
           onClick={() => { if (selected.id !== option.id) select(option.id); }}
           className={`${action} shrink-0 whitespace-nowrap aria-pressed:border-[#0A47B1] aria-pressed:bg-[#EAF4FF]`}>{option.label}</button>)}
       </div>}
-      <ScanPaymentOption key={selected.id} option={selected} bookingId={bookingId} reference={reference} />
+      <ScanPaymentOption key={selected.id} option={selected} bookingId={bookingId} reference={reference} showTip={!retry && !showProof} />
       {!showProof && <button className={`mt-4 ${primary}`} type="button" onClick={() => setShowProof(true)}>I paid, send proof</button>}
     </>}
     {children}
@@ -69,9 +70,10 @@ export function BookingPaymentOptions({ options, bookingId, customerId, referenc
   </>;
 }
 
-function ScanPaymentOption({ option, bookingId, reference }: { option: BookingPaymentOption; bookingId: string; reference: string }) {
+function ScanPaymentOption({ option, bookingId, reference, showTip }: { option: BookingPaymentOption; bookingId: string; reference: string; showTip: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [appError, setAppError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const brand = paymentProviders[option.provider];
   const app = option.provider === "other_qrph" ? "your e-wallet or bank app" : `the ${brand.label} app`;
 
@@ -102,7 +104,8 @@ function ScanPaymentOption({ option, bookingId, reference }: { option: BookingPa
       {option.qrUrl ? <>
         <button type="button" aria-label={`Enlarge ${option.label} payment QR`} className="mx-auto my-4 block rounded-xl border p-2" onClick={() => dialog.current?.showModal()}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={option.qrUrl} alt={`${option.label} payment QR`} className="size-44 object-contain" />
+          <img src={option.qrUrl} alt={`${option.label} payment QR`} className="size-44 object-contain"
+            onLoad={() => setLoaded(true)} onError={() => setLoaded(false)} />
         </button>
         <dialog ref={dialog} aria-label={`${option.label} payment QR`} className="m-auto w-[min(90vw,26rem)] rounded-2xl p-4 backdrop:bg-black/60">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -116,6 +119,7 @@ function ScanPaymentOption({ option, bookingId, reference }: { option: BookingPa
         {appError && <p role="status" className="mt-2 text-sm">Could not open the app. Save the QR and scan it from your gallery.</p>}
       </> : <p role="status" className="mt-2 text-sm text-red-800">This payment QR is unavailable. Try refreshing the page or contact support before sending money.</p>}
     </section>
+    <CustomerQrTip kind="payment" eligible={Boolean(option.qrUrl && loaded && showTip && !appError)} />
     <section className={card}>
       <h2 className="font-semibold">How to pay</h2>
       <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-[#5B6F89]">

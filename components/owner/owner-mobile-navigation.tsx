@@ -6,6 +6,7 @@ import { BadgeDollarSign, CalendarDays, CalendarRange, CarFront, CircleDollarSig
 import { Dialog } from "@/components/ui/dialog";
 import { ScanPickupLink } from "@/components/pickup/ScanPickupLink";
 import { ownerInitials } from "./ui";
+import { onboardingCopy } from "@/lib/onboarding/content";
 
 const groups = [
   { label: "Operations", links: [
@@ -106,7 +107,7 @@ export function OwnerMobileNavigation({ pathname, businessName, email, bookingRe
           </section>)}
           <section>
             <h2 className="px-3 text-[13px] font-semibold text-[#5B6F89]">Help</h2>
-            <Link href="/contact" onNavigate={() => setOpen(false)} className={menuItem}><CircleHelp size={18} aria-hidden="true" />Contact Kuyog Bohol support</Link>
+            <Link href="/owner/help" onNavigate={() => setOpen(false)} className={menuItem}><CircleHelp size={18} aria-hidden="true" />{onboardingCopy.en.help}</Link>
             <form action="/auth/signout" method="post">
               <button type="submit" className={menuItem}><LogOut size={18} aria-hidden="true" />Sign out</button>
             </form>

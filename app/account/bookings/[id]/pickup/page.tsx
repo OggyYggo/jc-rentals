@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { bookingIdPattern, type PickupPass } from "@/lib/pickup/model";
 import { pickupOrigin } from "@/lib/pickup/origin";
 import { paymentDate, paymentPeso } from "@/lib/payment-format";
+import { CustomerQrTip } from "@/components/onboarding/customer-tips";
 
 export const instant = false;
 export const metadata = { title: "Pickup pass", robots: { index: false, follow: false } };
@@ -41,6 +42,7 @@ export default async function PickupPage({ params }: { params: Promise<{ id: str
       <p className="mx-auto w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-900 max-md:bg-[#E3F7EA] max-md:text-[#12703A]"><span className="md:hidden">Valid for pickup</span><span className="hidden md:inline">{pass.state === "today" ? "Pickup today" : "Ready for pickup"}</span></p>
       {origin && pass.token ? <PickupQr mobileCompact url={`${origin}/p/${pass.token}`} />
         : <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">The QR is unavailable. Show the backup code to the owner.</p>}
+      {origin && pass.token && <CustomerQrTip kind="pickup" />}
       <div className="text-center">
         <p className="text-xs font-semibold text-slate-600">Backup code</p>
         <p className="text-[38px] font-bold tracking-[.14em] text-[#0A3D91] tabular-nums">{pass.backup_code?.replace(/(.{3})/, "$1 ")}</p>

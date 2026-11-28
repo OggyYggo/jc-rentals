@@ -7,12 +7,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays, CalendarRange, CarFront, ChevronDown, CircleDollarSign, Megaphone, WalletCards, BadgeDollarSign,
-  LayoutDashboard, Search,
+  LayoutDashboard, Search, CircleHelp,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications/bell";
 
 import { Star } from "lucide-react";
+import { onboardingCopy } from "@/lib/onboarding/content";
 
 const navItems = [
   { href: "/owner", label: "Overview", icon: LayoutDashboard, exact: true },
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/owner/payment-settings", label: "Payment settings", icon: WalletCards },
   { href: "/owner/calendar", label: "Calendar", icon: CalendarRange },
   { href: "/owner/earnings", label: "Earnings", icon: CircleDollarSign },
+  { href: "/owner/help", label: onboardingCopy.en.sidebarHelp, icon: CircleHelp },
 ];
 
 export function OwnerShell({ children, email, businessName, pendingBookings, bookingRequests, unansweredReviews, userId }: { children: ReactNode; email: string; businessName: string; pendingBookings: number; bookingRequests: number; unansweredReviews: number; userId: string }) {

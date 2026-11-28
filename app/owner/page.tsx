@@ -7,6 +7,9 @@ import { ownerWorkCounts } from "@/lib/owner-work-counts";
 import { ArrowRight, ArrowUpRight, CalendarDays, CarFront, CircleDollarSign, ClipboardList, Plus, Receipt, Star } from "lucide-react";
 import { PageHeading, StatCard, StatusPill, formatPeso, formatShortDate } from "@/components/owner/ui";
 import { getOwnerContext } from "@/lib/owner-context";
+import { Suspense } from "react";
+import { OwnerChecklist, OwnerChecklistSkeleton } from "@/components/onboarding/owner-checklist";
+import { readOwnerOnboarding } from "@/lib/onboarding/owner";
 
 type BookingRow = {
   id: string;
@@ -29,8 +32,17 @@ const handoverFields = "id,start_date,end_date,pickup_time,car:cars!bookings_car
 
 export const instant = false;
 
+async function DashboardOnboarding({ context }: { context: Awaited<ReturnType<typeof getOwnerContext>> }) {
+  const data = await readOwnerOnboarding(context).catch(() => {
+    console.warn("Could not load owner onboarding.");
+    return null;
+  });
+  return data ? <OwnerChecklist key={data.ownerId} data={data} /> : null;
+}
+
 export default async function OwnerOverviewPage() {
-  const { supabase, owner, profile } = await getOwnerContext();
+  const context = await getOwnerContext();
+  const { supabase, owner, profile } = context;
   const now = new Date();
   const today = manilaDate.format(now);
   const [{ data: cars }, { data: bookings }, { data: contacts }, { data: creditState }, { data: reviewSummary }, workCounts, handovers] = await Promise.all([
@@ -97,6 +109,7 @@ export default async function OwnerOverviewPage() {
   );
 
   return <>
+    <Suspense fallback={<OwnerChecklistSkeleton />}><DashboardOnboarding context={context} /></Suspense>
     <MobileDashboard name={(owner.business_name?.trim() || profile.full_name?.trim() || "Owner").split(/\s+/)[0]}
       now={now} today={today} deposits={workCounts.pendingBookings} requests={workCounts.bookingRequests}
       refunds={refunds} reviews={reviewSummary?.unanswered ?? 0} gross={gross} net={net} rate={rate} chartMonths={chartMonths}
