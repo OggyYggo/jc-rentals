@@ -1,21 +1,34 @@
-import { PickupSettings } from "@/components/admin/PickupSettings";
-import { PaymentHardeningSettings } from "@/components/admin/payment-hardening-settings";
-import { CancellationSettings } from "@/components/admin/cancellation-settings";
 import { AdminHeading } from "@/components/admin/ui";
-import { PlatformSettingsForm } from "@/components/admin/platform-settings-form";
+import { SettingsForms } from "@/components/admin/settings-forms";
+import { MobileSettingsHome } from "@/components/admin/mobile-settings-home";
 import { getAdminContext } from "@/lib/admin-context";
-import { AdminPaymentSettings } from "@/components/admin/admin-payment-settings";
-
-import { AlertSettings } from "@/components/admin/alert-settings";
 import { alertSettings } from "@/lib/admin-alerts/settings";
+import { loadPlatformSettings, sections, settingsGroups, settingsSummaries, type SettingsSection } from "@/lib/admin-settings";
 
 export const instant = false;
 
 export default async function AdminSettingsPage() {
   const { supabase, user } = await getAdminContext();
-  const { data, error } = await supabase.from("settings").select("key, value").in("key", ["bookings_paused", "default_commission_rate", "rental_policies", "deposit_percent", "payment_window_hours", "payment_review_hours", "payment_resubmit_grace_hours", "refund_due_days", "credit_low_threshold", "min_credit_to_list", "invoice_grace_days", "platform_account_name", "platform_qr_path", "payment_instructions", "cancellation_free_hours", "cancellation_fee_percent", "pickup_reference_hour", "pickup_early_days", "pickup_late_days", "pickup_require_verified_docs"]);
-  if (error) throw new Error("Could not load platform settings.");
-  const emailAlerts = await alertSettings(supabase);
-  const values = new Map((data ?? []).map(row => [row.key, row.value]));
-  return <><AdminHeading eyebrow="Platform" title="Settings" description="Set defaults for new owners and manage the rental policies shown across the platform."/><PlatformSettingsForm bookingsPaused={values.get("bookings_paused") === true} commissionRate={Number(values.get("default_commission_rate") ?? 0.05)} policies={String(values.get("rental_policies") ?? "")} updatedBy={user.id}/><div className="admin-setting-section lg:contents"><h2 className="font-semibold lg:hidden">Policies</h2><AdminPaymentSettings updatedBy={user.id} settings={{deposit_percent:Number(values.get("deposit_percent")??0.3),min_credit_to_list:Number(values.get("min_credit_to_list")??500),invoice_grace_days:Number(values.get("invoice_grace_days")??7),platform_account_name:String(values.get("platform_account_name")??""),platform_qr_path:String(values.get("platform_qr_path")??""),payment_instructions:String(values.get("payment_instructions")??"")}}/><PaymentHardeningSettings values={{ p_window: Number(values.get("payment_window_hours") ?? 24), p_review: Number(values.get("payment_review_hours") ?? 12), p_resubmit: Number(values.get("payment_resubmit_grace_hours") ?? 2), p_refund: Number(values.get("refund_due_days") ?? 3), p_threshold: Number(values.get("credit_low_threshold") ?? 200) }}/><CancellationSettings hours={Number(values.get("cancellation_free_hours") ?? 24)} percent={Number(values.get("cancellation_fee_percent") ?? 50)} pickupHour={Number(values.get("pickup_reference_hour") ?? 8)} userId={user.id}/><PickupSettings early={Number(values.get("pickup_early_days") ?? 1)} late={Number(values.get("pickup_late_days") ?? 0)} requireDocs={values.get("pickup_require_verified_docs") !== false}/></div><div className="admin-setting-section lg:contents"><h2 className="font-semibold lg:hidden">Notifications</h2><AlertSettings settings={emailAlerts}/></div></>;
+  const [settings, emailAlerts, devices] = await Promise.all([
+    loadPlatformSettings(supabase),
+    alertSettings(supabase),
+    supabase.from("push_subscriptions").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+  ]);
+  const summary: Partial<Record<SettingsSection, string>> = {
+    ...settingsSummaries(settings),
+    "email-alerts": emailAlerts ? emailAlerts.senderReady ? "Email delivery configured" : "Email delivery incomplete" : "Could not load",
+    "phone-alerts": devices.error || devices.count === null ? "Could not load" : `${devices.count} ${devices.count === 1 ? "device" : "devices"}`,
+  };
+  return <>
+    <div className="hidden lg:contents">
+      <AdminHeading eyebrow="Platform" title="Settings" description="Set defaults for new owners and manage the rental policies shown across the platform." />
+      <SettingsForms settings={settings} userId={user.id} alerts={emailAlerts} />
+    </div>
+    <MobileSettingsHome paused={settings?.values.bookings_paused ?? null} userId={user.id} groups={settingsGroups.map(group => ({
+      label: group.label, rows: group.sections.map(section => ({
+        href: section === "phone-alerts" ? "/notifications/settings" : `/admin/settings/${section}`,
+        label: sections[section].label, value: summary[section] ?? "Could not load",
+      })),
+    }))} />
+  </>;
 }

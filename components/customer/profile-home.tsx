@@ -1,3 +1,4 @@
+import { SignOutForm } from "@/components/notifications/sign-out-form";
 import Link from "next/link";
 import { Bell, CalendarDays, ChevronRight, CircleHelp, ContactRound, IdCard, LogOut, Pencil, ShieldCheck, Star, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -74,9 +75,9 @@ export function ProfileHome({ name, email, joinedAt, hasLicense, hasId, verifica
 
     <Card className={card}>
       <Link href="/contact" className={rowClass}><span className={tile}><CircleHelp size={19} aria-hidden="true" /></span><span className="flex-1 text-sm font-semibold">Help and contact</span><ChevronRight size={16} aria-hidden="true" /></Link>
-      <form action="/auth/signout" method="post" className="border-t border-[#EEF4FB]">
+      <SignOutForm className="border-t border-[#EEF4FB]">
         <Button type="submit" variant="ghost" className={`${rowClass} justify-start rounded-none text-sm font-semibold text-[#A12A2A]`}><span className={tile}><LogOut size={19} aria-hidden="true" /></span>Sign out</Button>
-      </form>
+      </SignOutForm>
     </Card>
   </div>;
 }

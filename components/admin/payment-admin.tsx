@@ -9,28 +9,43 @@ import { createClient } from "@/lib/supabase/client";
 import { AdminFilterChips, adminManilaDate, adminMoney, mobileAction, mobilePrimaryAction, peso } from "@/components/admin/ui";
 
 export type Topup = { id: string; owner_id: string; amount: number; status: string; reference_no: string | null; proof_path: string | null; created_at: string; owner: { business_name: string } | null };
+type Transfer = { amount: string; reference: string };
 
-export function AdminTopupReview({ rows, history, historyAvailable }: { rows: Topup[]; history: Topup[]; historyAvailable: boolean }) {
-  const [tab, setTab] = useState("pending");
+export function useTopupProofs(rows: Topup[], history: Topup[], tab: string, viewport: "mobile" | "desktop") {
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState("");
-  const [transfers, setTransfers] = useState<Record<string, { amount: string; reference: string }>>({});
-  const router = useRouter();
   useEffect(() => {
     let active = true;
-    const db = createClient();
-    for (const row of tab === "pending" ? rows : [...rows, ...history.filter(row => row.status === tab)]) {
-      if (!row.proof_path?.startsWith(`${row.owner_id}/`)) continue;
-      void db.storage.from("topup-proofs").createSignedUrl(row.proof_path, 300).then(({ data }) => {
-        if (active && data?.signedUrl) setUrls((current) => ({ ...current, [row.id]: data.signedUrl }));
-      });
+    const desktop = window.matchMedia("(min-width: 64rem)");
+    function loadProofs() {
+      if (desktop.matches !== (viewport === "desktop") || tab === "online") return;
+      const db = createClient();
+      const selected = tab === "pending" ? rows : history.filter(row => tab === "history" || row.status === tab);
+      for (const row of selected) {
+        if (!row.proof_path?.startsWith(`${row.owner_id}/`)) continue;
+        void db.storage.from("topup-proofs").createSignedUrl(row.proof_path, 300).then(({ data }) => {
+          if (active && data?.signedUrl) setUrls((current) => ({ ...current, [row.id]: data.signedUrl }));
+        });
+      }
     }
-    return () => { active = false; };
-  }, [rows, history, tab]);
+    loadProofs();
+    desktop.addEventListener("change", loadProofs);
+    return () => { active = false; desktop.removeEventListener("change", loadProofs); };
+  }, [rows, history, tab, viewport]);
+  return urls;
+}
 
-  function review(row: Topup, approve: boolean) {
+export function topupTransferMatches(row: Topup, transfer: Transfer, proof: string | undefined) {
+  const expectedReference = normalizePaymentReference(row.reference_no ?? "");
+  return Boolean(proof && transfer.amount && expectedReference && Number(transfer.amount) === Number(row.amount) &&
+    normalizePaymentReference(transfer.reference) === expectedReference);
+}
+
+export function useReviewTopup() {
+  const [busy, setBusy] = useState("");
+  const router = useRouter();
+  function review(row: Topup, approve: boolean, transfer?: Transfer, confirmed = false) {
     return runWithAlerts({
-      confirm: approve ? {
+      confirm: approve && !confirmed ? {
         title: "Approve this top-up?",
         text: `Post ${peso(Number(row.amount))} in credits to ${row.owner?.business_name ?? "this owner"}.`,
         confirmText: "Post credits",
@@ -40,8 +55,8 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
       run: async (reason) => {
         const { error } = await createClient().rpc("admin_review_owner_topup", {
           p_ledger_id: row.id, p_approve: approve, p_reason: approve ? null : reason,
-          p_received_amount: approve ? Number(transfers[row.id]?.amount) : null,
-          p_received_reference: approve ? transfers[row.id]?.reference : null,
+          p_received_amount: approve ? Number(transfer?.amount) : null,
+          p_received_reference: approve ? transfer?.reference : null,
         });
         if (error) throw error;
       },
@@ -49,6 +64,14 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
       refresh: router.refresh,
     });
   }
+  return { busy, review };
+}
+
+export function AdminTopupReview({ rows, history, historyAvailable }: { rows: Topup[]; history: Topup[]; historyAvailable: boolean }) {
+  const [tab, setTab] = useState("pending");
+  const urls = useTopupProofs(rows, history, tab, "desktop");
+  const { busy, review } = useReviewTopup();
+  const [transfers, setTransfers] = useState<Record<string, Transfer>>({});
 
   const visible = tab === "pending" ? rows : history.filter(row => row.status === tab);
   const options = [{ value: "pending", label: "To verify", count: rows.length }, ...[
@@ -61,10 +84,7 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
     {tab !== "pending" && !visible.length && <p className="rounded-xl border bg-white p-4 text-sm lg:hidden">{historyAvailable ? "No top-ups match this filter." : "Could not load top-up history."}</p>}
     {[...rows, ...(tab === "pending" ? [] : visible)].map(row => {
       const transfer = transfers[row.id] ?? { amount: "", reference: "" };
-      const expectedReference = normalizePaymentReference(row.reference_no ?? "");
-      const matched = Boolean(urls[row.id] && transfer.amount && expectedReference &&
-        Number(transfer.amount) === Number(row.amount) &&
-        normalizePaymentReference(transfer.reference) === expectedReference);
+      const matched = topupTransferMatches(row, transfer, urls[row.id]);
       const updateTransfer = (key: "amount" | "reference", value: string) => setTransfers(current =>
         ({ ...current, [row.id]: { ...(current[row.id] ?? transfer), [key]: value } }));
       return <article key={row.id} className={`flex flex-wrap gap-5 rounded-xl border bg-white p-5 ${row.status === "pending" ? tab === "pending" ? "" : "max-lg:hidden" : "lg:hidden"}`}>
@@ -86,8 +106,8 @@ export function AdminTopupReview({ rows, history, historyAvailable }: { rows: To
             </label>
           </fieldset>
           <div className="mt-4 flex flex-wrap gap-2">
-          <button disabled={!!busy || !matched} onClick={() => review(row, true)} className={mobilePrimaryAction + " lg:hidden!"}>{busy === row.id ? "Working…" : "Verify and add credits"}</button>
-          <button disabled={!!busy || !matched} onClick={() => review(row, true)} className="hidden rounded bg-green-700 px-3 py-2 text-sm text-white disabled:opacity-50 lg:inline-block">{busy === row.id ? "Working…" : "Post credits"}</button>
+          <button disabled={!!busy || !matched} onClick={() => review(row, true, transfer)} className={mobilePrimaryAction + " lg:hidden!"}>{busy === row.id ? "Working…" : "Verify and add credits"}</button>
+          <button disabled={!!busy || !matched} onClick={() => review(row, true, transfer)} className="hidden rounded bg-green-700 px-3 py-2 text-sm text-white disabled:opacity-50 lg:inline-block">{busy === row.id ? "Working…" : "Post credits"}</button>
           <button disabled={!!busy} onClick={() => review(row, false)} className={mobileAction + " text-red-700 lg:hidden!"}>Reject</button><button disabled={!!busy} onClick={() => review(row, false)} className="hidden rounded border px-3 py-2 text-sm text-red-700 disabled:opacity-50 lg:inline-block">Reject</button>
         </div></>}
       </div>

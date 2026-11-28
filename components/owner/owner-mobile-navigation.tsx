@@ -1,5 +1,6 @@
 "use client";
 
+import { SignOutForm } from "@/components/notifications/sign-out-form";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { BadgeDollarSign, CalendarDays, CalendarRange, CarFront, CircleDollarSign, CircleHelp, Ellipsis, Home, LogOut, Megaphone, ScanLine, Star, WalletCards, X, type LucideIcon } from "lucide-react";
@@ -108,9 +109,9 @@ export function OwnerMobileNavigation({ pathname, businessName, email, bookingRe
           <section>
             <h2 className="px-3 text-[13px] font-semibold text-[#5B6F89]">Help</h2>
             <Link href="/owner/help" onNavigate={() => setOpen(false)} className={menuItem}><CircleHelp size={18} aria-hidden="true" />{onboardingCopy.en.help}</Link>
-            <form action="/auth/signout" method="post">
+            <SignOutForm>
               <button type="submit" className={menuItem}><LogOut size={18} aria-hidden="true" />Sign out</button>
-            </form>
+            </SignOutForm>
           </section>
         </nav>
       </Dialog.Popup>

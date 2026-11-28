@@ -1,5 +1,6 @@
 "use client";
 
+import { SignOutForm } from "@/components/notifications/sign-out-form";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarDays, CarFront, CircleUserRound, LogOut } from "lucide-react";
@@ -21,7 +22,7 @@ export function AccountShell({ children, email, userId }: { children: React.Reac
               <Link href="/account/profile" className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium ${isProfile ? "bg-[#edf2ff] text-[#2457d6]" : "text-[#68778c] hover:bg-[#f6f8fb]"}`}><CircleUserRound size={15} /> Profile &amp; documents</Link>
               <Link href="/cars" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#68778c] hover:bg-[#f6f8fb]"><CarFront size={15} /> Browse rentals</Link>
             </nav>
-            <form action="/auth/signout" method="post" className="mt-3 border-t border-[#edf0f4] pt-3"><button type="submit" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#758196] hover:bg-[#f6f8fb]"><LogOut size={15} /> Sign out</button></form>
+            <SignOutForm className="mt-3 border-t border-[#edf0f4] pt-3"><button type="submit" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-[#758196] hover:bg-[#f6f8fb]"><LogOut size={15} /> Sign out</button></SignOutForm>
           </aside>
           <section className="min-w-0">{children}</section>
         </div>

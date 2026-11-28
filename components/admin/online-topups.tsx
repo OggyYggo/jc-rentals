@@ -18,6 +18,16 @@ export type OnlineTopupRow = {
 const statuses: Record<string, string> = { created: "Created", paid: "Paid", failed: "Failed", expired: "Expired", needs_review: "Needs review" };
 const methods: Record<string, string> = { gcash: "GCash", maya: "Maya", gotyme: "GoTyme", grabpay: "GrabPay", shopeepay: "ShopeePay", qrph: "QR Ph", banks: "Banks" };
 
+export function onlineTopupStatus(row: OnlineTopupRow) {
+  return row.needs_review ? "needs_review" : row.status;
+}
+
+export function onlineTopupLabels(row: OnlineTopupRow) {
+  const status = onlineTopupStatus(row);
+  return { status: statuses[status] ?? status, method: row.method ? (methods[row.method.toLowerCase()] ?? row.method) : "—",
+    provider: row.provider === "quickpay" ? "QuickPay" : "BayadGate" };
+}
+
 export function AdminOnlineTopups({ rows, available }: { rows: OnlineTopupRow[]; available: boolean }) {
   return <section className="mt-6 rounded-xl border bg-white p-4">
     <h2 className="font-semibold">Online top-ups</h2>

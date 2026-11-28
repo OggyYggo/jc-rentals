@@ -32,10 +32,10 @@ export async function sendPush(db: SupabaseClient, notification: PushNotificatio
         TTL: 60 * 60 * 24, agent: pushAgent, timeout: 5000,
       });
       delivered += 1;
-      await db.from("push_subscriptions").update({ last_used_at: new Date().toISOString() }).eq("id", subscription.id);
+      await db.from("push_subscriptions").update({ last_used_at: new Date().toISOString() }).eq("id", subscription.id).eq("user_id", notification.user_id);
     } catch (error) {
       const status = typeof error === "object" && error !== null && "statusCode" in error ? Number(error.statusCode) : 0;
-      if (status === 404 || status === 410) await db.from("push_subscriptions").delete().eq("id", subscription.id);
+      if (status === 404 || status === 410) await db.from("push_subscriptions").delete().eq("id", subscription.id).eq("user_id", notification.user_id);
       else throw error;
     }
   }
