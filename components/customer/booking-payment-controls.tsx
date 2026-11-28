@@ -14,8 +14,9 @@ export function PaymentCountdown({ deadline, now }: { deadline: string; now: num
   const remaining = Math.max(0, Math.ceil((Date.parse(deadline) - current) / 1000));
   const hours = Math.floor(remaining / 3600);
   const minutes = Math.floor(remaining / 60) % 60;
-  const seconds = remaining % 60;
-  return <p className="text-sm tabular-nums">{remaining ? `${hours}h ${minutes}m ${seconds}s left` : "Payment window closed"}</p>;
+  return <p className={`w-fit rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${remaining < 3600 ? "bg-[#FDE8E8] text-[#A12A2A]" : "bg-[#FFF2D6] text-[#8A5A00]"}`}>
+    {remaining ? hours ? `${hours}h ${minutes}m left` : `${Math.max(1, minutes)}m left` : "Payment window closed"}
+  </p>;
 }
 
 export function CancelBookingButton({ id, reference }: { id: string; reference: string }) {

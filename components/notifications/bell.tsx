@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell as BellIcon } from "lucide-react";
+import { withConnectionDeadline } from "@/lib/connection/request";
+import { usePageRefetch } from "@/components/layout/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 
 type Notification = { id: string; title: string; body: string | null; url: string | null; read_at: string | null; created_at: string };
@@ -26,12 +28,20 @@ export function NotificationBell({ userId }: { userId: string }) {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open]);
+  const refetch = useCallback(async () => {
+    const { data, error } = await withConnectionDeadline(signal =>
+      createClient().from("notifications").select("id,title,body,url,read_at,created_at")
+        .eq("user_id", userId).order("created_at", { ascending: false }).limit(20).abortSignal(signal), 15_000);
+    if (error) throw error;
+    setItems(data ?? []);
+  }, [userId]);
+  usePageRefetch(refetch);
   useEffect(() => {
     const db = createClient();
-    void db.from("notifications").select("id,title,body,url,read_at,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(20).then(({ data }) => setItems((data ?? []) as Notification[]));
+    void Promise.resolve().then(refetch).catch(() => {});
     const channel = db.channel(`notifications:${userId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, ({ new: row }) => setItems((current) => [row as Notification, ...current].slice(0, 20))).subscribe();
     return () => { void db.removeChannel(channel); };
-  }, [userId]);
+  }, [refetch, userId]);
   const unread = items.filter((item) => !item.read_at).length;
   async function select(item: Notification) {
     if (!item.read_at) {

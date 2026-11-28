@@ -52,8 +52,8 @@ export function Header({ connectionBanner }: { connectionBanner?: ReactNode }) {
   const isPublic = !pathname.startsWith("/for-owners");
 
   return (
-    <header data-scrolled={motionHeader && scrolled ? "" : undefined} className={`sticky top-0 z-50 w-full border-b ${motionHeader ? "motion-header border-transparent bg-white" : "border-[#E3EEF9] bg-white shadow-[0_6px_24px_rgba(15,35,66,.08)]"} ${isPublic ? "theme-public" : ""}`}>
-      <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 lg:h-[88px] lg:px-[140px]">
+    <header data-site-navigation data-scrolled={motionHeader && scrolled ? "" : undefined} className={`sticky top-0 z-50 w-full border-b ${motionHeader ? "motion-header border-transparent bg-white" : "border-[#E3EEF9] bg-white shadow-[0_6px_24px_rgba(15,35,66,.08)]"} ${isPublic ? "theme-public" : ""}`}>
+      <div data-site-navigation-links className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 lg:h-[88px] lg:px-[140px]">
         <Link href="/#top" className="flex items-center gap-2.5">
           <Logo size={36} />
           <span className={`text-[15px] font-semibold tracking-tight ${isPublic ? "text-[#0F2342]" : "text-[#23372a]"}`}>Kuyog Bohol</span>

@@ -38,6 +38,9 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
   ]);
   const now = new Date().getTime();
   const deadline = [booking.payment_due_at, booking.payment_resubmit_due_at].filter(Boolean).sort().at(-1);
+  const payBy = deadline && new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(new Date(deadline));
   const status = customerBookingStatus(booking.status, proofs);
   const confirmed = status === "confirmed";
   const inReview = status === "payment_review";
@@ -59,37 +62,35 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
   const phone = pickup?.contact_phone?.replace(/[^+0-9]/g, "");
   const paid = booking.status !== "confirmed" && proof?.status === "verified" ? proof.amount : booking.amount_paid_online;
 
-  return <main className="mx-auto max-w-2xl px-4 py-8 max-md:font-body max-md:text-[#0F2342]">
+  return <main data-payment-closed={!available ? "" : undefined} className="payment-flow mx-auto w-full max-w-5xl px-0 py-2 font-body text-[#0F2342]">
     <PaymentStatusRefresh status={status} />
-    <Link href="/account/bookings" className="text-sm font-semibold text-blue-800 max-md:inline-flex max-md:min-h-11 max-md:items-center">← My bookings</Link>
-    <h1 className="mt-4 text-2xl font-bold max-md:font-heading">{available && !proof ? "Pay your booking deposit" : "Booking payment"}</h1>
-    <BookingStepper status={status} />
-    <div className="md:hidden"><BookingStatusChip status={status} /></div>
-    {(!available || proof) && !inReview && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm md:hidden">
-      <span className="break-all">Booking reference · {booking.reference}</span>
-      <CopyButton mobileTouch label="Copy reference" value={booking.reference} />
-    </div>}
-    <div className="mt-2 hidden flex-wrap items-center gap-2 text-sm md:flex">
-      <p className="break-all">Booking {booking.reference}</p>
-      <CopyButton label="Copy reference" value={booking.reference} />
-    </div>
+    {!available && <>
+      <h1 className="text-2xl font-bold">{inReview ? "Proof sent" : "Booking payment"}</h1>
+      {!inReview && <><BookingStepper status={status} /><BookingStatusChip status={status} />
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="break-all">Booking reference · {booking.reference}</span>
+          <CopyButton mobileTouch label="Copy reference" value={booking.reference} />
+        </div>
+      </>}
+    </>}
     {available && <>
-      <section className="mt-4 space-y-2 rounded-2xl bg-[#0A47B1] p-4 text-white md:border md:bg-white md:text-slate-900">
-        <h2 className="font-heading font-semibold">Amount to pay</h2>
-        <p className="text-3xl font-bold">{paymentPeso(booking.amount_due_now)}</p>
-        {deadline && <PaymentCountdown deadline={deadline} now={now} />}
-        <CopyButton mobileTouch label="Copy amount" value={Number(booking.amount_due_now).toFixed(2)} />
-      </section>
       {proof?.status === "rejected" && <div className="rounded-lg bg-amber-50 p-3 text-sm">
         <p className="font-semibold">Your proof was rejected</p>
         <p className="break-words">{proof.rejection_reason}</p>
         <p>Check your transfer history before sending any additional payment.</p>
       </div>}
       <BookingPaymentOptions options={options} bookingId={id} customerId={user.id} reference={booking.reference}
-        amount={Number(booking.amount_due_now)} retry={proof?.status === "rejected"}>
-        <section className="mt-4 space-y-2 rounded-2xl border bg-white p-4 sm:p-6">
+        amount={Number(booking.amount_due_now)} retry={proof?.status === "rejected"} paySummary={
+          <section className="space-y-2 rounded-2xl bg-[#0A47B1] p-4 text-white">
+            <h2 className="font-heading font-semibold">Amount to pay now</h2>
+            <p className="break-words text-4xl font-bold">{paymentPeso(booking.amount_due_now)}</p>
+            <CopyButton mobileTouch label="Copy amount" value={Number(booking.amount_due_now).toFixed(2)} />
+            {deadline && <><PaymentCountdown deadline={deadline} now={now} />
+              <p className="text-sm">Pay by {payBy}</p></>}
+          </section>
+        }>
+        <section className="space-y-2">
           <p className="text-sm">Balance at pickup · {paymentPeso(booking.balance_at_pickup)}</p>
-          {deadline && <p className="text-sm">{proof ? "Resubmit by" : "Pay and upload proof by"} {paymentDate(deadline)} Manila time</p>}
           {booking.mode === "self_drive" && <p className="text-sm">Safety deposit · {paymentPeso(booking.deposit_amount)}. {safetyDepositCopy}</p>}
           <BookingCancellationPolicy booking={booking} now={now} />
         </section>
@@ -101,20 +102,17 @@ export default async function BookingPayPage({ params }: { params: Promise<{ id:
       <p className="hidden md:block">Balance at pickup · {paymentPeso(booking.balance_at_pickup)}</p>
     </section>}
     {["cancelled", "completed", "expired"].includes(booking.status) && <p role="status" className="mt-4 text-sm">This booking is {booking.status}. You can still view its payment and refund records here.</p>}
-    {inReview && <section role="status" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950 max-md:rounded-2xl max-md:bg-[#EAF4FF] max-md:text-[#0A3D91]">
-      <h2 className="font-semibold"><span className="md:hidden">Payment sent for review</span><span className="hidden md:inline">The owner is checking your payment</span></h2>
-      <p>You will get an email and notification.</p>
-      {reviewDeadline && <p className="md:hidden">Review deadline · {paymentDate(reviewDeadline)} Manila time</p>}
-      {booking.review_due_at && <p className="hidden md:block">Review deadline · {paymentDate(booking.review_due_at)} Manila time</p>}
+    {inReview && <section role="status" className="mt-4 space-y-3 rounded-2xl border border-[#D6E6F7] bg-white p-4 text-sm">
+      <span aria-hidden="true" className="inline-grid size-11 place-items-center rounded-full bg-[#E3F7EA] text-2xl text-[#12703A]">✓</span>
+      <p>The owner is checking your payment. We’ll email you and send a notification.</p>
+      <dl className="space-y-2 rounded-xl bg-[#F3F9FF] p-3">
+        <div><dt className="font-semibold">Amount</dt><dd>{paymentPeso(proof?.amount ?? booking.amount_due_now)}</dd></div>
+        <div><dt className="font-semibold">Reference</dt><dd className="break-all">{proof?.reference_no ?? booking.reference}</dd></div>
+        {reviewDeadline && <div><dt className="font-semibold">Owner replies by</dt><dd>{paymentDate(reviewDeadline)}</dd></div>}
+      </dl>
+      <p className="text-[#5B6F89]">This page updates by itself. Pull down to refresh.</p>
+      <Link href={`/account/bookings#trip-${id}`} className="flex min-h-[52px] items-center justify-center rounded-full bg-[#0A47B1] px-4 font-semibold text-white">View my booking</Link>
     </section>}
-    {inReview && <>
-      <section className={mobileCard}>
-        <h2 className="font-heading font-semibold">What you sent</h2>
-        <p className="mt-2 text-sm">Amount · {paymentPeso(proof?.amount ?? booking.amount_due_now)}</p>
-        {proof?.reference_no && <p className="mt-1 break-all text-sm">Transaction reference · {proof.reference_no}</p>}
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm"><span className="break-all">Booking reference · {booking.reference}</span><CopyButton mobileTouch label="Copy reference" value={booking.reference} /></div>
-      </section>
-    </>}
     {confirmed && <>
       <section className={mobileCard}>
         <h2 className="font-heading font-semibold">Your trip</h2>

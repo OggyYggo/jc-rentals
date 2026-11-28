@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { SITE_URL } from "@/lib/site-url";
 import { publicMetadata } from "@/lib/site/public-metadata";
 import { Inter, Work_Sans } from "next/font/google";
 import "./globals.css";
 import { ConnectionProvider, OfflineBanner } from "@/lib/connection/provider";
+import { PageHeader, PageRefreshProvider } from "@/components/layout/PageHeader";
 import { Header } from "@/components/header";
 import { PushOptInPrompt } from "@/components/notifications/push-opt-in-prompt";
 import { NotificationSoundProvider } from "@/components/notifications/sound";
@@ -18,6 +19,8 @@ const workSans = Work_Sans({
   variable: "--font-work-sans",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = { viewportFit: "cover" };
 
 export const metadata: Metadata = {
   ...publicMetadata("/", "Kuyog Bohol: Car Rental in Bohol, Self-Drive and With Driver",
@@ -49,8 +52,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <ConnectionProvider>
           <TopProgressBar />
-          <Header connectionBanner={<OfflineBanner />} />
-          <NotificationSoundProvider>{children}</NotificationSoundProvider>
+          <PageRefreshProvider>
+            <Header connectionBanner={<OfflineBanner />} />
+            <PageHeader surface="site" />
+            <NotificationSoundProvider>{children}</NotificationSoundProvider>
+          </PageRefreshProvider>
           <PushOptInPrompt />
         </ConnectionProvider>
       </body>

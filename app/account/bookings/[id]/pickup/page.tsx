@@ -29,7 +29,7 @@ export default async function PickupPage({ params }: { params: Promise<{ id: str
   const ready = pass.state === "ready" || pass.state === "today";
 
   return <main className="mx-auto w-full max-w-md px-4 py-6">
-    <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-800" href={`/account/bookings#trip-${id}`}>← My bookings</Link>
+    <Link data-page-parent className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-800" href={`/account/bookings#trip-${id}`}>← My bookings</Link>
     <h1 className="mt-2 text-2xl font-bold text-slate-900">Pickup pass</h1>
     <BookingStepper status={ready ? "confirmed" : ["used", "return_ready"].includes(pass.state) ? "picked_up" : ""} />
     <div className="flex flex-col md:contents">

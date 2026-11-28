@@ -110,12 +110,21 @@ export function friendlyError(error: unknown): { title: string; text: string; ac
   return { title: "Action could not be completed", text: safeMessages.has(message) ? message : "Something went wrong. Please try again." };
 }
 
-export function friendlyPaymentError(error: unknown): string {
+export function paymentReferenceError(error: unknown): string | undefined {
   const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
   const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-  if (message === "REFERENCE_INVALID") return "Enter a wallet or bank reference with 6 to 40 letters or digits.";
-  if (message === "PAYMENT_OPTION_UNAVAILABLE") return "That payment option is no longer available. Refresh the page and check your transfer before trying again.";
+  if (message === "REFERENCE_INVALID") return "Use 6 to 40 letters or digits from your receipt.";
   if (message === "REFERENCE_ALREADY_USED" || code === "23505") return "That transaction reference has already been used. Check your transfer history.";
+}
+
+export function friendlyPaymentError(error: unknown): string {
+  const reference = paymentReferenceError(error);
+  if (reference) return reference;
+  const message = error && typeof error === "object" && "message" in error ? String(error.message) : "";
+  if (message === "IMAGE_TYPE") return "This file isn’t an image";
+  if (message === "IMAGE_TOO_LARGE") return "This image is too large even after shrinking";
+  if (message === "IMAGE_UNREADABLE") return "We couldn’t read this image";
+  if (message === "PAYMENT_OPTION_UNAVAILABLE") return "That payment option is no longer available. Refresh the page and check your transfer before trying again.";
   if (/PAYMENT_WINDOW_EXPIRED|payment window has expired/i.test(message)) return "The payment window has passed. If you already paid, contact support.";
   if (message === "PROOF_LIMIT") return "This booking has reached its three-proof limit.";
   if (/exact deposit amount/i.test(message)) return "The deposit amount changed. Refresh the page before sending proof.";

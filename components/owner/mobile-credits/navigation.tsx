@@ -11,7 +11,7 @@ export function CreditsHeading({ back, href, title, description, history }: {
 }) {
   const router = useRouter();
   return <header>
-    <Link href={href} onClick={history ? event => {
+    <Link data-page-parent href={href} onClick={history ? event => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       // The Navigation API distinguishes an in-app entry from a fresh tab.
       const navigation = (window as Window & {

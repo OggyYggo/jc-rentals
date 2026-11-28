@@ -24,7 +24,7 @@ export default async function CustomerProfilePage({ searchParams }: { searchPara
     <div className="hidden md:block"><ProfileEditor {...editor} /></div>
     <div className="md:hidden">
       {section === "details" || section === "documents" ? <>
-        <Link href="/account" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-semibold text-[#0A3D91] hover:underline focus-visible:outline-2 focus-visible:outline-[#0A47B1]">
+        <Link data-page-parent href="/account" className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-semibold text-[#0A3D91] hover:underline focus-visible:outline-2 focus-visible:outline-[#0A47B1]">
           <ChevronLeft size={17} aria-hidden="true" /> Back to profile
         </Link>
         <ProfileEditor key={section} section={section} selfieStatus={selfie?.data?.status} selfieUnavailable={Boolean(selfie?.error)}

@@ -59,8 +59,7 @@ export default async function CustomerBookingsPage({ searchParams }: { searchPar
 
   return <div>
     <div className="mb-5 max-md:mb-4">
-      {!record && !reviewView && <Link href="/account/profile" className="mb-1 inline-flex min-h-11 items-center text-sm font-semibold text-[#0A3D91] md:hidden">← Profile</Link>}
-      {(record || reviewView) && <Link href="/account/profile" className="mb-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#0A3D91] hover:underline">← Back to profile</Link>}
+      {(record || reviewView) && <Link data-page-parent href="/account/profile" className="mb-2 inline-flex min-h-11 items-center text-sm font-semibold text-[#0A3D91] hover:underline">← Back to profile</Link>}
       <h1 className="font-heading text-[28px] leading-tight font-bold tracking-tight text-[#0F2342] md:hidden">{title}</h1>
       <h2 className="hidden text-base font-semibold text-[#26364e] md:block">{title}</h2>
       <p className="mt-1 hidden text-xs leading-5 text-[#7b8797] md:block">{description}</p>

@@ -403,3 +403,48 @@
     padding-bottom: max(22px, env(safe-area-inset-bottom));
   }
 }
+
+body:has([data-page-header]) [data-page-parent] {
+  display: none;
+}
+
+body:has([data-page-header="site"]) [data-site-navigation] {
+  position: static;
+}
+
+body:has([data-payment-closed]) [data-page-header] .payment-active-label {
+  display: none;
+}
+
+body:has([data-payment-closed]) [data-page-header] .payment-closed-label {
+  display: inline;
+}
+
+@media (max-width: 767px) {
+  body:has([data-page-header="site"]) [data-site-navigation-links] {
+    display: none;
+  }
+
+  body:has([data-page-header="site"]) [data-site-navigation]:not(:has([role="status"] > div)) {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  [data-site-navigation] {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  body:has([data-page-header="site"]) [data-site-navigation] {
+    padding-top: 0;
+  }
+}
+
+.payment-flow :is(button, a, summary, input):focus-visible {
+  outline: 2px solid #0A47B1;
+  outline-offset: 2px;
+}
+
+.payment-flow :is(button, a):focus-visible {
+  scroll-margin-block: 4rem;
+}

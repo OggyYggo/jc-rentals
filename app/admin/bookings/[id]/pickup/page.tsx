@@ -28,7 +28,7 @@ export default async function AdminPickupPage({ params }: { params: Promise<{ id
   if (!booking.data) notFound();
 
   return <div className="max-w-2xl space-y-4">
-    <Link href={`/admin/bookings?reference=${encodeURIComponent(booking.data.reference)}`} className="text-sm font-semibold text-blue-800">← Booking list</Link>
+    <Link data-page-parent href={`/admin/bookings?reference=${encodeURIComponent(booking.data.reference)}`} className="text-sm font-semibold text-blue-800">← Booking list</Link>
     <AdminHeading title="Pickup activity" description={booking.data.reference} />
     <p className="rounded-lg border bg-white p-3 text-sm">Pass state · <span className="font-semibold capitalize">{pass.data?.status ?? "Not issued"}</span></p>
     <PickupAdminControls id={id} canReset={booking.data.status === "confirmed"} origins={origins} />

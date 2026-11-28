@@ -22,7 +22,7 @@ export default async function StaffDetailPage({ params }: PageProps<"/owner/staf
   const row = staff.data;
   const events = Array.isArray(history.data) ? history.data : [];
   return <div className="mx-auto max-w-3xl space-y-4 font-body text-[#0F2342]">
-    <Link href="/owner/staff" className={staffAction}>Back to handover staff</Link>
+    <Link data-page-parent href="/owner/staff" className={staffAction}>Back to handover staff</Link>
     {staff.error || !row ? <StaffLoadError message="Could not load this staff member." /> : <section className={`${staffCard} space-y-3`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0"><h1 className="break-words font-heading text-2xl font-bold">{row.display_name}</h1><p className="break-all text-[#5B6F89]">{row.email}</p></div>
